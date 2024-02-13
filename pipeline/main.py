@@ -22,16 +22,16 @@ def change_attribute(exp_set_list: list[Experiment], attribute: str, value: any)
 if __name__ == "__main__":
 
     t1 = time()
-    parent_folder = '/home/Test_images/nd2/Run2'
     # parent_folder = '/home/Test_images/nd2/Run2'
+    parent_folder = '/home/ben/Dropbox/SOTE_Lab/Pyhton/Pipelines/Test_images/nd2/Run2'
     preprocess_parameters = {'parent_folder': parent_folder,
                              'active_channel_list': ['GFP','RFP'],
                              'full_channel_list':['GFP','RFP'], 
                              'file_type': '.nd2',
                              'img_seq_overwrite': False,
-                             'bg_sub': True,'sigma': 0.0,'size': 7,'bg_sub_overwrite': False,
+                             'bg_sub': True,'sigma': 0.0,'size': 7,'bg_sub_overwrite': True,
                              'chan_shift': False, 'reg_channel': 'RFP', 'reg_mtd': 'rigid_body', 'chan_shift_overwrite': False,
-                             'register_images': True, 'reg_ref': 'mean', 'reg_overwrite': False,
+                             'register_images': True, 'reg_ref': 'mean', 'reg_overwrite': True,
                              'blur': False, 'blur_kernel': (15,15), 'blur_sigma': 5,'img_fold_src': None, 'blur_overwrite': False,}
                     
     segmentation_parameters = {'channel_seg':'RFP','manual_threshold': 75, 'thresold_overwrite': True, 'img_fold_src': 'Images_Registered'}
