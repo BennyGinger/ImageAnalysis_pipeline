@@ -1,7 +1,7 @@
 FROM nvidia/cuda:11.3.1-base-ubuntu20.04
 
-# ARG GIT_USER
-# ARG GIT_TOKEN
+ARG GIT_USER
+ARG GIT_TOKEN
 
 # set bash as current shell
 RUN chsh -s /bin/bash
@@ -16,7 +16,7 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# RUN git clone -n https://${GIT_USER}:${GIT_TOKEN}@github.com/BennyGinger/ImageAnalysis_pipeline.git --depth 1
+RUN git clone -n https://${GIT_USER}:${GIT_TOKEN}@github.com/BennyGinger/ImageAnalysis_pipeline.git
 
 # Install miniconda
 ENV CONDA_DIR /opt/conda
@@ -29,10 +29,9 @@ ENV PATH=$CONDA_DIR/bin:$PATH
 # Install mamba
 RUN conda install -y mamba -c conda-forge
 
-ADD ./environment.yml .
-RUN mamba env update --file ./environment.yml &&\
-    conda clean -tipy 
-RUN rm ./environment.yml
+ADD ./environment.yml /root/environment.yml
+RUN mamba env update --file /root/environment.yml &&\
+    conda clean --all
 
 RUN conda init bash
 RUN echo "conda activate cp_dock"  >> ~/.bashrc

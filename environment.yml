@@ -2,12 +2,17 @@ name: cp_dock
 channels:
  - pytorch
  - conda-forge
+ - metric-learning
+ - pyg
 dependencies:
  - python=3.8
  - pytorch=1.11.0
+ - pytorch-metric-learning
+ - torchmetrics=0.6.0
  - cudatoolkit=11.3.1
  - jupyter
  - pystackreg
+ - pyg
  - pip
  - pip:
    - scipy
@@ -29,7 +34,7 @@ dependencies:
    - fastremap
    - imagecodecs
    - pyqtgraph>=0.11.0rc0
-   - pyqt5==5.12
+   - pyqt5==5.15
    - pyqt5.sip
    - google-cloud-storage
    - sphinx>=3.0
@@ -37,5 +42,11 @@ dependencies:
    - sphinx_rtd_theme
    - dask
    - dask_image
+   - record-keeper
+   - faiss-gpu #faiss-cpu (on windows)
+   - python-dotenv
+   - hydra-core==1.1.0.dev5
+   - wandb
+   - rich
  
  

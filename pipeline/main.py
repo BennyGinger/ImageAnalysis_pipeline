@@ -22,7 +22,7 @@ def change_attribute(exp_set_list: list[Experiment], attribute: str, value: any)
 if __name__ == "__main__":
 
     t1 = time()
-    parent_folder = '/home/ben/Dropbox/SOTE_Lab/Pyhton/Pipelines/Test_images/nd2/Run2'
+    parent_folder = '/home/Test_images/nd2/Run2'
     # parent_folder = '/home/Test_images/nd2/Run2'
     preprocess_parameters = {'parent_folder': parent_folder,
                              'active_channel_list': ['GFP','RFP'],
@@ -38,7 +38,7 @@ if __name__ == "__main__":
     
     cp_segmentation_parameters = {'channel_seg':'RFP','model_type':'cyto2','nuclear_marker':None,'as_2D':True,
                                   'cellpose_overwrite':True,'stitch':None,'img_fold_src':'Images_Registered',
-                                  'diameter':60.,'flow_threshold':0.4,'cellprob_threshold':0.0,'gpu':True,"as_npy":False,}
+                                  'diameter':60.,'flow_threshold':0.4,'cellprob_threshold':0.0,'gpu':True,"as_npy":True,}
     
     iou_tracking_parameters = {'channel_seg':'RFP','mask_fold_src':'Masks_Cellpose','stitch_thres_percent':0.75,
                                'shape_thres_percent':0.1,'iou_track_overwrite':False, 'n_mask': 10}
