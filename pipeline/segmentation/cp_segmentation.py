@@ -9,7 +9,7 @@ sys.path.append(parent_dir)
 import numpy as np
 from cellpose import models, core
 from cellpose.io import logger_setup, masks_flows_to_seg
-from os.path import isdir
+from os.path import isfile
 from tifffile import imsave
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from ImageAnalysis_pipeline.pipeline.Experiment_Classes import Experiment
@@ -69,13 +69,13 @@ def setup_cellpose_model(model_type: str='cyto2', **kwargs)-> dict:
     
     
     if model_type not in build_in_models:
-        if isdir(model_type):
+        if isfile(model_type):
             model_settings['pretrained_model'] = model_type
-            model_settings['model_type'] = False
+            model_settings['model_type'] = None
         else:
-            raise ValueError(" ".join(f"Model type '{model_type}' not recognized.",
+            raise ValueError(" ".join([f"Model type '{model_type}' not recognized.",
                                       f"Please choose one of the following: {build_in_models}",
-                                        "or provide a path to a pretrained model."))
+                                        "or provide a path to a pretrained model."]))
     else:
         model_settings['model_type'] = model_type
         model_settings['pretrained_model'] = False
@@ -112,8 +112,8 @@ def setup_cellpose_eval(n_slices: int, as_2D: bool, nuclear_marker: str=None, st
             elif k in model_keys:
                 continue
             else:
-                raise ValueError(" ".join(f"Cellpose run setting '{k}' not recognized.",
-                                  f"Please choose one of the following: {cellpose_eval.keys()}"))
+                raise ValueError(" ".join([f"Cellpose run setting '{k}' not recognized.",
+                                  f"Please choose one of the following: {cellpose_eval.keys()}"]))
     return cellpose_eval
 
 def parallel_executor(func: Callable, input_args: list, gpu: bool)-> None:
