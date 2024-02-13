@@ -113,7 +113,7 @@ def img_seq_exp(img_path: str, active_channel_list: list[str], full_channel_list
             continue
         
         # If images are not processed
-        print(f" --> Extracting images")
+        print(f" --> Extracting images and converting to image sequence")
         write_img(meta_dict)
         
         exp_set = init_from_dict(meta_dict)

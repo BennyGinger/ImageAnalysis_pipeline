@@ -5,14 +5,14 @@ from os import sep, getcwd
 import sys
 parent_dir = getcwd()
 sys.path.append(parent_dir)
-import functools
-from ImageAnalysis_pipeline.pipeline.Experiment_Classes import Experiment
 from os import sep, walk
 import re
-from ImageAnalysis_pipeline.pipeline.pre_process.image_sequence import img_seq_all
-from ImageAnalysis_pipeline.pipeline.pre_process.image_blur import blur_img
-from ImageAnalysis_pipeline.pipeline.pre_process.background_sub import background_sub
-from ImageAnalysis_pipeline.pipeline.pre_process.image_registration import register_img, channel_shift_register
+from .image_sequence import img_seq_all
+from .image_blur import blur_img
+from .background_sub import background_sub
+from .image_registration import register_img, channel_shift_register
+from ..settings.Setting_Class import Settings
+from ..Experiment_Classes import Experiment
 
 EXTENTION = ('.nd2','.tif','.tiff')
 
@@ -39,15 +39,6 @@ def gather_all_images(input_folder: str | list[str])-> list[str]:
         for folder in input_folder:
             img_path_list.extend(get_img_path(folder))
         return img_path_list
-
-def rsetattr(obj, attr, val):
-    pre, _, post = attr.rpartition('.')
-    return setattr(rgetattr(obj, pre) if pre else obj, post, val)
-
-def rgetattr(obj, attr, *args):
-    def _getattr(obj, attr):
-        return getattr(obj, attr, *args)
-    return functools.reduce(_getattr, [obj] + attr.split('.'))
 
 # # # # # # # main function # # # # # # # 
 def pre_process_all(parent_folder: str, active_channel_list: list[str], full_channel_list: list[str]=None, file_type: str=None, 
@@ -80,82 +71,72 @@ def pre_process_all(parent_folder: str, active_channel_list: list[str], full_cha
     
     return exp_set_list
 
-@dataclass
-class BgSub:
-    sigma: float = field(default_factory=float)
-    size: int = field(default_factory=int)
-    overwrite: bool = field(default_factory=bool)
+# @dataclass
+# class BgSub:
+#     sigma: float = field(default_factory=float)
+#     size: int = field(default_factory=int)
+#     overwrite: bool = field(default_factory=bool)
     
-@dataclass
-class ChanShift:
-    reg_channel: str = field(default_factory=str)
-    reg_mtd: str = field(default_factory=str)
-    overwrite: bool = field(default_factory=bool)
+# @dataclass
+# class ChanShift:
+#     reg_channel: str = field(default_factory=str)
+#     reg_mtd: str = field(default_factory=str)
+#     overwrite: bool = field(default_factory=bool)
     
-@dataclass
-class Register:
-    reg_channel: str = field(default_factory=str)
-    reg_mtd: str = field(default_factory=str)
-    reg_ref: str = field(default_factory=str)
-    overwrite: bool = field(default_factory=bool)
+# @dataclass
+# class Register:
+#     reg_channel: str = field(default_factory=str)
+#     reg_mtd: str = field(default_factory=str)
+#     reg_ref: str = field(default_factory=str)
+#     overwrite: bool = field(default_factory=bool)
     
-@dataclass
-class Blur:
-    kernel: tuple[int] = field(default_factory=tuple)
-    sigma: int = field(default_factory=int)
-    img_fold_src: str = field(default_factory=str)
-    overwrite: bool = field(default_factory=bool)
-
-def unpack_settings(input_settings: dict)-> Settings:
-    settings = Settings()
-    if input_settings['run_bg_sub']:
-        settings.bg_sub = BgSub(**input_settings['bg_sub'])
-    if input_settings['run_chan_shift']:
-        settings.chan_shift = ChanShift(**input_settings['chan_shift'])
-    if input_settings['run_register']:
-        settings.register = Register(**input_settings['register'])
-    if input_settings['run_blur']:
-        settings.blur = Blur(**input_settings['blur'])
-    return settings
+# @dataclass
+# class Blur:
+#     kernel: tuple[int] = field(default_factory=tuple)
+#     sigma: int = field(default_factory=int)
+#     img_fold_src: str = field(default_factory=str)
+#     overwrite: bool = field(default_factory=bool)
 
 
-@dataclass
-class Settings:
-    settings: dict
-    bg_sub: BgSub = field(init=False)
-    chan_shift: ChanShift = field(init=False)
-    register: Register = field(init=False)
-    blur: Blur = field(init=False)
+# @dataclass
+# class Settings:
+#     settings: dict
+#     bg_sub: dict = field(init=False)
+#     chan_shift: dict = field(init=False)
+#     register: dict = field(init=False)
+#     blur: dict = field(init=False)
     
-    def __post_init__(self)-> None:
-        if self.settings['run_bg_sub']:
-            self.bg_sub = BgSub(**self.settings['bg_sub'])
-        if self.settings['run_chan_shift']:
-            self.chan_shift = ChanShift(**self.settings['chan_shift'])
-        if self.settings['run_register']:
-            self.register = Register(**self.settings['register'])
-        if self.settings['run_blur']:
-            self.blur = Blur(**self.settings['blur'])
-        self.update_overwrite()
+#     def __post_init__(self)-> None:
+#         if self.settings['run_bg_sub']:
+#             self.bg_sub = self.settings['bg_sub']
+#         if self.settings['run_chan_shift']:
+#             self.chan_shift = self.settings['chan_shift']
+#         if self.settings['run_register']:
+#             self.register = self.settings['register']
+#         if self.settings['run_blur']:
+#             self.blur = self.settings['blur']
+#         self.update_overwrite()
         
-    def update_overwrite(self)-> None:
-        active_branches = [f.name for f in fields(self) if hasattr(self,f.name) and f.name != 'settings']
-        current_overwrite = [getattr(self,f).overwrite for f in active_branches]
+#     def update_overwrite(self)-> None:
+#         active_branches = [f.name for f in fields(self) if hasattr(self,f.name) and f.name != 'settings']
+#         current_overwrite = [getattr(self,f)['overwrite'] for f in active_branches]
+
+#         # Get the new overwrite list, if the previous is true then change the next to true, else keep the same
+#         new_overwrite = []; is_False = True
+#         for i in range(len(current_overwrite)):
+#             if current_overwrite[i] == False and is_False:
+#                 new_overwrite.append(current_overwrite[i])
+#             elif current_overwrite[i] == True and is_False:
+#                 new_overwrite.append(current_overwrite[i])
+#                 is_False = False
+#             elif not is_False:
+#                 new_overwrite.append(True)# Update the overwrite attribute
         
-        # Get the new overwrite list, if the previous is true then change the next to true, else keep the same
-        new_overwrite = []; is_False = True
-        for i in range(len(current_overwrite)):
-            if current_overwrite[i] == False and is_False:
-                new_overwrite.append(current_overwrite[i])
-            elif current_overwrite[i] == True and is_False:
-                new_overwrite.append(current_overwrite[i])
-                is_False = False
-            elif not is_False:
-                new_overwrite.append(True)# Update the overwrite attribute
-        
-        # Update the overwrite attribute
-        for i,branch in enumerate(active_branches):
-            rsetattr(self, f'{branch}.overwrite', new_overwrite[i])
+#         # Update the overwrite attribute
+#         for i,branch in enumerate(active_branches):
+#             temp_dict = getattr(self,branch)
+#             temp_dict['overwrite'] = new_overwrite[i]
+#             setattr(self,branch,temp_dict)
 
 
 @dataclass
@@ -168,8 +149,13 @@ class PreProcess:
 
     def __post_init__(self)-> None:
         # Initialize the experiment list
+        print("Initializing the PrePocess Module")
         img_path_list = self.gather_all_images()
-        self.experiment_list = img_seq_all(img_path_list,self.active_channel_list,self.full_channel_list,self.overwrite)
+        ## Set up the full channel list if not provided
+        if not self.full_channel_list:
+            self.full_channel_list = self.active_channel_list
+        ## Convert the images to img_seq
+        self.experiment_list = self.convert_to_img_seq(img_path_list)
         
     def gather_all_images(self)-> list[str]:
         # look through the folder and collect all image files
@@ -184,23 +170,34 @@ class PreProcess:
                 img_path_list.extend(get_img_path(folder))
             return img_path_list
     
-    def process_from_settings(self,settings: dict)-> list[Experiment]:
-        pass
+    def convert_to_img_seq(self, img_path_list: list[str], overwrite: bool=False)-> None:
+        self.experiment_list = img_seq_all(img_path_list,self.active_channel_list,self.full_channel_list,overwrite)
     
-    def bg_sub(self, sigma: float = 0, size: int = 7, overwrite: bool = False)-> None:
+    def process_from_settings(self, settings: dict)-> list[Experiment]:
+        sets = Settings(settings)
+        if self.overwrite:
+            sets.update_overwrite(overwrite_all=True)
+        
+        if hasattr(sets,'bg_sub'):
+            self.bg_sub(**sets.bg_sub)
+        if hasattr(sets,'chan_shift'):
+            self.chan_shift(**sets.chan_shift)
+        if hasattr(sets,'register'):
+            self.register(**sets.register)
+        if hasattr(sets,'blur'):
+            self.blur(**sets.blur)
+    
+    def bg_sub(self, sigma: float=0, size: int=7, overwrite: bool=False)-> None:
         self.experiment_list = background_sub(self.experiment_list,sigma,size,overwrite)
     
-    def chan_shift(self, reg_channel: str, reg_mtd: str, overwrite: bool = False)-> None:
+    def chan_shift(self, reg_channel: str, reg_mtd: str, overwrite: bool=False)-> None:
         self.experiment_list = channel_shift_register(self.experiment_list,reg_mtd,reg_channel,overwrite)
     
-    def register(self, reg_channel: str, reg_mtd: str, reg_ref: str, overwrite: bool = False)-> None:
+    def register(self, reg_channel: str, reg_mtd: str, reg_ref: str, overwrite: bool=False)-> None:
         self.experiment_list = register_img(self.experiment_list,reg_channel,reg_mtd,reg_ref,overwrite)
     
-    # FIXME: Add the img_fold_src to the blur function
-    def blur(self, kernel: tuple[int], sigma: int, img_fold_src: str, overwrite: bool = False)-> None:
+    def blur(self, kernel: tuple[int], sigma: int, img_fold_src: str=None, overwrite: bool=False)-> None:
         self.experiment_list = blur_img(self.experiment_list,kernel,sigma,img_fold_src,overwrite)
-
-
 
 
 
