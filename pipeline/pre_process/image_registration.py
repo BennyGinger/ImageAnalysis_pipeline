@@ -1,17 +1,12 @@
 from __future__ import annotations
 from os.path import join
-from os import sep, getcwd
-import sys
-parent_dir = getcwd()
-sys.path.append(parent_dir)
-
+from os import sep
 from tifffile import imread, imwrite
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from pystackreg import StackReg
-from ImageAnalysis_pipeline.pipeline.Experiment_Classes import Experiment
-from ImageAnalysis_pipeline.pipeline.loading_data import load_stack, create_save_folder
-from typing import Iterable
+from Experiment_Classes import Experiment
+from loading_data import load_stack, create_save_folder
 
 
 def chan_shift_file_name(file_list: list, channel_list: list, reg_channel: str)-> list[tuple]:

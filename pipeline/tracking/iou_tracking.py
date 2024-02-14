@@ -1,16 +1,11 @@
 from __future__ import annotations
-from os import getcwd, sep, listdir
-import sys
-
-parent_dir = getcwd()
-sys.path.append(parent_dir)
-
+from os import sep, listdir
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
 from os.path import join
-from ImageAnalysis_pipeline.pipeline.Experiment_Classes import Experiment
-from ImageAnalysis_pipeline.pipeline.loading_data import is_processed, mask_list_src, load_stack, create_save_folder, delete_old_masks
-from ImageAnalysis_pipeline.pipeline.mask_transformation.mask_morph import morph_missing_mask
+from Experiment_Classes import Experiment
+from loading_data import is_processed, mask_list_src, load_stack, create_save_folder, delete_old_masks
+from mask_transformation.mask_morph import morph_missing_mask
 from cellpose.utils import stitch3D
 from cellpose.metrics import _intersection_over_union
 from scipy.stats import mode

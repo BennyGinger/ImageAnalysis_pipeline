@@ -1,16 +1,11 @@
 from __future__ import annotations
-from os import getcwd
-import sys
-parent_dir = getcwd()
-sys.path.append(parent_dir)
-
 import cv2
 from skimage.morphology import remove_small_objects, remove_small_holes
 import numpy as np
 from tifffile import imsave
 from concurrent.futures import ThreadPoolExecutor
-from ImageAnalysis_pipeline.pipeline.Experiment_Classes import Experiment
-from ImageAnalysis_pipeline.pipeline.loading_data import is_processed, load_stack, create_save_folder, gen_input_data, delete_old_masks
+from Experiment_Classes import Experiment
+from loading_data import is_processed, load_stack, create_save_folder, gen_input_data, delete_old_masks
 
 def determine_threshold(img: np.ndarray, manual_threshold: float=None)-> float:
     # Set the threshold's value. Either as input or automatically if thres==None

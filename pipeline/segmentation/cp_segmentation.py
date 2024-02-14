@@ -1,19 +1,13 @@
 from __future__ import annotations
 from typing import Callable
-from os import getcwd
-import sys
-
-parent_dir = getcwd()
-sys.path.append(parent_dir)
-
 import numpy as np
 from cellpose import models, core
 from cellpose.io import logger_setup, masks_flows_to_seg
 from os.path import isdir
 from tifffile import imsave
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from ImageAnalysis_pipeline.pipeline.Experiment_Classes import Experiment
-from ImageAnalysis_pipeline.pipeline.loading_data import load_stack, is_processed, create_save_folder, gen_input_data, delete_old_masks
+from Experiment_Classes import Experiment
+from loading_data import load_stack, is_processed, create_save_folder, gen_input_data, delete_old_masks
 
 def apply_cellpose_segmentation(img_dict: dict)-> None:
     img = load_stack(img_dict['imgs_path'],img_dict['channel_seg_list'],[img_dict['frame']])

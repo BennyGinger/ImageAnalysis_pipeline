@@ -1,18 +1,14 @@
 from __future__ import annotations
-from os import sep, scandir, getcwd
+from os import sep, scandir
 from os.path import join, exists
-import sys
-parent_dir = getcwd() 
-# Add the parent to sys.pah
-sys.path.append(parent_dir)
-from ImageAnalysis_pipeline.pipeline.Experiment_Classes import init_from_dict, init_from_json, Experiment
-from ImageAnalysis_pipeline.pipeline.loading_data import create_save_folder
+from Experiment_Classes import init_from_dict, init_from_json, Experiment
+from loading_data import create_save_folder
 
 from nd2reader import ND2Reader
 from tifffile import imwrite, imread
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from ImageAnalysis_pipeline.pipeline.pre_process.metadata import get_metadata
+from .metadata import get_metadata
 
  
 def name_img_list(meta_dict: dict)-> list[str]:

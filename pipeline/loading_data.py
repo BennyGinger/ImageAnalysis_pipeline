@@ -1,11 +1,7 @@
 from __future__ import annotations
-from os import sep, getcwd, mkdir, remove
-import sys
-parent_dir = getcwd()
-sys.path.append(parent_dir)
-
+from os import sep, mkdir, remove
 from os.path import isdir, join, isfile
-from ImageAnalysis_pipeline.pipeline.Experiment_Classes import Experiment
+from Experiment_Classes import Experiment
 from typing import Iterable
 import numpy as np
 from tifffile import imread 
