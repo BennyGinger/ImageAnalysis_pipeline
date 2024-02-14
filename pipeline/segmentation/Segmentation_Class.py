@@ -1,8 +1,10 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from os import walk, sep
+from os import PathLike, walk, sep
 from os.path import join
+from typing import Any
 from Experiment_Classes import Experiment, init_from_json
+from .cp_segmentation import cellpose_segmentation
 
 @dataclass
 class Segmentation:
@@ -46,3 +48,14 @@ class Segmentation:
     def segment_from_settings(self, settings: dict)-> list[Experiment]:
         
         return self.experiment_list
+    
+    def cellpose(self, channel_to_seg: str | list[str], model_type: str | PathLike = 'cyto2', diameter: float = 60, flow_threshold: float = 0.4, 
+                 cellprob_threshold: float = 0, cellpose_overwrite: bool = False, img_fold_src: str = "", as_2D: bool = False, as_npy: bool = False,
+                 nuclear_marker: str = "",**kwargs: Any)-> list[Experiment]:
+        
+        if isinstance(channel_to_seg,str):
+            return cellpose_segmentation(self.experiment_list,channel_to_seg,model_type,diameter,flow_threshold,
+                                         cellprob_threshold,cellpose_overwrite,img_fold_src,as_2D,as_npy,nuclear_marker,**kwargs)
+        if isinstance(channel_to_seg,list):
+            for channel in channel_to_seg:
+                self.cellpose(channel,model_type,diameter,flow_threshold,cellprob_threshold,cellpose_overwrite,img_fold_src,as_2D,as_npy,nuclear_marker,**kwargs)

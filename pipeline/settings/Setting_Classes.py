@@ -51,7 +51,20 @@ class PreProcessSettings:
             temp_dict['overwrite'] = new_ow[i]
             setattr(self,branch,temp_dict)
 
+@dataclass
+class SegmentationSettings:
+    settings: dict
+    cellpose: str = field(init=False)
+    threshold: dict = field(init=False)
+    
+    def __post_init__(self)-> None:
+        if self.settings['run_cellpose']:
+            self.cellpose = self.settings['cellpose']
+        if self.settings['run_threshold']:
+            self.threshold = self.settings['threshold']
 
+    
+    
 ################# Class ideas #################
 
 # @dataclass

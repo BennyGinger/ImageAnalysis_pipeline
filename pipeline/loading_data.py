@@ -26,7 +26,7 @@ def load_stack(img_list: list[str], channel_list: Iterable[str], frame_range: It
         stack = np.moveaxis(np.squeeze(np.stack(exp_list)), [0], [-1])
     return stack
 
-def img_list_src(exp_set: Experiment, img_fold_src: str | None)-> list[str]:
+def img_list_src(exp_set: Experiment, img_fold_src: str)-> list[str]:
     """If not manually specified, return the latest processed images list"""
     
     if img_fold_src and img_fold_src == 'Images':
