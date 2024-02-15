@@ -18,38 +18,15 @@ class Segmentation:
         
         # Initialize the experiment list
         print("Initializing the Segmentation Module")
-        jsons_path = self.gather_all_json_path()
+        jsons_path = gather_all_json_path(self.input_folder)
         
         self.experiment_list = [init_from_json(json_path) for json_path in jsons_path]
-    
-    def gather_all_json_path(self)-> list[str]:
-        print(f"\nSearching for 'exp_settings.json' files in {self.input_folder}")
-        # Get the path of all the json files in all subsequent folders/subfolders
-        if isinstance(self.input_folder,str):
-            return self.get_json_path(self.input_folder)
-        
-        if isinstance(self.input_folder,list):
-            jsons_path = []
-            for folder in self.input_folder:
-                jsons_path.extend(self.get_json_path(folder))
-            return jsons_path
             
-    @staticmethod    
-    def get_json_path(folder: str)-> list[str]:
-        # Get the path of all the nd2 files in all subsequent folders/subfolders and exp_dict if available
-        jsons_path = []
-        for root , _, files in walk(folder):
-            for f in files:
-                # Look for all files with selected extension and that are not already processed 
-                if f == 'exp_settings.json':
-                    jsons_path.append(join(sep,root+sep,f))
-        return sorted(jsons_path)
-    
     def segment_from_settings(self, settings: dict)-> list[Experiment]:
         
         return self.experiment_list
     
-    def cellpose(self, channel_to_seg: str | list[str], model_type: str | PathLike = 'cyto2', diameter: float = 60, flow_threshold: float = 0.4, 
+    def cellpose(self, channel_to_seg: str | list[str], model_type: str | PathLike = 'cyto3', diameter: float = 60, flow_threshold: float = 0.4, 
                  cellprob_threshold: float = 0, cellpose_overwrite: bool = False, img_fold_src: str = "", as_2D: bool = False, as_npy: bool = False,
                  nuclear_marker: str = "",**kwargs: Any)-> list[Experiment]:
         
@@ -59,3 +36,29 @@ class Segmentation:
         if isinstance(channel_to_seg,list):
             for channel in channel_to_seg:
                 self.cellpose(channel,model_type,diameter,flow_threshold,cellprob_threshold,cellpose_overwrite,img_fold_src,as_2D,as_npy,nuclear_marker,**kwargs)
+                
+                
+                
+def gather_all_json_path(input_folder: str | list[str])-> list[str]:
+    print(f"\nSearching for 'exp_settings.json' files in {input_folder}")
+    # Get the path of all the json files in all subsequent folders/subfolders
+    if isinstance(input_folder,str):
+        return get_json_path(input_folder)
+    
+    if isinstance(input_folder,list):
+        jsons_path = []
+        for folder in input_folder:
+            jsons_path.extend(get_json_path(folder))
+        return jsons_path
+       
+def get_json_path(folder: str)-> list[str]:
+    # Get the path of all the nd2 files in all subsequent folders/subfolders and exp_dict if available
+    jsons_path = []
+    for root , _, files in walk(folder):
+        for f in files:
+            # Look for all files with selected extension and that are not already processed 
+            if f == 'exp_settings.json':
+                jsons_path.append(join(sep,root+sep,f))
+    return sorted(jsons_path)
+    
+    

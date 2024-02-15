@@ -11,7 +11,7 @@ from Experiment_Classes import Experiment
 from loading_data import load_stack, is_processed, create_save_folder, gen_input_data, delete_old_masks
 
 MODEL_SETTINGS = {'gpu':core.use_gpu(),
-                  'model_type': 'cyto2',
+                  'model_type': 'cyto3',
                   'pretrained_model':False,
                   'net_avg':False,
                   'device':None,
@@ -44,8 +44,12 @@ CELLPOSE_EVAL = {'batch_size':8,
                  'progress':None,
                  'model_loaded':False}
 
-BUILD_IN_MODELS = ['cyto','nuclei','tissuenet','livecell','cyto2',
-                     'CP','CPx','TN1','TN2','TN3','LC1','LC2','LC3','LC4']
+BUILD_IN_MODELS = ['cyto3', 'nuclei', 'cyto2_cp3', 
+                'tissuenet_cp3', 'livecell_cp3',
+                'yeast_PhC_cp3', 'yeast_BF_cp3',
+                'bact_phase_cp3', 'bact_fluor_cp3',
+                'deepbacs_cp3', 'cyto2']
+
 
 IN_HOUSE_MODELS = []
 
@@ -119,7 +123,7 @@ def setup_cellpose_eval(cellpose_eval: dict, n_slices: int, as_2D: bool, nuclear
     
     return cellpose_eval
 
-def initialize_cellpose(n_slices: int, as_2D: bool, model_type: str | PathLike ='cyto2', diameter: float=60., nuclear_marker: str="", 
+def initialize_cellpose(n_slices: int, as_2D: bool, model_type: str | PathLike ='cyto3', diameter: float=60., nuclear_marker: str="", 
                              flow_threshold: float=0.4, cellprob_threshold: float=0.0, **kwargs)-> tuple[models.CellposeModel,dict,dict]:
     # Default settings for cellpose model
     model_settings = MODEL_SETTINGS; cellpose_eval = CELLPOSE_EVAL
@@ -151,7 +155,7 @@ def parallel_executor(func: Callable, input_args: list, gpu: bool)-> None:
             executor.map(func,input_args)
 
 # # # # # # # # main functions # # # # # # # # # 
-def cellpose_segmentation(exp_set_list: list[Experiment], channel_to_seg: str, model_type: str | PathLike ='cyto2',
+def cellpose_segmentation(exp_set_list: list[Experiment], channel_to_seg: str, model_type: str | PathLike ='cyto3',
                           diameter: float=60., flow_threshold: float=0.4, cellprob_threshold: float=0.0,
                           cellpose_overwrite: bool=False, img_fold_src: str="", as_2D: bool=False,
                           as_npy: bool=False, nuclear_marker: str="", **kwargs)-> list[Experiment]:
