@@ -1,5 +1,5 @@
 # import BaxTrack as BTP # FIXME: remove MATLAB from here!!!
-from utility import Utility
+from utility import Utility, create_imseq
 from experiments import Exp_Indiv
 import pandas as pd
 from analysis import Analysis
@@ -88,14 +88,17 @@ class Experiments(Utility):
             defReg['reg_ow'] = True
         
         # Log
-        print(f"Opening all '{self.file_type}' files:\n")
+        if hasattr(self, 'file_type'):
+            print(f"Opening all '{self.file_type}' files:\n")
+        else:
+            self.file_type = None
         
         # Create image seqs
         self.exp_dict = {}
         for img_path in self.imgS_path:
-            self.exp_dict.update(self.create_imseq(img_path=img_path,imseq_ow=imseq_ow,
-                                                   channel_list=self.channel_list,file_type=self.file_type,
-                                                   true_channel_list=true_channel_list))
+            self.exp_dict.update(create_imseq(img_path=img_path,imseq_ow=imseq_ow,
+                                                   channel_list=self.channel_list,
+                                                   raw_chan_lst=true_channel_list))
         
         # Apply reg or bg_sub
         self.exp_folder_path = []

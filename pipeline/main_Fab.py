@@ -23,22 +23,22 @@ if __name__ == "__main__":
 
     t1 = time()
     # parent_folder = '/home/Test_images/nd2/Run2'
-    parent_folder = '/home/Fabian/ImageData'
+    parent_folder = '/home/Szimi'
     preprocess_parameters = {'parent_folder': parent_folder,
-                             'active_channel_list': ['GFP','RFP'],
-                             'full_channel_list':['GFP','RFP'], 
+                             'active_channel_list': ['bf'],
+                             'full_channel_list':['bf'], 
                              'file_type': '.nd2',
                              'img_seq_overwrite': False,
-                             'bg_sub': True,'sigma': 0.0,'size': 7,'bg_sub_overwrite': False,
+                             'bg_sub': False,'sigma': 0.0,'size': 7,'bg_sub_overwrite': False,
                              'chan_shift': False, 'reg_channel': 'RFP', 'reg_mtd': 'rigid_body', 'chan_shift_overwrite': False,
-                             'register_images': True, 'reg_ref': 'previous', 'reg_overwrite': True,
+                             'register_images': True, 'reg_ref': 'previous', 'reg_overwrite': False,
                              'blur': False, 'blur_kernel': (15,15), 'blur_sigma': 5,'img_fold_src': None, 'blur_overwrite': False,}
                     
     segmentation_parameters = {'channel_seg':'RFP','manual_threshold': 75, 'thresold_overwrite': True, 'img_fold_src': 'Images_Registered'}
     
     cp_segmentation_parameters = {'channel_seg':'GFP','model_type':'/home/Fabian/Models/Cellpose/twoFishMacrophage','nuclear_marker':None,'as_2D':True,
                                   'cellpose_overwrite':True,'stitch':None,'img_fold_src':'Images_Registered',
-                                  'diameter':13,'flow_threshold':0,'cellprob_threshold':-1.5,'gpu':True,"as_npy":True,}
+                                  'diameter':13,'flow_threshold':0,'cellprob_threshold':-1.5,'gpu':True,"as_npy":False,}
     
     iou_tracking_parameters = {'channel_seg':'RFP','mask_fold_src':'Masks_Cellpose','stitch_thres_percent':0.75,
                                'shape_thres_percent':0.1,'iou_track_overwrite':False, 'n_mask': 10}
@@ -48,7 +48,7 @@ if __name__ == "__main__":
     
     exp_set_list = pre_process_all(**preprocess_parameters)
     # exp_set_list = threshold(exp_set_list,**segmentation_parameters)
-    exp_set_list = cellpose_segmentation(exp_set_list,**cp_segmentation_parameters)
+    # exp_set_list = cellpose_segmentation(exp_set_list,**cp_segmentation_parameters)
     # exp_set_list = iou_tracking(exp_set_list,**iou_tracking_parameters)
     
     # Add interval_sec manually

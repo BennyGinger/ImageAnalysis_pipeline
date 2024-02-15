@@ -97,9 +97,9 @@ def get_ND2_meta(in_var):
 def modifed_meta(channel_list,raw_chan_lst,img_path):
     # Extract raw metadata
     if img_path.endswith('.nd2'):
-        exp_para = Utility.get_ND2_meta(in_var=img_path)
+        exp_para = get_ND2_meta(in_var=img_path)
     elif img_path.endswith('.tif','.tiff'):
-        exp_para = Utility.get_tif_meta(in_var=img_path)
+        exp_para = get_tif_meta(in_var=img_path)
     
     # Setup metadeta and settings
     temp_exp_dict = {}
@@ -215,7 +215,7 @@ def create_imseq(img_path,imseq_ow,channel_list,raw_chan_lst): #TODO: modify pic
             if not exists(join(sep,exp_path+sep,'exp_properties.pickle')):
                 # If old folder without exp_properties, then add it
                 temp_exp_dict[exp_path]['status'] = 'active'
-                Utility.save_exp_prop(exp_path=exp_path,exp_prop=temp_exp_dict[exp_path])
+                Utility.save_settings(exp_path=exp_path,exp_prop=temp_exp_dict[exp_path])
             else: exp_dict[exp_path] = Utility.open_exp_prop(exp_path=exp_path)
             continue
         
@@ -240,7 +240,7 @@ def create_imseq(img_path,imseq_ow,channel_list,raw_chan_lst): #TODO: modify pic
         # Update exp_dict
         exp_prop['fct_inputs']['create_imseq'] = {'img_path':img_path,'imseq_ow':imseq_ow,'channel_list':channel_list,'raw_chan_lst':raw_chan_lst,}
         exp_dict[exp_path] = exp_prop
-        Utility.save_exp_prop(exp_path=exp_path,exp_prop=exp_prop)
+        Utility.save_settings(exp_path=exp_path,exp_prop=exp_prop)
     return exp_dict
 
 class Utility():
@@ -309,7 +309,7 @@ class Utility():
             # Save pickle
             exp_prop['fct_inputs']['man_bg_sub'] = {'imgFold_path':imgFold_path}
             exp_prop['img_preProcess']['bg_sub'] = 'Manual'
-            Utility.save_exp_prop(exp_path=exp_path,exp_prop=exp_prop)
+            Utility.save_settings(exp_path=exp_path,exp_prop=exp_prop)
         return exp_prop
     
     @staticmethod
@@ -340,7 +340,7 @@ class Utility():
         # Save pickle
         exp_prop['fct_inputs']['smo_bg_sub'] = {'imgFold_path':imgFold_path,'smo_sigma':sigma,'smo_size':size}
         exp_prop['img_preProcess']['bg_sub'] = 'Auto'
-        Utility.save_exp_prop(exp_path=exp_path,exp_prop=exp_prop)
+        Utility.save_settings(exp_path=exp_path,exp_prop=exp_prop)
         return exp_prop
     
     #### Utility for pre-processing images
@@ -500,7 +500,7 @@ class Utility():
                     exp_prop['channel_seg'] = {'Images_Registered':[reg_channel]}
                 
         # Save settings
-        Utility.save_exp_prop(exp_path=exp_path,exp_prop=exp_prop)
+        Utility.save_settings(exp_path=exp_path,exp_prop=exp_prop)
         return exp_prop
 
     @staticmethod
@@ -538,7 +538,7 @@ class Utility():
             # Save settings
             exp_prop['fct_inputs']['blur_img'] = {'imgFold_path':imgFold_path,'blur_kernel':blur_kernel,'blur_sigma':blur_sigma,'blur_ow':blur_ow}
             exp_prop['img_preProcess']['blur'] = True
-            Utility.save_exp_prop(exp_path=exp_path,exp_prop=exp_prop)
+            Utility.save_settings(exp_path=exp_path,exp_prop=exp_prop)
         return exp_prop,blur_img_path
     
     @staticmethod
