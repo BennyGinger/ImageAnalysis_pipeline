@@ -24,6 +24,7 @@ class Masks(LoadClass):
     threshold_seg: dict = field(default_factory=dict)
     cellpose_seg: dict = field(default_factory=dict)
     iou_tracking: dict = field(default_factory=dict)
+    manual_track: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -88,6 +89,8 @@ class Experiment(LoadClass):
     def mask_cellpose_list(self)-> list:
         mask_folder = join(sep,self.exp_path+sep,'Masks_Cellpose')
         return [join(sep,mask_folder+sep,f) for f in sorted(listdir(mask_folder)) if f.endswith(('.tif','.npy'))]
+    
+    #TODO: add the manual tracking mask list
     
     @property
     def mask_iou_track_list(self)-> list:

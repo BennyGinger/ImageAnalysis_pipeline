@@ -196,7 +196,7 @@ def create_overlap_mask(overlap: np.ndarray, dmap_array: np.ndarray, inc_points_
     overlap_mask[overlap_mask!=0] = 1
     return overlap_mask
     
-def bbox_ND(mask: np.ndarray)-> tuple(np.ndarray, slice):
+def bbox_ND(mask: np.ndarray)-> tuple[np.ndarray, slice]:
     """
     This function take a np.array (any dimension) and create a bounding box around the nonzero shape.
     Also return a slice object to be able to reconstruct to the originnal shape.
