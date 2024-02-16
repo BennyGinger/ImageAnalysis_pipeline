@@ -2,7 +2,7 @@ settings = {
     "input_folder": '/home/Test_images/nd2/Run2',
     "init":{"active_channel_list": ['GFP','RFP'],
             'full_channel_list':[],
-            "overwrite": True},
+            "overwrite": False},
     
     
     "run_bg_sub": True,
@@ -33,10 +33,10 @@ settings = {
                  "diameter": 60.0,
                  "flow_threshold": 0.4,
                  "cellprob_threshold": 0.0,
-                 "overwrite": False,
+                 "overwrite": True,
                  "img_fold_src": "",
                  "process_as_2D": False,
-                 "save_as_npy": True,
+                 "save_as_npy": False,
                  "nuclear_marker": "",},
     
     "run_threshold": True,

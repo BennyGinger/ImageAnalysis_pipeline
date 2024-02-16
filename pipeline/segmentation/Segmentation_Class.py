@@ -16,8 +16,11 @@ class Segmentation(BaseModule):
         # experiment_list: list[Experiment] = field(init=False)
     def __post_init__(self)-> None:
         super().__post_init__()
-        jsons_path = gather_all_json_path(self.input_folder)
+        if self.experiment_list:
+            return
         
+        # Initialize the experiment list
+        jsons_path = gather_all_json_path(self.input_folder)
         self.experiment_list = [init_from_json(json_path) for json_path in jsons_path]
             
     def segment_from_settings(self, settings: dict)-> list[Experiment]:

@@ -18,30 +18,31 @@ class PreProcess(BaseModule):
     # Attributes from the BaseModule class:
         # input_folder: PathLike | list[PathLike]
         # experiment_list: list[Experiment] = field(init=False)
-    active_channel_list: list[str] # BUG: this should be default_factory=list
+    active_channel_list: list[str] = field(default_factory=list)
     full_channel_list: list[str] = field(default_factory=list)
     overwrite: bool = False
 
     def __post_init__(self)-> None:
         super().__post_init__()
         img_path_list = self.gather_all_images()
+        print('done')
         ## Set up the full channel list if not provided
         if not self.full_channel_list:
             self.full_channel_list = self.active_channel_list
         ## Convert the images to img_seq
-        self.experiment_list = self.convert_to_img_seq(img_path_list)
+        self.experiment_list = self.convert_to_img_seq(img_path_list,self.overwrite)
         
     def gather_all_images(self)-> list[str]:
         # look through the folder and collect all image files
-        print(f"\nSearching for {EXTENTION} files in {self.input_folder}")
+        print(f"\n... Searching for {EXTENTION} files in {self.input_folder} ...")
         # Get the path of all the nd2 files in all subsequent folders/subfolders and exp_dict if available
         if isinstance(self.input_folder,str):
-            return self.get_img_path(self.input_folder)
+            return get_img_path(self.input_folder)
         
         if isinstance(self.input_folder,list):
             img_path_list = []
             for folder in self.input_folder:
-                img_path_list.extend(self.get_img_path(folder))
+                img_path_list.extend(get_img_path(folder))
             return img_path_list
     
     def convert_to_img_seq(self, img_path_list: list[PathLike], overwrite: bool=False)-> list[Experiment]:

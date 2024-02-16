@@ -98,10 +98,31 @@ def create_exp_folder(meta_dict: dict) -> dict:
         meta_dict['level_0_tag'] = path_split[-2]
     return meta_dict
 
+def update_channel_names(meta_dict: dict, active_channel_list: list=[], full_channel_list: list=[]) -> dict:
+    if active_channel_list and len(active_channel_list)>meta_dict['full_n_channels']:
+        print(f"\n---- Warning: The number of active channels given ({len(active_channel_list)})"+
+              f"is greater than the number of channels in the image file ({meta_dict['full_n_channels']})."+
+              "The active channels will renamed and set to the number of channel in the image ----")
+        meta_dict['active_channel_list'] = meta_dict['full_channel_list'] = [f'C{i+1}' for i in range(meta_dict['full_n_channels'])]
+        return meta_dict
+    
+    if not active_channel_list:
+        print(f"\n---- Warning: No active channels given. All channels will be automatically named ----")
+        meta_dict['active_channel_list'] = meta_dict['full_channel_list'] = [f'C{i+1}' for i in range(meta_dict['full_n_channels'])]
+        return meta_dict
+    
+    if not full_channel_list:
+        meta_dict['active_channel_list'] = meta_dict['full_channel_list']  = active_channel_list
+        return meta_dict
+    
+    meta_dict['active_channel_list'] = active_channel_list
+    meta_dict['full_channel_list'] = full_channel_list
+    return meta_dict
+
 # # # # # # # # main functions # # # # # # # # # 
-def get_metadata(img_path: PathLike, active_channel_list: list, full_channel_list: list=[])-> dict:
+def get_metadata(img_path: PathLike, active_channel_list: list=[], full_channel_list: list=[])-> dict:
     """Gather metadata from all image files (.nd2 and/or .tif) and is attributed to its own experiment folder"""
-    print(f"\nExtracting metadata from images")
+    print(f"\nExtracting metadata from {img_path}")
     if img_path.endswith('.nd2'):
         meta_dict = get_ND2_meta(img_path)
         meta_dict['file_type'] = '.nd2'
@@ -117,15 +138,9 @@ def get_metadata(img_path: PathLike, active_channel_list: list, full_channel_lis
     meta_dict = create_exp_folder(meta_dict)
     
     # Add channel data
-    meta_dict['active_channel_list'] = active_channel_list
-    if full_channel_list:
-        meta_dict['full_channel_list'] = full_channel_list
-    else:
-        meta_dict['full_channel_list'] = active_channel_list
+    return update_channel_names(meta_dict,active_channel_list,full_channel_list)
     
-    return meta_dict
 
-# TODO: check the number of channels in the image file...
     
 
 if __name__ == '__main__':

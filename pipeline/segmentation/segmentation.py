@@ -50,13 +50,13 @@ def threshold(exp_set_list: list[Experiment], channel_seg: str, overwrite: bool=
         # Check if exist
         if is_processed(exp_set.masks.threshold_seg,channel_seg,overwrite):
                 # Log
-            print(f" --> Object has already been segmented with {exp_set.process.simple_threshold}")
+            print(f" --> Object has already been segmented for the channel {list(exp_set.masks.threshold_seg.keys())}")
             continue
         
         # Initialize input args and save folder
+        create_save_folder(exp_set.exp_path,'Masks_Threshold')
         delete_old_masks(exp_set.masks.threshold_seg,channel_seg,exp_set.mask_threshold_list,overwrite)
         img_data = gen_input_data(exp_set,img_fold_src,[channel_seg],manual_threshold=manual_threshold)
-        create_save_folder(exp_set.exp_path,'Masks_Threshold')
         
         print(f" --> Segmenting object...")
         # Determine threshold value

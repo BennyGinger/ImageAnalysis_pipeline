@@ -13,36 +13,33 @@ from image_handeling.loading_data import load_stack, is_processed, create_save_f
 MODEL_SETTINGS = {'gpu':core.use_gpu(),
                   'model_type': 'cyto3',
                   'pretrained_model':False,
-                  'net_avg':False,
                   'device':None,
                   'diam_mean':30.,
-                  'residual_on':True,
-                  'style_on':True,
-                  'concatenation':False,
                   'nchan':2}
 
 CELLPOSE_EVAL = {'batch_size':8,
+                 'resample':True,
                  'channels':[0,0],
                  'channel_axis':None,
                  'z_axis':None,
-                 'invert':False,
                  'normalize':True,
+                 'invert':False,
+                 'rescale':None,
                  'diameter':60.,
+                 'flow_threshold':0.4,
+                 'cellprob_threshold':0.,
                  'do_3D':False,
                  'anisotropy':None,
-                 'net_avg':False,
+                 'stitch_threshold':0.,
+                 'min_size':15,
+                 'niter':None,
                  'augment':False,
                  'tile':True,
                  'tile_overlap':0.1,
-                 'resample':True,
+                 'bsize':224,
                  'interp':True,
-                 'flow_threshold':0.4,
-                 'cellprob_threshold':0.,
-                 'min_size':500,
-                 'stitch_threshold':0.,
-                 'rescale':None,
-                 'progress':None,
-                 'model_loaded':False}
+                 'compute_masks':True,
+                 'progress':None}
 
 BUILD_IN_MODELS = ['cyto3', 'nuclei', 'cyto2_cp3', 
                 'tissuenet_cp3', 'livecell_cp3',
@@ -59,7 +56,6 @@ def apply_cellpose_segmentation(img_dict: dict)-> None:
         img = np.amax(img,axis=0)
     print(f"  ---> Processing frame {img_dict['frame']+1}")
     mask_path = img_dict['imgs_path'][0].replace("Images","Masks_Cellpose").replace('_Registered','').replace('_Blured','')
-    
     # Run Cellpose. Returns 4 variables
     if img_dict['as_npy']:
         masks_cp, flows, _ = img_dict['model'].eval(img,**img_dict['cellpose_eval'])
@@ -73,12 +69,13 @@ def save_npy(img: np.ndarray | list[np.ndarray], masks_cp: np.ndarray | list[np.
              diameter: float, mask_path: PathLike)-> None:
     if img.ndim==3:
         mask_path = mask_path.replace("_z0001","_allz")
-    masks_flows_to_seg(img,masks_cp,flows,diameter,mask_path)
+    masks_flows_to_seg(img,masks_cp,flows,mask_path,diameter)
 
 def save_tiff(masks_cp: np.ndarray | list[np.ndarray], mask_path: PathLike)-> None:
     if masks_cp.ndim==3:
         for z_silce in range(masks_cp.shape[0]):
-            mask_path = mask_path.replace("_z0001",f"_z{z_silce+1:04d}")
+            split_name = mask_path.split("_z")
+            mask_path = f"{split_name[0]}_z{z_silce+1:04d}.tif"
             imsave(mask_path,masks_cp[z_silce,...].astype('uint16'))
     else:
         imsave(mask_path,masks_cp.astype('uint16'))
@@ -126,7 +123,7 @@ def setup_cellpose_eval(cellpose_eval: dict, n_slices: int, process_as_2D: bool,
 def initialize_cellpose(n_slices: int, process_as_2D: bool, model_type: str | PathLike ='cyto3', diameter: float=60., nuclear_marker: str="", 
                              flow_threshold: float=0.4, cellprob_threshold: float=0.0, **kwargs)-> tuple[models.CellposeModel,dict,dict]:
     # Default settings for cellpose model
-    model_settings = MODEL_SETTINGS; cellpose_eval = CELLPOSE_EVAL
+    model_settings = MODEL_SETTINGS.copy(); cellpose_eval = CELLPOSE_EVAL.copy()
     cellpose_eval['diameter'] = diameter; cellpose_eval['flow_threshold'] = flow_threshold; cellpose_eval['cellprob_threshold'] = cellprob_threshold
     model_settings['model_type'] = model_type
     

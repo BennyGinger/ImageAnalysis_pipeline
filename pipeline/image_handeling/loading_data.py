@@ -78,10 +78,10 @@ def is_processed(process: dict, channel_seg: str, overwrite: bool)-> bool:
 def create_save_folder(exp_path: PathLike, folder_name: str)-> PathLike:
     save_folder = join(sep,exp_path+sep,folder_name)
     if not isdir(save_folder):
-        print(f" ---> Creating folder: {save_folder}")
+        print(f" ---> Creating saving folder: {save_folder}")
         mkdir(save_folder)
         return save_folder
-    print(f" ---> Saving in folder: {save_folder}")
+    print(f" ---> Saving folder already exists: {save_folder}")
     return save_folder
 
 def gen_input_data(exp_set: Experiment, img_fold_src: PathLike, channel_seg_list: list, **kwargs)-> list[dict]:

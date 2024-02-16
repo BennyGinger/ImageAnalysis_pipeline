@@ -9,7 +9,7 @@ import numpy as np
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from .metadata import get_metadata
 
-#TODO: If nothing is provided for the active channels, give numbered names to the channels
+
 def name_img_list(meta_dict: dict)-> list[PathLike]:
     """Return a list of generated image names based on the metadata of the experiment"""
     # Create a name for each image
@@ -84,7 +84,7 @@ def init_exp_settings(exp_path: PathLike, meta_dict: dict)-> Experiment:
         exp_set = init_from_dict(meta_dict)
     return exp_set
 
-def img_seq_exp(img_path: PathLike, active_channel_list: list[str], full_channel_list: list[str]=[], img_seq_overwrite: bool=False)-> list[Experiment]:
+def img_seq_exp(img_path: PathLike, active_channel_list: list[str], full_channel_list: list[str]=[], overwrite: bool=False)-> list[Experiment]:
     """Create an image seq for individual image files (.nd2 or .tif), based on the number of field of view and return a list of Settings objects"""
     # Get metadata
     meta_dict = get_metadata(img_path,active_channel_list,full_channel_list)
@@ -94,7 +94,7 @@ def img_seq_exp(img_path: PathLike, active_channel_list: list[str], full_channel
     for serie in range(meta_dict['n_series']):
         exp_path = meta_dict['exp_path_list'][serie]
         meta_dict['exp_path'] = exp_path
-        print(f"\n-> Exp.: {exp_path}\n")
+        print(f"--> Checking exp {exp_path} for image sequence")
         
         if exists(join(sep,exp_path+sep,'REMOVED_EXP.txt')):
             print(" --> Exp. has been removed")
@@ -102,8 +102,8 @@ def img_seq_exp(img_path: PathLike, active_channel_list: list[str], full_channel
         
         save_folder = create_save_folder(exp_path,'Images')
         
-        if any(scandir(save_folder)) and not img_seq_overwrite:
-            print(f" --> Images have already been extracted")
+        if any(scandir(save_folder)) and not overwrite:
+            print(f" --> Images have already been converted to image sequence")
             exp_set_list.append(init_exp_settings(exp_path,meta_dict))
             continue
         
@@ -117,7 +117,7 @@ def img_seq_exp(img_path: PathLike, active_channel_list: list[str], full_channel
     return exp_set_list
     
 # # # # # # # main function # # # # # # #
-def img_seq_all(img_path_list: list[PathLike], active_channel_list: list, 
+def img_seq_all(img_path_list: list[PathLike], active_channel_list: list=[], 
                           full_channel_list: list=[], img_seq_overwrite: bool=False)-> list[Experiment]:
     """Process all the images files (.nd2 or .tif) found in parent_folder and return a list of Settings objects"""
     exp_set_list = []
