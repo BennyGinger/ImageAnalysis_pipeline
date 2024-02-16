@@ -1,10 +1,10 @@
-from os import sep, mkdir
+from os import sep, mkdir, PathLike
 from os.path import isdir
 from tifffile import TiffFile
 from nd2reader import ND2Reader
 import numpy as np
 
-def get_tif_meta(img_path: str) -> dict:
+def get_tif_meta(img_path: PathLike) -> dict:
     # Open tif and read meta
     with TiffFile(img_path) as tif:
         imagej_meta = tif.imagej_metadata
@@ -31,7 +31,7 @@ def calculate_X_pixmicron(x_resolution: float, img_width: int) -> float:
     width_micron = round(img_width/x_resolution,ndigits=3)
     return round(width_micron/img_width,ndigits=3)
 
-def get_ND2_meta(img_path: str)-> dict: 
+def get_ND2_meta(img_path: PathLike)-> dict: 
     # Get ND2 img metadata
     nd_obj = ND2Reader(img_path)
     
@@ -99,7 +99,7 @@ def create_exp_folder(meta_dict: dict) -> dict:
     return meta_dict
 
 # # # # # # # # main functions # # # # # # # # # 
-def get_metadata(img_path: str, active_channel_list: list, full_channel_list: list=None)-> dict:
+def get_metadata(img_path: PathLike, active_channel_list: list, full_channel_list: list=[])-> dict:
     """Gather metadata from all image files (.nd2 and/or .tif) and is attributed to its own experiment folder"""
     print(f"\nExtracting metadata from images")
     if img_path.endswith('.nd2'):
@@ -123,11 +123,9 @@ def get_metadata(img_path: str, active_channel_list: list, full_channel_list: li
     else:
         meta_dict['full_channel_list'] = active_channel_list
     
-    if len(active_channel_list)>meta_dict['full_n_channels']:
-        raise ValueError('The image contains more channels than the full_channel_list provided, pleasee add the right number of channels')
     return meta_dict
 
-
+# TODO: check the number of channels in the image file...
     
 
 if __name__ == '__main__':

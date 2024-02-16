@@ -7,8 +7,8 @@ from os import PathLike
 from os.path import isfile
 from tifffile import imsave
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from Experiment_Classes import Experiment
-from loading_data import load_stack, is_processed, create_save_folder, gen_input_data, delete_old_masks
+from image_handeling.Experiment_Classes import Experiment
+from image_handeling.loading_data import load_stack, is_processed, create_save_folder, gen_input_data, delete_old_masks
 
 MODEL_SETTINGS = {'gpu':core.use_gpu(),
                   'model_type': 'cyto3',
@@ -70,12 +70,12 @@ def apply_cellpose_segmentation(img_dict: dict)-> None:
     save_tiff(masks_cp,mask_path)
 
 def save_npy(img: np.ndarray | list[np.ndarray], masks_cp: np.ndarray | list[np.ndarray], flows: list[np.ndarray] | list[list], 
-             diameter: float, mask_path: str)-> None:
+             diameter: float, mask_path: PathLike)-> None:
     if img.ndim==3:
         mask_path = mask_path.replace("_z0001","_allz")
     masks_flows_to_seg(img,masks_cp,flows,diameter,mask_path)
 
-def save_tiff(masks_cp: np.ndarray | list[np.ndarray], mask_path: str)-> None:
+def save_tiff(masks_cp: np.ndarray | list[np.ndarray], mask_path: PathLike)-> None:
     if masks_cp.ndim==3:
         for z_silce in range(masks_cp.shape[0]):
             mask_path = mask_path.replace("_z0001",f"_z{z_silce+1:04d}")
@@ -105,12 +105,12 @@ def initialize_model(model_settings: dict)-> tuple[models.CellposeModel,dict]:
                                     "or provide a path to a pretrained model."]))
     return model,model_settings
 
-def setup_cellpose_eval(cellpose_eval: dict, n_slices: int, as_2D: bool, nuclear_marker: str="")-> dict:
+def setup_cellpose_eval(cellpose_eval: dict, n_slices: int, process_as_2D: bool, nuclear_marker: str="")-> dict:
     if nuclear_marker:
         cellpose_eval['channels'] = [1,2]
     
     # If 2D or 3D to be treated as 2D
-    if n_slices==1 or as_2D:
+    if n_slices==1 or process_as_2D:
         return cellpose_eval
     
     # If 3D
@@ -123,7 +123,7 @@ def setup_cellpose_eval(cellpose_eval: dict, n_slices: int, as_2D: bool, nuclear
     
     return cellpose_eval
 
-def initialize_cellpose(n_slices: int, as_2D: bool, model_type: str | PathLike ='cyto3', diameter: float=60., nuclear_marker: str="", 
+def initialize_cellpose(n_slices: int, process_as_2D: bool, model_type: str | PathLike ='cyto3', diameter: float=60., nuclear_marker: str="", 
                              flow_threshold: float=0.4, cellprob_threshold: float=0.0, **kwargs)-> tuple[models.CellposeModel,dict,dict]:
     # Default settings for cellpose model
     model_settings = MODEL_SETTINGS; cellpose_eval = CELLPOSE_EVAL
@@ -132,7 +132,7 @@ def initialize_cellpose(n_slices: int, as_2D: bool, model_type: str | PathLike =
     
     # Unpack kwargs
     if not kwargs:
-        cellpose_eval = setup_cellpose_eval(cellpose_eval,n_slices,as_2D,nuclear_marker)
+        cellpose_eval = setup_cellpose_eval(cellpose_eval,n_slices,process_as_2D,nuclear_marker)
         return *initialize_model(model_settings),cellpose_eval
     
     for k,v in kwargs.items():
@@ -140,7 +140,7 @@ def initialize_cellpose(n_slices: int, as_2D: bool, model_type: str | PathLike =
             model_settings[k] = v
         elif k in cellpose_eval:
             cellpose_eval[k] = v
-    cellpose_eval = setup_cellpose_eval(cellpose_eval,n_slices,as_2D,nuclear_marker)
+    cellpose_eval = setup_cellpose_eval(cellpose_eval,n_slices,process_as_2D,nuclear_marker)
     return *initialize_model(model_settings),cellpose_eval
 
 def parallel_executor(func: Callable, input_args: list, gpu: bool)-> None:
@@ -157,18 +157,18 @@ def parallel_executor(func: Callable, input_args: list, gpu: bool)-> None:
 # # # # # # # # main functions # # # # # # # # # 
 def cellpose_segmentation(exp_set_list: list[Experiment], channel_to_seg: str, model_type: str | PathLike ='cyto3',
                           diameter: float=60., flow_threshold: float=0.4, cellprob_threshold: float=0.0,
-                          cellpose_overwrite: bool=False, img_fold_src: str="", as_2D: bool=False,
-                          as_npy: bool=False, nuclear_marker: str="", **kwargs)-> list[Experiment]:
+                          overwrite: bool=False, img_fold_src: PathLike="", process_as_2D: bool=False,
+                          save_as_npy: bool=False, nuclear_marker: str="", **kwargs)-> list[Experiment]:
     """Function to run cellpose segmentation. See https://github.com/MouseLand/cellpose for more details."""
     
     
     for exp_set in exp_set_list:
         file_type = '.tif'
-        if as_npy:
+        if save_as_npy:
             file_type = '.npy'
         
         # Check if exist
-        if is_processed(exp_set.masks.cellpose_seg,channel_to_seg,cellpose_overwrite):
+        if is_processed(exp_set.masks.cellpose_seg,channel_to_seg,overwrite):
                 # Log
             print(f" --> Cells have already been segmented with cellpose as {file_type} for the '{channel_to_seg}' channel.")
             continue
@@ -176,16 +176,16 @@ def cellpose_segmentation(exp_set_list: list[Experiment], channel_to_seg: str, m
         # Else run cellpose
         print(f" --> Segmenting cells as {file_type} for the '{channel_to_seg}' channel")
         create_save_folder(exp_set.exp_path,'Masks_Cellpose')
-        delete_old_masks(exp_set.masks.cellpose_seg,channel_to_seg,exp_set.mask_cellpose_list,cellpose_overwrite)
+        delete_old_masks(exp_set.masks.cellpose_seg,channel_to_seg,exp_set.mask_cellpose_list,overwrite)
         
         # Setup model and eval settings
-        model,model_settings,cellpose_eval = initialize_cellpose(exp_set.img_properties.n_slices,as_2D,
+        model,model_settings,cellpose_eval = initialize_cellpose(exp_set.img_properties.n_slices,process_as_2D,
                                                                 model_type,diameter,flow_threshold,cellprob_threshold,**kwargs)
         cellpose_channels = [channel_to_seg]
         if nuclear_marker: cellpose_channels.append(nuclear_marker)
         
         # Generate input data
-        img_data = gen_input_data(exp_set,img_fold_src,cellpose_channels,model=model,cellpose_eval=cellpose_eval,as_2D=as_2D,as_npy=as_npy)
+        img_data = gen_input_data(exp_set,img_fold_src,cellpose_channels,model=model,cellpose_eval=cellpose_eval,as_2D=process_as_2D,as_npy=save_as_npy)
         
         # Cellpose
         parallel_executor(apply_cellpose_segmentation,img_data,model_settings['gpu'])

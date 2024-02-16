@@ -1,10 +1,10 @@
 from __future__ import annotations
-from os import sep, listdir
+from os import sep, listdir, PathLike
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
 from os.path import join
-from Experiment_Classes import Experiment
-from loading_data import is_processed, mask_list_src, load_stack, create_save_folder, delete_old_masks
+from image_handeling.Experiment_Classes import Experiment
+from image_handeling.loading_data import is_processed, mask_list_src, load_stack, create_save_folder, delete_old_masks
 from mask_transformation.mask_morph import morph_missing_mask
 from cellpose.utils import stitch3D
 from cellpose.metrics import _intersection_over_union
@@ -92,7 +92,7 @@ def trim_mask(mask_stack: np.ndarray, numb_frames: int)-> np.ndarray:
 
 
 # # # # # # # # main functions # # # # # # # # # 
-def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src: str,
+def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src: PathLike,
                  stitch_thres_percent: float=0.75, shape_thres_percent: float=0.2,
                  iou_track_overwrite: bool=False, n_mask: int=5)-> list[Experiment]:
     

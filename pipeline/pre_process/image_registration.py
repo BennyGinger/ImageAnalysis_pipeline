@@ -1,15 +1,15 @@
 from __future__ import annotations
 from os.path import join
-from os import sep
+from os import sep, PathLike
 from tifffile import imread, imwrite
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from pystackreg import StackReg
-from Experiment_Classes import Experiment
-from loading_data import load_stack, create_save_folder
+from image_handeling.Experiment_Classes import Experiment
+from image_handeling.loading_data import load_stack, create_save_folder
 
 
-def chan_shift_file_name(file_list: list, channel_list: list, reg_channel: str)-> list[tuple]:
+def chan_shift_file_name(file_list: list[PathLike], channel_list: list, reg_channel: str)-> list[tuple]:
     """Return a list of tuples of file names to be registered. 
     The first element of the tuple is the reference image and the second is the image to be registered.
     """
@@ -50,7 +50,7 @@ def correct_chan_shift(input_dict: dict)-> None:
     reg_img[reg_img<0] = 0
     imwrite(img_path,reg_img.astype(np.uint16))
 
-def register_with_first(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: str)-> None:
+def register_with_first(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: PathLike)-> None:
     # Load ref image
     img_ref = load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=[0])
     if exp_set.img_properties.n_slices>1: img_ref = np.amax(img_ref,axis=0)
@@ -74,7 +74,7 @@ def register_with_first(stackreg: StackReg, exp_set: Experiment, reg_channel: st
                 reg_img[reg_img<0] = 0
                 imwrite(join(sep,img_folder+sep,chan+f"_s{serie:02d}"+'_f%04d'%(f+1)+'_z%04d.tif'%(z+1)),reg_img.astype(np.uint16))
 
-def register_with_mean(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: str)-> None:
+def register_with_mean(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: PathLike)-> None:
     # Load ref image
     if exp_set.img_properties.n_slices==1: img_ref = np.mean(load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=range(exp_set.img_properties.n_frames)),axis=0)
     else: img_ref = np.mean(np.amax(load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=range(exp_set.img_properties.n_frames)),axis=1),axis=0)
@@ -98,7 +98,7 @@ def register_with_mean(stackreg: StackReg, exp_set: Experiment, reg_channel: str
                 reg_img[reg_img<0] = 0
                 imwrite(join(sep,img_folder+sep,chan+f"_s{serie:02d}"+'_f%04d'%(f+1)+'_z%04d.tif'%(z+1)),reg_img.astype(np.uint16))
 
-def register_with_previous(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: str)-> None:
+def register_with_previous(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: PathLike)-> None:
     for f in range(1,exp_set.img_properties.n_frames):
         # Load ref image
         if f==1:

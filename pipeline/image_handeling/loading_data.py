@@ -1,12 +1,12 @@
 from __future__ import annotations
-from os import sep, mkdir, remove
+from os import sep, mkdir, remove, PathLike
 from os.path import isdir, join, isfile
-from Experiment_Classes import Experiment
+from image_handeling.Experiment_Classes import Experiment
 from typing import Iterable
 import numpy as np
 from tifffile import imread 
 
-def load_stack(img_list: list[str], channel_list: Iterable[str], frame_range: Iterable[int])-> np.ndarray:
+def load_stack(img_list: list[PathLike], channel_list: Iterable[str], frame_range: Iterable[int])-> np.ndarray:
     # Load/Reload stack. Expected shape of images tzxyc
     exp_list = []
     for chan in channel_list:
@@ -26,7 +26,7 @@ def load_stack(img_list: list[str], channel_list: Iterable[str], frame_range: It
         stack = np.moveaxis(np.squeeze(np.stack(exp_list)), [0], [-1])
     return stack
 
-def img_list_src(exp_set: Experiment, img_fold_src: str)-> list[str]:
+def img_list_src(exp_set: Experiment, img_fold_src: PathLike)-> list[PathLike]:
     """If not manually specified, return the latest processed images list"""
     
     if img_fold_src and img_fold_src == 'Images':
@@ -46,7 +46,7 @@ def img_list_src(exp_set: Experiment, img_fold_src: str)-> list[str]:
     else:
         return exp_set.processed_images_list
 
-def mask_list_src(exp_set: Experiment, mask_fold_src: str | None)-> list[str]:
+def mask_list_src(exp_set: Experiment, mask_fold_src: PathLike)-> list[PathLike]:
     """If not manually specified, return the latest processed images list"""
     
     if mask_fold_src and mask_fold_src == 'Masks_Threshold' or mask_fold_src == 'threshold_seg':
@@ -75,7 +75,7 @@ def is_processed(process: dict, channel_seg: str, overwrite: bool)-> bool:
         return False
     return True
 
-def create_save_folder(exp_path: str, folder_name: str)-> str:
+def create_save_folder(exp_path: PathLike, folder_name: str)-> PathLike:
     save_folder = join(sep,exp_path+sep,folder_name)
     if not isdir(save_folder):
         print(f" ---> Creating folder: {save_folder}")
@@ -84,7 +84,7 @@ def create_save_folder(exp_path: str, folder_name: str)-> str:
     print(f" ---> Saving in folder: {save_folder}")
     return save_folder
 
-def gen_input_data(exp_set: Experiment, img_fold_src: str, channel_seg_list: list, **kwargs)-> list[dict]:
+def gen_input_data(exp_set: Experiment, img_fold_src: PathLike, channel_seg_list: list, **kwargs)-> list[dict]:
     img_path_list = img_list_src(exp_set,img_fold_src)
     channel_seg = channel_seg_list[0]
     input_data = []
@@ -98,7 +98,7 @@ def gen_input_data(exp_set: Experiment, img_fold_src: str, channel_seg_list: lis
         input_data.append(input_dict)
     return input_data
 
-def delete_old_masks(class_setting_dict: dict, channel_seg: str, mask_files_list: list, overwrite: bool=False)-> None:
+def delete_old_masks(class_setting_dict: dict, channel_seg: str, mask_files_list: list[PathLike], overwrite: bool=False)-> None:
     if not overwrite:
         return
     if not class_setting_dict:

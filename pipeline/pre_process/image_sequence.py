@@ -1,17 +1,16 @@
 from __future__ import annotations
-from os import sep, scandir
+from os import sep, scandir, PathLike
 from os.path import join, exists
-from Experiment_Classes import init_from_dict, init_from_json, Experiment
-from loading_data import create_save_folder
-
+from image_handeling.Experiment_Classes import init_from_dict, init_from_json, Experiment
+from image_handeling.loading_data import create_save_folder
 from nd2reader import ND2Reader
 from tifffile import imwrite, imread
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from .metadata import get_metadata
 
- 
-def name_img_list(meta_dict: dict)-> list[str]:
+#TODO: If nothing is provided for the active channels, give numbered names to the channels
+def name_img_list(meta_dict: dict)-> list[PathLike]:
     """Return a list of generated image names based on the metadata of the experiment"""
     # Create a name for each image
     img_name_list = []
@@ -37,7 +36,7 @@ def write_ND2(img_data: list)-> None:
     im_folder = join(sep,meta['exp_path_list'][serie]+sep,'Images')
     imwrite(join(sep,im_folder+sep,img_name)+".tif",img.astype(np.uint16))
     
-def expand_dim_tif(img_path:str, axes: str)-> np.ndarray:
+def expand_dim_tif(img_path: PathLike, axes: str)-> np.ndarray:
     """Adjust the dimension of the image to TZCYX"""
     # Open tif file
     img = imread(img_path)
@@ -75,7 +74,7 @@ def write_img(meta_dict: dict)-> None:
         with ThreadPoolExecutor() as executor:
             executor.map(write_tif,img_name_list)
 
-def init_exp_settings(exp_path: str, meta_dict: dict)-> Experiment:
+def init_exp_settings(exp_path: PathLike, meta_dict: dict)-> Experiment:
     """Initialize Settings object from json file or metadata"""
     
     if exists(join(sep,exp_path+sep,'exp_settings.json')):
@@ -85,7 +84,7 @@ def init_exp_settings(exp_path: str, meta_dict: dict)-> Experiment:
         exp_set = init_from_dict(meta_dict)
     return exp_set
 
-def img_seq_exp(img_path: str, active_channel_list: list[str], full_channel_list: list[str]=None, img_seq_overwrite: bool=False)-> list[Experiment]:
+def img_seq_exp(img_path: PathLike, active_channel_list: list[str], full_channel_list: list[str]=[], img_seq_overwrite: bool=False)-> list[Experiment]:
     """Create an image seq for individual image files (.nd2 or .tif), based on the number of field of view and return a list of Settings objects"""
     # Get metadata
     meta_dict = get_metadata(img_path,active_channel_list,full_channel_list)
@@ -118,8 +117,8 @@ def img_seq_exp(img_path: str, active_channel_list: list[str], full_channel_list
     return exp_set_list
     
 # # # # # # # main function # # # # # # #
-def img_seq_all(img_path_list: list[str], active_channel_list: list, 
-                          full_channel_list: list=None, img_seq_overwrite: bool=False)-> list[Experiment]:
+def img_seq_all(img_path_list: list[PathLike], active_channel_list: list, 
+                          full_channel_list: list=[], img_seq_overwrite: bool=False)-> list[Experiment]:
     """Process all the images files (.nd2 or .tif) found in parent_folder and return a list of Settings objects"""
     exp_set_list = []
     for img_path in img_path_list:

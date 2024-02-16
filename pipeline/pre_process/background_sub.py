@@ -1,5 +1,5 @@
 from __future__ import annotations
-from Experiment_Classes import Experiment
+from image_handeling.Experiment_Classes import Experiment
 from concurrent.futures import ProcessPoolExecutor
 from tifffile import imread, imwrite
 from smo import SMO

@@ -1,26 +1,18 @@
 from __future__ import annotations
-from os import getcwd, sep, mkdir, listdir
-import sys
-
-parent_dir = getcwd()
-sys.path.append(parent_dir)
-
+from os import sep, PathLike
 from dataclasses import fields
-from os import sep
-from os.path import join
 import pandas as pd
 import numpy as np
-from ImageAnalysis_pipeline.pipeline.Experiment_Classes import Experiment, Masks
-from ImageAnalysis_pipeline.pipeline.loading_data import load_stack, img_list_src, is_processed, mask_list_src
-from tifffile import imread,imsave
-from concurrent.futures import ProcessPoolExecutor,ThreadPoolExecutor
+from image_handeling.Experiment_Classes import Experiment, Masks
+from image_handeling.loading_data import load_stack, img_list_src, mask_list_src
+from concurrent.futures import ProcessPoolExecutor
 
 
-def masks_process_dict(masks: Masks)-> dict:
+def masks_process_dict(masks_class: Masks)-> dict:
     masks_dict ={}
-    for field in fields(masks):
+    for field in fields(masks_class):
         name = field.name
-        channels = list(getattr(masks,name).keys())
+        channels = list(getattr(masks_class,name).keys())
         if channels:
             masks_dict[name] = channels
     return masks_dict
@@ -30,7 +22,7 @@ def trim_masks_list(masks_dict: dict)-> dict:
         del masks_dict['cellpose_seg']
     return masks_dict
 
-def gen_input_data(exp_set: Experiment, img_folder_src: str)-> list[dict]:
+def gen_input_data(exp_set: Experiment, img_folder_src: PathLike)-> list[PathLike]:
     masks_dict = masks_process_dict(exp_set.masks)
     masks_dict = trim_masks_list(masks_dict)
     
@@ -109,7 +101,7 @@ def extract_mask_data_para(input_dict: list)-> dict:
     return data_dict
 
 # # # # # # # # main functions # # # # # # # # # 
-def extract_channel_data(exp_set_list: list[Experiment], img_folder_src: str, data_overwrite: bool=False)-> list[Experiment]:
+def extract_channel_data(exp_set_list: list[Experiment], img_folder_src: PathLike, data_overwrite: bool=False)-> list[Experiment]:
     for exp_set in exp_set_list:
         # Load df
         df_analysis = exp_set.load_df_analysis(data_overwrite)

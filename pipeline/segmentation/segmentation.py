@@ -1,11 +1,12 @@
 from __future__ import annotations
+from os import PathLike
 import cv2
 from skimage.morphology import remove_small_objects, remove_small_holes
 import numpy as np
 from tifffile import imsave
 from concurrent.futures import ThreadPoolExecutor
-from Experiment_Classes import Experiment
-from loading_data import is_processed, load_stack, create_save_folder, gen_input_data, delete_old_masks
+from image_handeling.Experiment_Classes import Experiment
+from image_handeling.loading_data import is_processed, load_stack, create_save_folder, gen_input_data, delete_old_masks
 
 def determine_threshold(img: np.ndarray, manual_threshold: float=None)-> float:
     # Set the threshold's value. Either as input or automatically if thres==None
@@ -44,16 +45,16 @@ def apply_threshold(img_dict: dict)-> float:
     return threshold_value
 
 # # # # # # # # main functions # # # # # # # # # 
-def threshold(exp_set_list: list[Experiment], channel_seg: str, thresold_overwrite: bool=False, manual_threshold: int=None, img_fold_src: str=None)-> list[Experiment]:
+def threshold(exp_set_list: list[Experiment], channel_seg: str, overwrite: bool=False, manual_threshold: int=None, img_fold_src: PathLike="")-> list[Experiment]:
     for exp_set in exp_set_list:
         # Check if exist
-        if is_processed(exp_set.masks.threshold_seg,channel_seg,thresold_overwrite):
+        if is_processed(exp_set.masks.threshold_seg,channel_seg,overwrite):
                 # Log
             print(f" --> Object has already been segmented with {exp_set.process.simple_threshold}")
             continue
         
         # Initialize input args and save folder
-        delete_old_masks(exp_set.masks.threshold_seg,channel_seg,exp_set.mask_threshold_list,thresold_overwrite)
+        delete_old_masks(exp_set.masks.threshold_seg,channel_seg,exp_set.mask_threshold_list,overwrite)
         img_data = gen_input_data(exp_set,img_fold_src,[channel_seg],manual_threshold=manual_threshold)
         create_save_folder(exp_set.exp_path,'Masks_Threshold')
         

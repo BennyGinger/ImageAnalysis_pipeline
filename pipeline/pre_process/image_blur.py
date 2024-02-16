@@ -1,6 +1,7 @@
 from __future__ import annotations
-from Experiment_Classes import Experiment
-from loading_data import img_list_src, create_save_folder
+from os import PathLike
+from image_handeling.Experiment_Classes import Experiment
+from image_handeling.loading_data import img_list_src, create_save_folder
 from tifffile import imwrite, imread
 from cv2 import GaussianBlur
 import numpy as np
@@ -14,7 +15,7 @@ def apply_blur(img_dict: dict)-> None:
     imwrite(savedir,GaussianBlur(img,img_dict['blur_kernel'],img_dict['blur_sigma']).astype(np.uint16))
 
 # # # # # # # # main functions # # # # # # # # # 
-def blur_img(exp_set_list: list[Experiment], blur_kernel: list[int], blur_sigma: int, img_fold_src: str=None, blur_overwrite: bool = False)-> None:
+def blur_img(exp_set_list: list[Experiment], blur_kernel: list[int], blur_sigma: int, img_fold_src: PathLike="", blur_overwrite: bool = False)-> None:
     # Check if kernel contains 2 odd intengers >= to 3
     if not all(i%2!=0 for i in blur_kernel) and not all(i>=3 for i in blur_kernel):
         print("The input 'blur_kernel' must contain 2 odd intengers greater or equal to 3")
