@@ -25,6 +25,24 @@ def load_csv(channel_seg: str, csv_path: str, csv_name: str = None):
     csv_data = pd.read_csv(csv_path, encoding= 'unicode_escape', sep=None, engine='python')
     
     return csv_data
+   
+def gen_input_data_masks(exp_set: Experiment, mask_fold_src: str, mask_fold_src2: str, channel_seg_list: list, **kwargs)-> list[dict]:
+    mask_path_list = mask_list_src(exp_set,mask_fold_src)
+    mask_path_list2 = mask_list_src(exp_set,mask_fold_src2)
+
+    channel_seg = channel_seg_list[0]
+    input_data = []
+    for frame in range(exp_set.img_properties.n_frames):
+        input_dict = {}
+        mask1_path = [mask for mask in mask_path_list if f"_f{frame+1:04d}" in mask and channel_seg in mask]
+        input_dict['mask1_path'] = mask1_path
+        mask2_path = [mask for mask in mask_path_list2 if f"_f{frame+1:04d}" in mask and channel_seg in mask]
+        input_dict['mask2_path'] = mask2_path
+        input_dict['frame'] = frame
+        input_dict['channel_seg_list'] = channel_seg_list
+        input_dict.update(kwargs)
+        input_data.append(input_dict)
+    return input_data   
         
 def uniform_dataset(csv_data: pd.DataFrame, exp_set: Experiment): 
     #get values needed later in the run from the metadata
@@ -104,34 +122,32 @@ def get_freq(array, exclude): # function to find most frequent value in array, e
         return count[0][0]
 
 def seg_track_manual(img_dict: dict):
-    #load image
-    mask = load_stack(img_dict['imgs_path'],img_dict['channel_seg_list'],[img_dict['frame']])
+    #load masks
+    mask_seg = load_stack(img_dict['mask1_path'],img_dict['channel_seg_list'],[img_dict['frame']])
+    mask_track = load_stack(img_dict['mask2_path'],img_dict['channel_seg_list'],[img_dict['frame']])
     
     # create emtpy mask based on images or mask size
-    masks_man = np.zeros_like((mask), dtype='uint16')
-    frame = img_dict['frame']
+    masks_man = np.zeros_like((mask_seg), dtype='uint16')
     tracked_mask = masks_man.copy()
 
-    
-    for cell_number in np.delete(np.unique(man_mask), np.where( np.unique(man_mask) == 0)):
+    for cell_number in np.delete(np.unique(mask_track), np.where( np.unique(mask_track) == 0)):
         overlap_array = np.array([0]).astype('uint16')
-        overlap_array = mask[man_mask==cell_number]
+        overlap_array = mask_seg[mask_track==cell_number]
         if not any(np.unique(overlap_array)) != 0:
-            temp_man_mask = man_mask.copy()
+            temp_man_mask = mask_track.copy()
             loop = 0
         while not any(np.unique(overlap_array)) != 0: # dilate man_mask cell to get overlay with next possible cell. To correct unprecise manual tracking
             temp_man_mask = expand_labels(temp_man_mask, distance=1)
-            overlap_array = mask[man_mask==cell_number]
+            overlap_array = mask_seg[mask_track==cell_number]
             loop = loop+1
             if loop == img_dict['max_loop']:
-                print(f'exiting after {loop} loops')
+                print(f'Cellnumer {cell_number} in frame {img_dict['frame']} exiting after {loop} loops')
                 break
         max_overlap = get_freq(overlap_array,0)
-        tracked_mask[mask==max_overlap] = cell_number
-        mask[mask==max_overlap] = 0
-    
+        tracked_mask[mask_seg==max_overlap] = cell_number
+        mask_track[mask_track==max_overlap] = 0
+    # save new mask
     savedir = join(img_dict['exp_path'],'Masks_Manual_Track', split(img_dict['imgs_path'][0])[1])
-    # Clean and save
     imsave(savedir,tracked_mask)
 
 def run_morph(exp_set:Experiment, mask_fold_src:str, channel_seg:str, n_mask:int):
@@ -178,6 +194,7 @@ def man_tracking(exp_set_list: list[Experiment], channel_seg: str, track_seg_mas
         
         if track_seg_mask:          
             # do overwrite from seg mask
+            img_data = gen_input_data_masks(exp_set, mask_fold_src, mask_fold_src2='Masks_Manual_Track', channel_seg_list=[channel_seg])
             parallel_executer(seg_track_manual, img_data, False)
             
         
