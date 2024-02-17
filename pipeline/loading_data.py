@@ -62,8 +62,13 @@ def mask_list_src(exp_set: Experiment, mask_fold_src: str | None)-> list[str]:
     if mask_fold_src and mask_fold_src == 'Masks_IoU_Track' or mask_fold_src == 'iou_tracking':
         return exp_set.mask_iou_track_list
     
+    if mask_fold_src and mask_fold_src == 'Masks_Manual_Track' or mask_fold_src == 'man_tracking':
+        return exp_set.mask_manual_track_list
+    
     # If not manually specified, return the latest processed images list
-    if exp_set.masks.iou_tracking:
+    if exp_set.masks.manual_tracking:
+        return exp_set.mask_manual_track_list
+    elif exp_set.masks.iou_tracking:
         return exp_set.mask_iou_track_list
     elif exp_set.masks.cellpose_seg:
         return exp_set.mask_cellpose_list

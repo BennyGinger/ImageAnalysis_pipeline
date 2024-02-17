@@ -243,8 +243,8 @@ def morph_missing_mask(mask_stack: np.ndarray, n_mask: int)-> np.ndarray:
             new_stack = new_stack + temp
             if np.any(new_stack>obj):
                 new_stack[new_stack>obj] = new_stack[new_stack>obj]-obj
-    
-    # Recheck for incomplete track
+    #FIXME this is equal to the trim_mask function from iou_tracking. Would be good to have the trim in a seperate function. Not always run it, when doing the morph
+    # Recheck for incomplete track   
     for obj in list(np.unique(new_stack))[1:]:
         framenumber = len(np.unique(np.where(new_stack==obj)[0]))
         if framenumber!=mask_stack.shape[0]:
