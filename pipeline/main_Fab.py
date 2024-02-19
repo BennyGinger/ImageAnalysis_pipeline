@@ -11,6 +11,7 @@ from ImageAnalysis_pipeline.pipeline.segmentation.segmentation import threshold
 from ImageAnalysis_pipeline.pipeline.segmentation.cp_segmentation import cellpose_segmentation
 from ImageAnalysis_pipeline.pipeline.tracking.iou_tracking import iou_tracking
 from ImageAnalysis_pipeline.pipeline.analysis.channel_data import extract_channel_data
+from ImageAnalysis_pipeline.pipeline.tracking.manual_track import man_tracking
 
 def change_attribute(exp_set_list: list[Experiment], attribute: str, value: any)-> list[Experiment]:
     for exp_set in exp_set_list:
@@ -42,15 +43,19 @@ if __name__ == "__main__":
     iou_tracking_parameters = {'channel_seg':'RFP','mask_fold_src':'Masks_Cellpose','stitch_thres_percent':0.75,
                                'shape_thres_percent':0.1,'iou_track_overwrite':False, 'n_mask': 10}
     
+    
+    manual_tracking_parameters = {'channel_seg': 'GFP', 'track_seg_mask': True, 'mask_fold_src': 'Masks_Cellpose',
+                                 'morph': True, 'n_mask':2, 'manual_track_overwrite': True}
+    
     # if cp_segmentation_parameters['cellpose_overwrite']:
     #     iou_tracking_parameters['iou_track_overwrite'] = True
     
     exp_set_list = pre_process_all(**preprocess_parameters)
-    
     # exp_set_list = threshold(exp_set_list,**segmentation_parameters)
-    exp_set_list = cellpose_segmentation(exp_set_list,**cp_segmentation_parameters)
+    # exp_set_list = cellpose_segmentation(exp_set_list,**cp_segmentation_parameters)
     # exp_set_list = iou_tracking(exp_set_list,**iou_tracking_parameters)
-    print(exp_set_list[0])
+    # exp_set_list = man_tracking(exp_set_list, **manual_tracking_parameters)
+
     # Add interval_sec manually
     # exp_set_list = change_attribute(exp_set_list,'interval_sec',10)
     

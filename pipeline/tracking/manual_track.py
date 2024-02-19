@@ -6,10 +6,10 @@ from collections import Counter
 from skimage.segmentation import expand_labels
 from mask_transformation.mask_morph import morph_missing_mask
 from Experiment_Classes import Experiment
-from segmentation.cp_segmentation import parallel_executer
 from loading_data import mask_list_src
 from tifffile import imsave
 from loading_data import load_stack, is_processed, create_save_folder, gen_input_data, delete_old_masks
+from concurrent.futures import ProcessPoolExecutor
 
 def load_csv(channel_seg: str, csv_path: str, csv_name: str = None):
     
@@ -86,14 +86,13 @@ def uniform_dataset(csv_data: pd.DataFrame, exp_set: Experiment):
 
 def create_man_mask(img_dict: dict):
     #load image
+
     img = load_stack(img_dict['imgs_path'],img_dict['channel_seg_list'],[img_dict['frame']])
     
     # create emtpy mask based on images or mask size
     masks_man = np.zeros_like((img), dtype='uint16')
-    
     #get small dataframe for all cell to be markted in this frame
     sorted = img_dict['csv_data'][img_dict['csv_data']['frame'] == img_dict['frame']]
-    
     # mark the positions of the cells
     for _, row in sorted.iterrows():
         x = row['x']
@@ -106,11 +105,12 @@ def create_man_mask(img_dict: dict):
               #There could potentially be another cell, but its higly unlikely cause we are talking about pixel.
             try: masks_man[y+1, x] = cell_number
             except: masks_man[y-1, x] = cell_number
-            
+    
     #dilate the cells to make them visible
     masks_man = expand_labels(masks_man, distance=img_dict['radius'])
+    folder, filename = split(img_dict['imgs_path'][0])
+    savedir = join(split(folder)[0],'Masks_Manual_Track', filename)
     
-    savedir = join(img_dict['exp_path'],'Masks_Manual_Track', split(img_dict['imgs_path'][0])[1])
     # Clean and save
     imsave(savedir,masks_man)
 
@@ -125,29 +125,21 @@ def seg_track_manual(img_dict: dict):
     #load masks
     mask_seg = load_stack(img_dict['mask1_path'],img_dict['channel_seg_list'],[img_dict['frame']])
     mask_track = load_stack(img_dict['mask2_path'],img_dict['channel_seg_list'],[img_dict['frame']])
-    
-    # create emtpy mask based on images or mask size
-    masks_man = np.zeros_like((mask_seg), dtype='uint16')
-    tracked_mask = masks_man.copy()
 
-    for cell_number in np.delete(np.unique(mask_track), np.where( np.unique(mask_track) == 0)):
-        overlap_array = np.array([0]).astype('uint16')
-        overlap_array = mask_seg[mask_track==cell_number]
-        if not any(np.unique(overlap_array)) != 0:
-            temp_man_mask = mask_track.copy()
-            loop = 0
-        while not any(np.unique(overlap_array)) != 0: # dilate man_mask cell to get overlay with next possible cell. To correct unprecise manual tracking
-            temp_man_mask = expand_labels(temp_man_mask, distance=1)
-            overlap_array = mask_seg[mask_track==cell_number]
-            loop = loop+1
-            if loop == img_dict['max_loop']:
-                print(f'Cellnumer {cell_number} in frame {img_dict['frame']} exiting after {loop} loops')
-                break
+    # create emtpy mask based on images or mask size
+    tracked_mask = np.zeros_like((mask_seg), dtype='uint16')
+    mask_track = expand_labels(mask_track, distance=img_dict['dilate_value'])
+    values_in_frame = np.unique(mask_track)
+    cells_in_frame = values_in_frame[values_in_frame!=0]
+    for cell_number in cells_in_frame:
+        overlap_array = mask_seg[mask_track==cell_number].flatten()
         max_overlap = get_freq(overlap_array,0)
-        tracked_mask[mask_seg==max_overlap] = cell_number
-        mask_track[mask_track==max_overlap] = 0
+        if not max_overlap == 0:
+            tracked_mask[mask_seg==max_overlap] = cell_number
+            mask_track[mask_track==cell_number] = 0
     # save new mask
-    savedir = join(img_dict['exp_path'],'Masks_Manual_Track', split(img_dict['imgs_path'][0])[1])
+    folder, filename = split(img_dict['mask1_path'][0])
+    savedir = join(split(folder)[0],'Masks_Manual_Track', filename)
     imsave(savedir,tracked_mask)
 
 def run_morph(exp_set:Experiment, mask_fold_src:str, channel_seg:str, n_mask:int):
@@ -162,7 +154,7 @@ def run_morph(exp_set:Experiment, mask_fold_src:str, channel_seg:str, n_mask:int
 
 # # # # # # # # main functions # # # # # # # # # 
 def man_tracking(exp_set_list: list[Experiment], channel_seg: str, track_seg_mask: bool = False, mask_fold_src: str = None,
-                csv_name: str = None, radius: int=5, morph: bool=True, n_mask=2, manual_track_overwrite: bool=False, max_loop: int = 10):
+                csv_name: str = None, radius: int=5, morph: bool=True, n_mask=2, manual_track_overwrite: bool=False, dilate_value: int = 20):
     
     for exp_set in exp_set_list:
         # Check if exist
@@ -185,17 +177,18 @@ def man_tracking(exp_set_list: list[Experiment], channel_seg: str, track_seg_mas
         csv_data = uniform_dataset(csv_data=csv_data, exp_set=exp_set)
         
         #generate List of Data to run them through ParallelProcessing
-        img_data = gen_input_data(exp_set, mask_fold_src, [channel_seg], radius=radius, max_loop=max_loop)
-
-
-        parallel_executer(create_man_mask, img_data, False)
+        img_data = gen_input_data(exp_set, mask_fold_src, [channel_seg], radius=radius, csv_data=csv_data)
+        with ProcessPoolExecutor() as executor:
+            executor.map(create_man_mask,img_data)
         if morph:
-            run_morph(exp_set, mask_fold_src='Masks_Manual_Track', n_mask=n_mask)
+            run_morph(exp_set, mask_fold_src='Masks_Manual_Track', channel_seg=channel_seg, n_mask=n_mask)
         
         if track_seg_mask:          
             # do overwrite from seg mask
-            img_data = gen_input_data_masks(exp_set, mask_fold_src, mask_fold_src2='Masks_Manual_Track', channel_seg_list=[channel_seg])
-            parallel_executer(seg_track_manual, img_data, False)
+            img_data = gen_input_data_masks(exp_set, mask_fold_src, mask_fold_src2='Masks_Manual_Track', channel_seg_list=[channel_seg], dilate_value=dilate_value)
+            # seg_track_manual(img_data)
+            with ProcessPoolExecutor() as executor:
+                executor.map(seg_track_manual,img_data)
             
         
         # Save settings
