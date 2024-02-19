@@ -53,7 +53,7 @@ def predict(ckpt_path, path_csv_output, num_seq):
     x, x2, edge_index, edge_feature = test_data.x, test_data.x_2, test_data.edge_index, test_data.edge_feat
 
     outputs = trained_model((x, x2), edge_index, edge_feature.float())
-    data_path = path_output + '/RES_inference'
+    data_path = path_output + '/gnn_files'
     path_output_folder = data_path
     print(f"save path : {path_output_folder}")
     os.makedirs(path_output_folder, exist_ok=True)

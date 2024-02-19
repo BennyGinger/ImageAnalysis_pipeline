@@ -356,12 +356,12 @@ class Postprocess(object):
 
     def create_save_dir(self):
         num_seq = self.dir_result.split('/')[-1][:2]
-        save_tra_dir = osp.join(self.dir_result, f"../{num_seq}_RES")
+        save_tra_dir = osp.join(self.dir_result, f"../Masks_GNN_Track") 
         self.save_tra_dir =save_tra_dir
         os.makedirs(self.save_tra_dir, exist_ok=True)
 
     def save_new_pred(self, new_pred, idx):
-        idx_str = "%03d" % idx
+        idx_str = "%04d" % idx
         file_name = f"mask{idx_str}.tif"
         full_dir = osp.join(self.save_tra_dir, file_name)
         io.imsave(full_dir, new_pred.astype(np.uint16))
