@@ -46,6 +46,31 @@ def gnn_tracking(exp_set_list: list[Experiment], channel_seg: str, model:str, gn
             preprocess_seq2graph_clean.create_csv(input_images=input_images, input_seg=input_seg, input_model=model_dict['model_metric'], channel=channel_seg, output_csv=output_csv, min_cell_size=min_cell_size)
         else:
             import preprocess_seq2graph_3d
+            
+        inference_clean.predict(ckpt_path=model_lightning_path, path_csv_output=output_csv, num_seq='01')
+        
+        
+        is_3d = False
+        type_masks = 'tif'
+        merge_operation = 'AND'
+        decision_threshold=0.5
+        path_inference_output='/home/Fabian/gnn_track/Data/s1_mfap4-mpx_isohypo_2h_WT_TD_Full/RES_inference'
+        center_coord=False
+        directed=True
+        path_seg_result=input_seg
+        
+        
+        pp = postprocess_clean.Postprocess(is_3d=is_3d,
+                     type_masks=type_masks, merge_operation=merge_operation,
+                     decision_threshold=decision_threshold,
+                     path_inference_output=path_inference_output, center_coord=center_coord,
+                     directed=directed,
+                     path_seg_result=path_seg_result)
+        
+        all_frames_traject, trajectory_same_label, df_trajectory, str_track = pp.create_trajectory()
+        pp.fill_mask_labels(debug=False)
+        
+        
     
     
     
