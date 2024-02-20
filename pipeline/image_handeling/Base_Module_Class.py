@@ -22,3 +22,5 @@ class BaseModule:
             exp_set.set_attribute(attribute,value)
             exp_set.save_as_json()
         return self.exp_set_list
+    
+    #TODO: add methods to change channel names

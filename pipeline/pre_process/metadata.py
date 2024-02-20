@@ -1,3 +1,4 @@
+from __future__ import annotations
 from os import sep, mkdir, PathLike
 from os.path import isdir
 from tifffile import TiffFile
@@ -27,9 +28,12 @@ def get_tif_meta(img_path: PathLike) -> dict:
     imagej_meta['n_series'] = 1
     return imagej_meta
 
-def calculate_X_pixmicron(x_resolution: float, img_width: int) -> float:
-    width_micron = round(img_width/x_resolution,ndigits=3)
-    return round(width_micron/img_width,ndigits=3)
+def calculate_um_per_pixel(meta_dict: dict) -> tuple[float,float]: # Calculate the um per pixel output = (x,y)
+    width_micron = round(meta_dict['ImageWidth']*meta_dict['XResolution'],ndigits=3)
+    x_um_per_pix = round(width_micron/meta_dict['ImageWidth'],ndigits=3)
+    height_micron = round(meta_dict['ImageLength']*meta_dict['YResolution'],ndigits=3)
+    y_um_per_pix = round(height_micron/meta_dict['ImageLength'],ndigits=3)
+    return x_um_per_pix,y_um_per_pix
 
 def get_ND2_meta(img_path: PathLike)-> dict: 
     # Get ND2 img metadata
@@ -64,22 +68,22 @@ def calculate_interval_sec(timesteps: list, n_frames: int, n_series: int, n_slic
 def uniformize_meta(meta_dict: dict) -> dict:
     # Uniformize both nd2 and tif meta
     uni_meta = {}
-    new_keys = ['img_width','img_length','n_frames','full_n_channels','n_slices','n_series','pixel_microns','axes','interval_sec','file_type']
+    new_keys = ['img_width','img_length','n_frames','full_n_channels','n_slices','n_series','um_per_pixel','axes','interval_sec','file_type']
     if meta_dict['file_type']=='.nd2':
         old_keys = ['x','y','t','c','z','v','pixel_microns','axes','missing','file_type']
     elif meta_dict['file_type']=='.tif':
         old_keys = ['ImageWidth','ImageLength','frames','channels','slices','n_series','missing','axes','finterval','file_type']
     
     for new_key,old_key in zip(new_keys,old_keys):
-        if new_key=='pixel_microns' and old_key=='missing':
-            uni_meta[new_key] = calculate_X_pixmicron(meta_dict['XResolution'],meta_dict['ImageWidth'])
+        if new_key=='um_per_pixel' and old_key=='missing':
+            uni_meta[new_key] = calculate_um_per_pixel(meta_dict['XResolution'],meta_dict['ImageWidth'])
         
         elif new_key=='interval_sec' and old_key=='missing':
             uni_meta[new_key] = calculate_interval_sec(meta_dict['timesteps'],meta_dict['t'],meta_dict['v'],meta_dict['z'])
         
         else: uni_meta[new_key] = meta_dict[old_key]
     
-    uni_meta['pixel_microns'] = round(uni_meta['pixel_microns'],ndigits=3)
+    uni_meta['um_per_pixel'] = round(uni_meta['um_per_pixel'],ndigits=3)
     uni_meta['interval_sec'] = int(round(uni_meta['interval_sec']))
     return uni_meta
 

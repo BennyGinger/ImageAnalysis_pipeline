@@ -1,7 +1,7 @@
 from __future__ import annotations
-from dataclasses import dataclass,fields,field
+from dataclasses import dataclass, fields, field
 import json
-from os import sep,listdir,getcwd
+from os import sep, listdir
 from os.path import join
 import pandas as pd
 
@@ -39,7 +39,7 @@ class ImageProperties(LoadClass):
     
 @dataclass
 class Analysis(LoadClass):
-    pixel_microns: float
+    um_per_pixel: float
     interval_sec: float
     file_type: str
     level_0_tag: str

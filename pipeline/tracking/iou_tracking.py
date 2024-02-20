@@ -4,12 +4,11 @@ import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
 from os.path import join
 from image_handeling.Experiment_Classes import Experiment
-from image_handeling.loading_data import is_processed, mask_list_src, load_stack, create_save_folder, delete_old_masks
+from image_handeling.data_utility import is_processed, mask_list_src, load_stack, create_save_folder, delete_old_masks, save_tif
 from mask_transformation.mask_morph import morph_missing_mask
 from cellpose.utils import stitch3D
 from cellpose.metrics import _intersection_over_union
 from scipy.stats import mode
-from tifffile import imsave
 import numpy as np
 
 

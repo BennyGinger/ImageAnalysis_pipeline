@@ -5,11 +5,12 @@ from cellpose import models, core
 from cellpose.io import logger_setup, masks_flows_to_seg
 from os import PathLike
 from os.path import isfile
-from tifffile import imsave
+from tifffile import imwrite
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from image_handeling.Experiment_Classes import Experiment
-from image_handeling.loading_data import load_stack, is_processed, create_save_folder, gen_input_data, delete_old_masks
+from image_handeling.data_utility import load_stack, is_processed, create_save_folder, gen_input_data, delete_old_masks, save_tif
 
+#TODO: replace imwrite with save_tif
 MODEL_SETTINGS = {'gpu':core.use_gpu(),
                   'model_type': 'cyto3',
                   'pretrained_model':False,
@@ -59,19 +60,19 @@ def apply_cellpose_segmentation(img_dict: dict)-> None:
     # Run Cellpose. Returns 4 variables
     if img_dict['as_npy']:
         masks_cp, flows, _ = img_dict['model'].eval(img,**img_dict['cellpose_eval'])
-        save_npy(img,masks_cp,flows,img_dict['model'].diam_mean,mask_path)
+        save_as_npy(img,masks_cp,flows,img_dict['model'].diam_mean,mask_path)
         return
     
     masks_cp, __, __, = img_dict['model'].eval(img,**img_dict['cellpose_eval'])
-    save_tiff(masks_cp,mask_path)
+    save_as_tiff(masks_cp,mask_path)
 
-def save_npy(img: np.ndarray | list[np.ndarray], masks_cp: np.ndarray | list[np.ndarray], flows: list[np.ndarray] | list[list], 
+def save_as_npy(img: np.ndarray | list[np.ndarray], masks_cp: np.ndarray | list[np.ndarray], flows: list[np.ndarray] | list[list], 
              diameter: float, mask_path: PathLike)-> None:
     if img.ndim==3:
         mask_path = mask_path.replace("_z0001","_allz")
     masks_flows_to_seg(img,masks_cp,flows,mask_path,diameter)
 
-def save_tiff(masks_cp: np.ndarray | list[np.ndarray], mask_path: PathLike)-> None:
+def save_as_tiff(masks_cp: np.ndarray | list[np.ndarray], mask_path: PathLike)-> None:
     if masks_cp.ndim==3:
         for z_silce in range(masks_cp.shape[0]):
             split_name = mask_path.split("_z")

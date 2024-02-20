@@ -6,9 +6,10 @@ import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from pystackreg import StackReg
 from image_handeling.Experiment_Classes import Experiment
-from image_handeling.loading_data import load_stack, create_save_folder
-
-
+from image_handeling.data_utility import load_stack, create_save_folder, save_tif
+# TODO: replace imwrite with save_tif
+# TODO: only apply chan_shift to the first frame
+# TODO: save the transfo matrix to be able to apply it to the masks in the json file
 def chan_shift_file_name(file_list: list[PathLike], channel_list: list, reg_channel: str)-> list[tuple]:
     """Return a list of tuples of file names to be registered. 
     The first element of the tuple is the reference image and the second is the image to be registered.
@@ -37,15 +38,12 @@ def select_reg_mtd(reg_mtd: str)-> StackReg:
     return stackreg
 
 def correct_chan_shift(input_dict: dict)-> None:
-    # Unpack input data
-    stackreg,file_list = input_dict
-    
     # Load ref_img and img
-    ref_img_path,img_path = input_dict['img_group']
+    ref_img_path,img_path = input_dict['img_pairs']
     ref_img = imread(ref_img_path)
     img = imread(img_path)
     # Apply transfo
-    reg_img = stackreg.register_transform(ref_img,img)
+    reg_img = input_dict['stackreg'].register_transform(ref_img,img)
     # Save
     reg_img[reg_img<0] = 0
     imwrite(img_path,reg_img.astype(np.uint16))
@@ -141,8 +139,8 @@ def channel_shift_register(exp_set_list: list[Experiment], reg_mtd: str, reg_cha
         print(f" --> Applying channel shift correction on the images with '{reg_channel}' as reference and {reg_mtd} methods")
         
         # Generate input data for parallel processing
-        img_group_list = chan_shift_file_name(exp_set.processed_images_list,exp_set.active_channel_list,reg_channel)
-        input_data = [{'stackreg':stackreg,'img_group':img_group} for img_group in img_group_list]
+        img_pairs_list = chan_shift_file_name(exp_set.processed_images_list,exp_set.active_channel_list,reg_channel)
+        input_data = [{'stackreg':stackreg,'img_pairs':img_pairs} for img_pairs in img_pairs_list]
                 
         with ProcessPoolExecutor() as executor:
             executor.map(correct_chan_shift,input_data)

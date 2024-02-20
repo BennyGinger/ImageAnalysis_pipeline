@@ -4,7 +4,7 @@ from os.path import isdir, join, isfile
 from image_handeling.Experiment_Classes import Experiment
 from typing import Iterable
 import numpy as np
-from tifffile import imread 
+from tifffile import imread, imwrite
 
 def load_stack(img_list: list[PathLike], channel_list: Iterable[str], frame_range: Iterable[int])-> np.ndarray:
     # Load/Reload stack. Expected shape of images tzxyc
@@ -110,3 +110,13 @@ def delete_old_masks(class_setting_dict: dict, channel_seg: str, mask_files_list
     for file in files_list:
         if isfile(file):
             remove(file)
+
+def get_resolution(um_per_pixel: tuple[float,float])-> tuple[float,float]:
+    x_umpixel,y_umpixel = um_per_pixel
+    return 1/x_umpixel,1/y_umpixel
+
+def save_tif(array: np.ndarray, save_path: PathLike, um_per_pixel: tuple[float,float], finterval: int)-> None:
+    """Save array as tif with metadata"""
+    imagej_metadata = {'finterval':finterval, 'unit': 'um'}
+    imwrite(save_path,array.astype(np.uint16),imagej=True,metadata=imagej_metadata,resolution=get_resolution(um_per_pixel))
+    

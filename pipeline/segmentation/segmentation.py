@@ -6,7 +6,9 @@ import numpy as np
 from tifffile import imsave
 from concurrent.futures import ThreadPoolExecutor
 from image_handeling.Experiment_Classes import Experiment
-from image_handeling.loading_data import is_processed, load_stack, create_save_folder, gen_input_data, delete_old_masks
+from image_handeling.data_utility import is_processed, load_stack, create_save_folder, gen_input_data, delete_old_masks, save_tif
+
+# TODO: replace imsave with save_tif
 
 def determine_threshold(img: np.ndarray, manual_threshold: float=None)-> float:
     # Set the threshold's value. Either as input or automatically if thres==None

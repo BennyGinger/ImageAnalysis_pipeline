@@ -4,7 +4,7 @@ from dataclasses import fields
 import pandas as pd
 import numpy as np
 from image_handeling.Experiment_Classes import Experiment, Masks
-from image_handeling.loading_data import load_stack, img_list_src, mask_list_src
+from image_handeling.data_utility import load_stack, img_list_src, mask_list_src
 from concurrent.futures import ProcessPoolExecutor
 
 

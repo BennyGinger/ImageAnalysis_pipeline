@@ -2,9 +2,9 @@ from __future__ import annotations
 from os import sep, scandir, PathLike
 from os.path import join, exists
 from image_handeling.Experiment_Classes import init_from_dict, init_from_json, Experiment
-from image_handeling.loading_data import create_save_folder
+from image_handeling.data_utility import create_save_folder, save_tif
 from nd2reader import ND2Reader
-from tifffile import imwrite, imread
+from tifffile import imread
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from .metadata import get_metadata
@@ -34,7 +34,7 @@ def write_ND2(img_data: list)-> None:
     else: img = img_obj.get_frame_2D(c=chan,t=frame,x=meta['img_width'],y=meta['img_length'],v=serie)
     # Save
     im_folder = join(sep,meta['exp_path_list'][serie]+sep,'Images')
-    imwrite(join(sep,im_folder+sep,img_name)+".tif",img.astype(np.uint16))
+    save_tif(img,join(sep,im_folder+sep,img_name)+".tif",meta['um_per_pixel'],meta['interval_sec'])
     
 def expand_dim_tif(img_path: PathLike, axes: str)-> np.ndarray:
     """Adjust the dimension of the image to TZCYX"""
@@ -56,7 +56,7 @@ def write_tif(img_data: list)-> None:
     chan = meta['full_channel_list'].index(img_name.split('_')[0])
     
     im_folder = join(sep,meta['exp_path_list'][0]+sep,'Images')
-    imwrite(join(sep,im_folder+sep,img_name)+".tif",img[frame,z_slice,chan,...].astype(np.uint16))
+    save_tif(img[frame,z_slice,chan,...],join(sep,im_folder+sep,img_name)+".tif",meta['um_per_pixel'],meta['interval_sec'])
     
 def write_img(meta_dict: dict)-> None:
     # Create all the names for the images+metadata
