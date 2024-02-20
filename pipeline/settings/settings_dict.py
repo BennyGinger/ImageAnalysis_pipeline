@@ -2,7 +2,7 @@ settings = {
     "input_folder": '/home/Test_images/nd2/Run2',
     "init":{"active_channel_list": ['GFP','RFP'],
             'full_channel_list':[],
-            "overwrite": False},
+            "overwrite": True},
     
     
     "run_bg_sub": True,

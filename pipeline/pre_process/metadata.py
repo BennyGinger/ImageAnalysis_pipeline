@@ -144,7 +144,23 @@ def get_metadata(img_path: PathLike, active_channel_list: list=[], full_channel_
     # Add channel data
     return update_channel_names(meta_dict,active_channel_list,full_channel_list)
     
-
+# Final output: 
+# {'active_channel_list': ['C1', 'C2'],
+#  'axes': '',
+#  'exp_path_list': ['/home/Test_images/nd2/Run2/c2z25t23v1_nd2_s1'],
+#  'file_type': '.nd2',
+#  'full_channel_list': ['C1', 'C2'],
+#  'full_n_channels': 2,
+#  'img_length': 512,
+#  'img_path': '/home/Test_images/nd2/Run2/c2z25t23v1_nd2.nd2',
+#  'img_width': 512,
+#  'interval_sec': 11,
+#  'level_0_tag': 'Run2',
+#  'level_1_tag': 'nd2',
+#  'n_frames': 23,
+#  'n_series': 1,
+#  'n_slices': 25,
+#  'um_per_pixel': 0.322}
     
 
 if __name__ == '__main__':
