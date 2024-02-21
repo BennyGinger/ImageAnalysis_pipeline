@@ -26,6 +26,7 @@ def get_tif_meta(img_path: PathLike) -> dict:
     if 'finterval' not in imagej_meta: imagej_meta['finterval'] = 0
     
     imagej_meta['n_series'] = 1
+    imagej_meta['file_type'] = '.tif'
     return imagej_meta
 
 def calculate_um_per_pixel(meta_dict: dict) -> tuple[float,float]: # Calculate the um per pixel output = (x,y)
@@ -52,6 +53,7 @@ def get_ND2_meta(img_path: PathLike)-> dict:
     ### Check for nd2 bugs with foccused EDF and z stack
     if nd2_meta['z']*nd2_meta['t']*nd2_meta['v']!=nd2_meta['total_images_per_channel']:
         nd2_meta['z'] = 1
+    nd2_meta['file_type'] = '.nd2'
     return nd2_meta
 
 def calculate_interval_sec(timesteps: list, n_frames: int, n_series: int, n_slices: int) -> int:
@@ -76,14 +78,16 @@ def uniformize_meta(meta_dict: dict) -> dict:
     
     for new_key,old_key in zip(new_keys,old_keys):
         if new_key=='um_per_pixel' and old_key=='missing':
-            uni_meta[new_key] = calculate_um_per_pixel(meta_dict['XResolution'],meta_dict['ImageWidth'])
+            uni_meta[new_key] = calculate_um_per_pixel(meta_dict)
+            
+        elif new_key=='um_per_pixel' and old_key=='pixel_microns':
+            uni_meta[new_key] = (meta_dict[old_key],meta_dict[old_key])
         
         elif new_key=='interval_sec' and old_key=='missing':
             uni_meta[new_key] = calculate_interval_sec(meta_dict['timesteps'],meta_dict['t'],meta_dict['v'],meta_dict['z'])
         
         else: uni_meta[new_key] = meta_dict[old_key]
     
-    uni_meta['um_per_pixel'] = round(uni_meta['um_per_pixel'],ndigits=3)
     uni_meta['interval_sec'] = int(round(uni_meta['interval_sec']))
     return uni_meta
 
@@ -119,6 +123,10 @@ def update_channel_names(meta_dict: dict, active_channel_list: list=[], full_cha
         meta_dict['active_channel_list'] = meta_dict['full_channel_list']  = active_channel_list
         return meta_dict
     
+    if active_channel_list and full_channel_list and active_channel_list!=full_channel_list:
+        meta_dict['active_channel_list'] = meta_dict['full_channel_list']  = active_channel_list
+        return meta_dict
+    
     meta_dict['active_channel_list'] = active_channel_list
     meta_dict['full_channel_list'] = full_channel_list
     return meta_dict
@@ -129,10 +137,8 @@ def get_metadata(img_path: PathLike, active_channel_list: list=[], full_channel_
     print(f"\nExtracting metadata from {img_path}")
     if img_path.endswith('.nd2'):
         meta_dict = get_ND2_meta(img_path)
-        meta_dict['file_type'] = '.nd2'
     elif img_path.endswith(('.tif','.tiff')):
         meta_dict = get_tif_meta(img_path)
-        meta_dict['file_type'] = '.tif'
     else:
         raise ValueError('Image format not supported, please use .nd2 or .tif/.tiff')
     meta_dict = uniformize_meta(meta_dict)
