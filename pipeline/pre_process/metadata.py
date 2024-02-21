@@ -166,7 +166,7 @@ def get_metadata(img_path: PathLike, active_channel_list: list=[], full_channel_
 #  'n_frames': 23,
 #  'n_series': 1,
 #  'n_slices': 25,
-#  'um_per_pixel': 0.322}
+#  'um_per_pixel': (0.322, 0.322)}
     
 
 if __name__ == '__main__':
