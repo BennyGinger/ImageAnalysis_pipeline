@@ -66,8 +66,8 @@ class PreProcess(BaseModule):
     def bg_sub(self, sigma: float=0, size: int=7, overwrite: bool=False)-> list[Experiment]:
         return background_sub(self.experiment_list,sigma,size,overwrite)
     
-    def chan_shift(self, reg_channel: str, reg_mtd: str, overwrite: bool=False)-> list[Experiment]:
-        return channel_shift_register(self.experiment_list,reg_mtd,reg_channel,overwrite)
+    def chan_shift(self, reg_channel: str, reg_mtd: str, overwrite: bool=False, first_img_only: bool=False)-> list[Experiment]:
+        return channel_shift_register(self.experiment_list,reg_mtd,reg_channel,overwrite,first_img_only)
     
     def register(self, reg_channel: str, reg_mtd: str, reg_ref: str, overwrite: bool=False)-> list[Experiment]:
         return register_img(self.experiment_list,reg_channel,reg_mtd,reg_ref,overwrite)

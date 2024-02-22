@@ -13,7 +13,8 @@ settings = {
     "run_chan_shift": True,
     "chan_shift": {"reg_channel": "RFP",
                    "reg_mtd": "rigid_body",
-                   "overwrite": False},
+                   "overwrite": False,
+                   "first_img_only": True},
     
     "run_register": True,
     "register": {"reg_channel": "RFP",
