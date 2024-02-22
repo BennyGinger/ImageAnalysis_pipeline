@@ -1,7 +1,9 @@
 from __future__ import annotations
-from Experiment_Classes import Experiment
-from loading_data import is_processed, create_save_folder, delete_old_masks
-import inference_clean, postprocess_clean
+from image_handeling.Experiment_Classes import Experiment
+from image_handeling.data_utility import is_processed, create_save_folder, delete_old_masks
+from tracking.gnn_track.inference_clean import predict
+from tracking.gnn_track.postprocess_clean import Postprocess
+from tracking.gnn_track import preprocess_seq2graph_clean, preprocess_seq2graph_3d
 from os.path import join
 
 def model_select(model):
@@ -41,21 +43,18 @@ def gnn_tracking(exp_set_list: list[Experiment], channel_seg: str, model:str, gn
         csv_path = join(files_folder, 'track_csv')
 
         if len(exp_set.img_properties.n_slices)==1: # check of 2D or 3D
-            import preprocess_seq2graph_clean
             is_3d = False
             preprocess_seq2graph_clean.create_csv(input_images=input_img, input_seg=input_seg, input_model=model_dict['model_metric'], channel=channel_seg, output_csv=csv_path, min_cell_size=min_cell_size)
         else:
-            import preprocess_seq2graph_3d
             is_3d = True
             preprocess_seq2graph_3d.create_csv(input_images=input_img, input_seg=input_seg, input_model=model_dict['model_metric'], channel=channel_seg, output_csv=csv_path, min_cell_size=min_cell_size)
             
-        inference_clean.predict(ckpt_path=model_dict['model_lightning'], path_csv_output=csv_path, num_seq='01')
+        predict(ckpt_path=model_dict['model_lightning'], path_csv_output=csv_path, num_seq='01')
                 
-        pp = postprocess_clean.Postprocess(is_3d=is_3d, type_masks='tif', merge_operation='AND', decision_threshold=decision_threshold,
+        pp = Postprocess(is_3d=is_3d, type_masks='tif', merge_operation='AND', decision_threshold=decision_threshold,
                      path_inference_output=files_folder, center_coord=False, directed=True, path_seg_result=input_seg)
         
-        all_frames_traject, trajectory_same_label, df_trajectory, str_track = pp.create_trajectory()
-        print(str_track)
+        pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
         pp.fill_mask_labels(debug=False)
     
     # Save settings
