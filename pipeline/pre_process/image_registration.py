@@ -1,7 +1,7 @@
 from __future__ import annotations
 from os.path import join
 from os import sep, PathLike
-from tifffile import imread, imwrite
+from tifffile import imread
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from pystackreg import StackReg
@@ -10,7 +10,8 @@ from image_handeling.data_utility import load_stack, create_save_folder, save_ti
 # TODO: replace imwrite with save_tif
 # TODO: only apply chan_shift to the first frame
 # TODO: save the transfo matrix to be able to apply it to the masks in the json file
-def chan_shift_file_name(file_list: list[PathLike], channel_list: list, reg_channel: str)-> list[tuple]:
+
+def gen_file_pairs_list(file_list: list[PathLike], channel_list: list, reg_channel: str)-> list[tuple]:
     """Return a list of tuples of file names to be registered. 
     The first element of the tuple is the reference image and the second is the image to be registered.
     """
@@ -37,7 +38,40 @@ def select_reg_mtd(reg_mtd: str)-> StackReg:
     elif reg_mtd=='bilinear':        stackreg = StackReg(StackReg.BILINEAR)
     return stackreg
 
-def correct_chan_shift(input_dict: dict)-> None:
+def register_chan_shift_all(exp_set: Experiment, stackreg: StackReg, reg_channel: str)-> Experiment:
+    img_pairs_list = gen_file_pairs_list(exp_set.processed_images_list,exp_set.active_channel_list,reg_channel)
+    input_data = [{'stackreg':stackreg,'img_pairs':img_pairs,
+                   'metadata':(exp_set.analysis.um_per_pixel,exp_set.analysis.interval_sec)} for img_pairs in img_pairs_list]
+             
+    with ProcessPoolExecutor() as executor:
+        executor.map(correct_chan_shift_all,input_data)
+    return exp_set
+
+def register_chan_shift_first(exp_set: Experiment, stackreg: StackReg, reg_channel: str)-> Experiment:
+    # Sort the images by channel
+    channel_list = exp_set.active_channel_list
+    d = {chan: [file for file in exp_set.processed_images_list if chan in file] for chan in channel_list}
+    chan_2b_process = channel_list.copy()
+    chan_2b_process.remove(reg_channel)
+    # Register the first images
+    tmats_dict = {}
+    for chan in chan_2b_process:
+        ref_img = imread(sorted(d[reg_channel])[0])
+        img = imread(sorted(d[chan])[0])
+        tmat = stackreg.register(ref_img,img)
+        tmats_dict[chan] = tmat
+    stackreg.transform
+    # Generate input data for parallel processing
+    del d[reg_channel]
+    input_data = [{'stackreg':stackreg,'img_path':path,'tmat':tmats_dict[chan],
+                   'metadata':(exp_set.analysis.um_per_pixel,exp_set.analysis.interval_sec)
+                   } for chan, img_path_lst in d.items() for path in img_path_lst]
+    
+    with ProcessPoolExecutor() as executor:
+        executor.map(correct_chan_shift_first,input_data)
+    return exp_set
+    
+def correct_chan_shift_all(input_dict: dict)-> None:
     # Load ref_img and img
     ref_img_path,img_path = input_dict['img_pairs']
     ref_img = imread(ref_img_path)
@@ -46,7 +80,13 @@ def correct_chan_shift(input_dict: dict)-> None:
     reg_img = input_dict['stackreg'].register_transform(ref_img,img)
     # Save
     reg_img[reg_img<0] = 0
-    imwrite(img_path,reg_img.astype(np.uint16))
+    save_tif(reg_img.astype(np.uint16),img_path,*input_dict['metadata'])
+
+def correct_chan_shift_first(input_dict: dict)-> None:
+    img = imread(input_dict['img_path'])
+    reg_img = input_dict['stackreg'].transform(img,input_dict['tmat'])
+    reg_img[reg_img<0] = 0
+    save_tif(reg_img.astype(np.uint16),input_dict['img_path'],*input_dict['metadata'])
 
 def register_with_first(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: PathLike)-> None:
     # Load ref image
@@ -70,7 +110,8 @@ def register_with_first(stackreg: StackReg, exp_set: Experiment, reg_channel: st
                 else: reg_img = stackreg.transform(mov=img[z,...],tmat=tmats)
                 # Save
                 reg_img[reg_img<0] = 0
-                imwrite(join(sep,img_folder+sep,chan+f"_s{serie:02d}"+'_f%04d'%(f+1)+'_z%04d.tif'%(z+1)),reg_img.astype(np.uint16))
+                file_name = join(sep,img_folder+sep,chan+f"_s{serie:02d}"+'_f%04d'%(f+1)+'_z%04d.tif'%(z+1))
+                save_tif(reg_img.astype(np.uint16),file_name,exp_set.analysis.um_per_pixel,exp_set.analysis.interval_sec)
 
 def register_with_mean(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: PathLike)-> None:
     # Load ref image
@@ -94,7 +135,8 @@ def register_with_mean(stackreg: StackReg, exp_set: Experiment, reg_channel: str
                 else: reg_img = stackreg.transform(mov=img[z,...],tmat=tmats)
                 # Save
                 reg_img[reg_img<0] = 0
-                imwrite(join(sep,img_folder+sep,chan+f"_s{serie:02d}"+'_f%04d'%(f+1)+'_z%04d.tif'%(z+1)),reg_img.astype(np.uint16))
+                file_name = join(sep,img_folder+sep,chan+f"_s{serie:02d}"+'_f%04d'%(f+1)+'_z%04d.tif'%(z+1))
+                save_tif(reg_img.astype(np.uint16),file_name,exp_set.analysis.um_per_pixel,exp_set.analysis.interval_sec)
 
 def register_with_previous(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: PathLike)-> None:
     for f in range(1,exp_set.img_properties.n_frames):
@@ -120,17 +162,22 @@ def register_with_previous(stackreg: StackReg, exp_set: Experiment, reg_channel:
             for z in range(exp_set.img_properties.n_slices):
                 # Copy the first image to the reg_folder
                 if f==1:
-                    if exp_set.img_properties.n_slices==1: imwrite(join(sep,img_folder+sep,chan+f"_s{serie:02d}"+'_f%04d'%(1)+'_z%04d.tif'%(z+1)),fst_img.astype(np.uint16))
-                    else: imwrite(join(sep,img_folder+sep,chan+f"_s{serie:02d}"+'_f%04d'%(1)+'_z%04d.tif'%(z+1)),fst_img[z,...].astype(np.uint16))
+                    if exp_set.img_properties.n_slices==1: 
+                        first_file_name = join(sep,img_folder+sep,chan+f"_s{serie:02d}"+'_f%04d'%(1)+'_z%04d.tif'%(z+1))
+                        save_tif(fst_img.astype(np.uint16),first_file_name,exp_set.analysis.um_per_pixel,exp_set.analysis.interval_sec)
+                    else: 
+                        first_file_name = join(sep,img_folder+sep,chan+f"_s{serie:02d}"+'_f%04d'%(1)+'_z%04d.tif'%(z+1))
+                        save_tif(fst_img[z,...].astype(np.uint16),first_file_name,exp_set.analysis.um_per_pixel,exp_set.analysis.interval_sec)
                 # Apply transfo
                 if exp_set.img_properties.n_slices==1: reg_img = stackreg.transform(mov=img,tmat=tmats)
                 else: reg_img = stackreg.transform(mov=img[z,...],tmat=tmats)
                 # Save
                 reg_img[reg_img<0] = 0
-                imwrite(join(sep,img_folder+sep,chan+f"_s{serie:02d}"+'_f%04d'%(f+1)+'_z%04d.tif'%(z+1)),reg_img.astype(np.uint16))
+                file_name = join(sep,img_folder+sep,chan+f"_s{serie:02d}"+'_f%04d'%(f+1)+'_z%04d.tif'%(z+1)) 
+                save_tif(reg_img.astype(np.uint16),file_name,exp_set.analysis.um_per_pixel,exp_set.analysis.interval_sec)
 
 # # # # # # # # main functions # # # # # # # # # 
-def channel_shift_register(exp_set_list: list[Experiment], reg_mtd: str, reg_channel: str, chan_shift_overwrite: bool=False)-> list[Experiment]:
+def channel_shift_register(exp_set_list: list[Experiment], reg_mtd: str, reg_channel: str, chan_shift_overwrite: bool=False, first_img_only: bool=False)-> list[Experiment]:
     for exp_set in exp_set_list:
         if exp_set.process.channel_shift_corrected and not chan_shift_overwrite:
             print(f" --> Channel shift was already applied on the images with {exp_set.process.channel_shift_corrected}")
@@ -138,12 +185,10 @@ def channel_shift_register(exp_set_list: list[Experiment], reg_mtd: str, reg_cha
         stackreg = select_reg_mtd(reg_mtd)
         print(f" --> Applying channel shift correction on the images with '{reg_channel}' as reference and {reg_mtd} methods")
         
-        # Generate input data for parallel processing
-        img_pairs_list = chan_shift_file_name(exp_set.processed_images_list,exp_set.active_channel_list,reg_channel)
-        input_data = [{'stackreg':stackreg,'img_pairs':img_pairs} for img_pairs in img_pairs_list]
-                
-        with ProcessPoolExecutor() as executor:
-            executor.map(correct_chan_shift,input_data)
+        if first_img_only: 
+            exp_set = register_chan_shift_first(exp_set,stackreg,reg_channel)
+        else:
+            exp_set = register_chan_shift_all(exp_set,stackreg,reg_channel)
         # Save settings
         exp_set.process.channel_shift_corrected = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}"]
         exp_set.save_as_json()
