@@ -47,7 +47,8 @@ RUN addgroup --gid $GID cpdev && \
     adduser --uid $UID --gid $GID --disabled-password --gecos "" cpdev && \
     echo "cpdev ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 USER cpdev
-
+RUN conda init bash
+RUN echo "conda activate cp_dock"  >> ~/.bashrc
 # Cannot clone git repo because of the different user. Only root user can clone the repo.
 # Clone git repository
 # ENV GIT_USER=$GIT_USER
