@@ -2,16 +2,16 @@ import pyqtgraph as pg
 from qtpy.QtWidgets import QMainWindow, QWidget, QGridLayout, QLabel
 from qtpy import QtGui, QtCore
 import os, pathlib
-from cellpose.gui import guiparts, gui
+from cellpose.gui import guiparts, gui, io
 import numpy as np
 import matplotlib.pyplot as plt
 
 
 # ----------------------main Window function ----------------adapted from cellpose
 
-class preprocess_tab(QMainWindow):
+class woundmask_tab(QMainWindow):
     def __init__(self, image=None):
-        super(preprocess_tab, self).__init__()
+        super(woundmask_tab, self).__init__()
 
         pg.setConfigOptions(imageAxisOrder="row-major")
         self.setGeometry(50, 50, 1200, 1000)
@@ -84,6 +84,11 @@ class preprocess_tab(QMainWindow):
         self.reset()
 
         self.is_stack = True # always loading images of same FOV
+        
+        self.filename = '/home/Fabian/ImageData/mfap4-mpx_isohypo_2h_WT-MaxIP_s1/Images_Registered/GFP_s01_f0001_z0001.tif'
+        io._load_image(self, self.filename)
+        
+        
         # if called with image, load it
         # if image is not None:
         #     self.filename = image
@@ -210,14 +215,12 @@ class preprocess_tab(QMainWindow):
                                 self.xortho = x
                                 self.update_ortho()
 
-
     def mouse_moved(self, pos):
         items = self.win.scene().items(pos)
         #for x in items:
         #    if not x==self.p0:
         #        QtWidgets.QApplication.restoreOverrideCursor()
         #        QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.DefaultCursor)
-        
         
     def reset(self):
         # ---- start sets of points ---- #

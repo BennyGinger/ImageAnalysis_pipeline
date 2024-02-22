@@ -107,7 +107,7 @@ def create_man_mask(img_dict: dict):
             except: masks_man[y-1, x] = cell_number
     
     #dilate the cells to make them visible
-    masks_man = expand_labels(masks_man, distance=img_dict['radius'])
+    masks_man = expand_labels(masks_man, distance=img_dict['dilate_value'])
     folder, filename = split(img_dict['imgs_path'][0])
     savedir = join(split(folder)[0],'Masks_Manual_Track', filename)
     
