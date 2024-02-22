@@ -24,6 +24,8 @@ class Masks(LoadClass):
     threshold_seg: dict = field(default_factory=dict)
     cellpose_seg: dict = field(default_factory=dict)
     iou_tracking: dict = field(default_factory=dict)
+    manual_tracking: dict = field(default_factory=dict)
+    gnn_tracking: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -88,6 +90,16 @@ class Experiment(LoadClass):
     def mask_cellpose_list(self)-> list:
         mask_folder = join(sep,self.exp_path+sep,'Masks_Cellpose')
         return [join(sep,mask_folder+sep,f) for f in sorted(listdir(mask_folder)) if f.endswith(('.tif','.npy'))]
+    
+    @property
+    def mask_manual_track_list(self)-> list:
+        mask_folder = join(sep,self.exp_path+sep,'Masks_Manual_Track')
+        return [join(sep,mask_folder+sep,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
+    
+    @property
+    def mask_gnn_track_list(self)-> list:
+        mask_folder = join(sep,self.exp_path+sep,'Masks_GNN_Track')
+        return [join(sep,mask_folder+sep,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
     
     @property
     def mask_iou_track_list(self)-> list:
@@ -195,6 +207,3 @@ if __name__ == '__main__':
         del masks_dict['cellpose_seg']
         
     print(masks_dict)
-                
-    
-    
