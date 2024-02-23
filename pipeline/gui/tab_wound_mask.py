@@ -1,5 +1,5 @@
 import pyqtgraph as pg
-from qtpy.QtWidgets import QMainWindow, QWidget, QGridLayout, QLabel
+from qtpy.QtWidgets import QMainWindow, QWidget, QGridLayout, QLabel, QAction, QGroupBox, QComboBox, QCheckBox
 from qtpy import QtGui, QtCore
 import os, pathlib
 from cellpose.gui import guiparts, gui, io
@@ -7,9 +7,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+
 # ----------------------main Window function ----------------adapted from cellpose
 
-class woundmask_tab(QMainWindow):
+
+
+class woundmask_tab(QWidget):
     def __init__(self, image=None):
         super(woundmask_tab, self).__init__()
 
@@ -85,9 +88,15 @@ class woundmask_tab(QMainWindow):
 
         self.is_stack = True # always loading images of same FOV
         
+        self.autoloadMasks = QAction("Autoload masks from _masks.tif file", self, checkable=True)
+        self.autoloadMasks.setChecked(True)
+        self.restore = None
         self.filename = '/home/Fabian/ImageData/mfap4-mpx_isohypo_2h_WT-MaxIP_s1/Images_Registered/GFP_s01_f0001_z0001.tif'
         io._load_image(self, self.filename)
         
+        
+
+        # file_menu.addAction(parent.autoloadMasks)
         
         # if called with image, load it
         # if image is not None:
@@ -109,34 +118,152 @@ class woundmask_tab(QMainWindow):
         
         
     def make_buttons(self):
-        label_style = """QLabel{
-                            color: white
-                            } 
-                         QToolTip { 
-                           background-color: black; 
-                           color: white; 
-                           border: black solid 1px
-                           }"""
-        self.boldfont = QtGui.QFont("Arial", 12, QtGui.QFont.Bold)
-        self.medfont = QtGui.QFont("Arial", 10)
+        self.boldfont = QtGui.QFont("Arial", 11, QtGui.QFont.Bold)
+        self.boldmedfont = QtGui.QFont("Arial", 9, QtGui.QFont.Bold)
+        self.medfont = QtGui.QFont("Arial", 9)
         self.smallfont = QtGui.QFont("Arial", 8)
-        self.headings = ('color: rgb(150,255,150);')
-        self.dropdowns = ("color: white;"
-                        "background-color: rgb(40,40,40);"
-                        "selection-color: white;"
-                        "selection-background-color: rgb(50,100,50);")
-        self.checkstyle = "color: rgb(190,190,190);"
-
-        label = QLabel('Views:')#[\u2191 \u2193]')
-        label.setStyleSheet(self.headings)
-        label.setFont(self.boldfont)
-        self.l0.addWidget(label, 0,0,1,4)
         
-                # cross-hair
-        self.vLine = pg.InfiniteLine(angle=90, movable=False)
-        self.hLine = pg.InfiniteLine(angle=0, movable=False)
-        self.vLineOrtho = [pg.InfiniteLine(angle=90, movable=False), pg.InfiniteLine(angle=90, movable=False)]
-        self.hLineOrtho = [pg.InfiniteLine(angle=0, movable=False), pg.InfiniteLine(angle=0, movable=False)]
+        b=0
+        self.satBox = QGroupBox('Views')
+        self.satBox.setFont(self.boldfont)
+        self.satBoxG = QGridLayout()
+        self.satBox.setLayout(self.satBoxG)
+        self.l0.addWidget(self.satBox, b, 0, 1, 9)
+
+        b0=0
+        self.view = 0 # 0=image, 1=flowsXY, 2=flowsZ, 3=cellprob
+        self.color = 0 # 0=RGB, 1=gray, 2=R, 3=G, 4=B
+        self.RGBDropDown = QComboBox()
+        self.RGBDropDown.addItems(["RGB","red=R","green=G","blue=B","gray","spectral"])
+        self.RGBDropDown.setFont(self.medfont)
+        self.RGBDropDown.currentIndexChanged.connect(self.color_choose)
+        self.satBoxG.addWidget(self.RGBDropDown, b0,0,1,3)
+        
+        label = QLabel('<p>[&uarr; / &darr; or W/S]</p>'); label.setFont(self.smallfont)
+        self.satBoxG.addWidget(label, b0,3,1,3)
+        label = QLabel('[R / G / B \n toggles color ]'); label.setFont(self.smallfont)
+        self.satBoxG.addWidget(label, b0,6,1,3)
+
+        b0+=1
+        self.ViewDropDown = QComboBox()
+        self.ViewDropDown.addItems(["image", "gradXY", "cellprob", "restored"])
+        self.ViewDropDown.setFont(self.medfont)
+        self.ViewDropDown.model().item(3).setEnabled(False)
+        self.ViewDropDown.currentIndexChanged.connect(self.update_plot)
+        self.satBoxG.addWidget(self.ViewDropDown, b0,0,2,3)
+
+        label = QLabel('[pageup / pagedown]')
+        label.setFont(self.smallfont)
+        self.satBoxG.addWidget(label, b0,3,1,5)
+
+        b0+=2
+        label = QLabel('')
+        label.setToolTip('NOTE: manually changing the saturation bars does not affect normalization in segmentation')
+        self.satBoxG.addWidget(label, b0,0,1,5)
+
+        self.autobtn = QCheckBox('auto-adjust saturation')
+        self.autobtn.setToolTip('sets scale-bars as normalized for segmentation')
+        self.autobtn.setFont(self.medfont)
+        self.autobtn.setChecked(True)
+        self.satBoxG.addWidget(self.autobtn, b0,1,1,8)
+
+        b0+=1
+        self.sliders = []
+        colors = [[255,0,0], [0,255,0], [0,0,255], [100,100,100]]
+        colornames = ['red', 'Chartreuse', 'DodgerBlue']
+        names = ['red', 'green', 'blue']
+        for r in range(3):
+            b0+=1
+            if r==0:
+                label = QLabel('<font color="gray">gray/</font><br>red')
+            else:
+                label = QLabel(names[r] + ':')
+            label.setStyleSheet(f"color: {colornames[r]}")
+            label.setFont(self.boldmedfont)
+            self.satBoxG.addWidget(label, b0, 0, 1, 2)
+            self.sliders.append(gui.Slider(self, names[r], colors[r]))
+            self.sliders[-1].setMinimum(-.1)
+            self.sliders[-1].setMaximum(255.1)
+            self.sliders[-1].setValue([0, 255])
+            self.sliders[-1].setToolTip('NOTE: manually changing the saturation bars does not affect normalization in segmentation')
+            #self.sliders[-1].setTickPosition(QSlider.TicksRight)
+            self.satBoxG.addWidget(self.sliders[-1], b0, 2,1,7)
+        
+        b+=1
+        self.drawBox = QGroupBox('Drawing')
+        self.drawBox.setFont(self.boldfont)
+        self.drawBoxG = QGridLayout()
+        self.drawBox.setLayout(self.drawBoxG)
+        self.l0.addWidget(self.drawBox, b, 0, 1, 9)
+        self.autosave = True
+
+        b0 = 0
+        self.brush_size = 3
+        self.BrushChoose = QComboBox()
+        self.BrushChoose.addItems(["1","3","5","7","9"])
+        self.BrushChoose.currentIndexChanged.connect(self.brush_choose)
+        self.BrushChoose.setFixedWidth(40)
+        self.BrushChoose.setFont(self.medfont)
+        self.drawBoxG.addWidget(self.BrushChoose, b0, 3,1,2)
+        label = QLabel('brush size:')
+        label.setFont(self.medfont)
+        self.drawBoxG.addWidget(label, b0,0,1,3)
+        
+        b0+=1
+        # turn off masks
+        self.layer_off = False
+        self.masksOn = True
+        self.MCheckBox = QCheckBox('MASKS ON [X]')
+        self.MCheckBox.setFont(self.medfont)
+        self.MCheckBox.setChecked(True)
+        self.MCheckBox.toggled.connect(self.toggle_masks)
+        self.drawBoxG.addWidget(self.MCheckBox, b0,0,1,5)
+
+        b0+=1
+        # turn off outlines
+        self.outlinesOn = False # turn off by default
+        self.OCheckBox = QCheckBox('outlines on [Z]')
+        self.OCheckBox.setFont(self.medfont)
+        self.drawBoxG.addWidget(self.OCheckBox, b0,0,1,5)
+        self.OCheckBox.setChecked(False)
+        self.OCheckBox.toggled.connect(self.toggle_masks) 
+
+        b0+=1
+        self.SCheckBox = QCheckBox('single stroke')
+        self.SCheckBox.setFont(self.medfont)
+        self.SCheckBox.setChecked(True)
+        self.SCheckBox.toggled.connect(self.autosave_on)
+        self.SCheckBox.setEnabled(True)
+        self.drawBoxG.addWidget(self.SCheckBox, b0,0,1,5)
+
+
+        # buttons for deleting multiple cells
+        self.deleteBox = QGroupBox('delete multiple ROIs')
+        self.deleteBox.setStyleSheet('color: rgb(200, 200, 200)')
+        self.deleteBox.setFont(self.medfont)
+        self.deleteBoxG = QGridLayout()
+        self.deleteBox.setLayout(self.deleteBoxG)
+        self.drawBoxG.addWidget(self.deleteBox, 0, 5, 4, 4)
+        self.MakeDeletionRegionButton = QPushButton('region-select')
+        self.MakeDeletionRegionButton.clicked.connect(self.remove_region_cells)
+        self.deleteBoxG.addWidget(self.MakeDeletionRegionButton, 0, 0, 1, 4)
+        self.MakeDeletionRegionButton.setFont(self.smallfont)
+        self.MakeDeletionRegionButton.setFixedWidth(70)
+        self.DeleteMultipleROIButton = QPushButton('click-select')
+        self.DeleteMultipleROIButton.clicked.connect(self.delete_multiple_cells)
+        self.deleteBoxG.addWidget(self.DeleteMultipleROIButton, 1, 0, 1, 4)
+        self.DeleteMultipleROIButton.setFont(self.smallfont)
+        self.DeleteMultipleROIButton.setFixedWidth(70)
+        self.DoneDeleteMultipleROIButton = QPushButton('done')
+        self.DoneDeleteMultipleROIButton.clicked.connect(self.done_remove_multiple_cells)
+        self.deleteBoxG.addWidget(self.DoneDeleteMultipleROIButton, 2, 0, 1, 2)
+        self.DoneDeleteMultipleROIButton.setFont(self.smallfont)
+        self.DoneDeleteMultipleROIButton.setFixedWidth(35)
+        self.CancelDeleteMultipleROIButton = QPushButton('cancel')
+        self.CancelDeleteMultipleROIButton.clicked.connect(self.cancel_remove_multiple)
+        self.deleteBoxG.addWidget(self.CancelDeleteMultipleROIButton, 2, 2, 1, 2)
+        self.CancelDeleteMultipleROIButton.setFont(self.smallfont)
+        self.CancelDeleteMultipleROIButton.setFixedWidth(35)
         
 # -------------------- functions from cellpose for the drawing area ----------------------------ű
     
@@ -194,6 +321,79 @@ class woundmask_tab(QMainWindow):
         self.pOrtho[0].linkView(self.pOrtho[0].YAxis, self.p0)
         self.pOrtho[1].linkView(self.pOrtho[1].XAxis, self.p0)
     
+    def color_choose(self):
+        self.color = self.RGBDropDown.currentIndex()
+        self.view = 0
+        self.ViewDropDown.setCurrentIndex(self.view)
+        self.update_plot()
+    
+    def update_plot(self):
+        self.view = self.ViewDropDown.currentIndex()
+        self.Ly, self.Lx, _ = self.stack[self.currentZ].shape
+        
+        if self.restore and "upsample" in self.restore:
+            if self.view!=0:
+                if self.view==3:
+                    self.resize = True 
+                elif len(self.flows[0]) > 0 and self.flows[0].shape[1]==self.Lyr:
+                    self.resize = True 
+                else:
+                    self.resize = False
+            else:
+                self.resize = False
+            self.draw_layer()
+            self.update_scale()
+            self.update_layer()
+        
+        if self.view==0 or self.view==3:
+            image = self.stack[self.currentZ] if self.view==0 else self.stack_filtered[self.currentZ]
+            if self.nchan==1:
+                # show single channel
+                image = image[...,0]
+            if self.color==0:
+                self.img.setImage(image, autoLevels=False, lut=None)
+                if self.nchan > 1: 
+                    levels = np.array([self.saturation[0][self.currentZ], 
+                                       self.saturation[1][self.currentZ], 
+                                       self.saturation[2][self.currentZ]])
+                    self.img.setLevels(levels)
+                else:
+                    self.img.setLevels(self.saturation[0][self.currentZ])
+            elif self.color>0 and self.color<4:
+                if self.nchan > 1:
+                    image = image[:,:,self.color-1]
+                self.img.setImage(image, autoLevels=False, lut=self.cmap[self.color])
+                if self.nchan > 1:
+                    self.img.setLevels(self.saturation[self.color-1][self.currentZ])
+                else:
+                    self.img.setLevels(self.saturation[0][self.currentZ])
+            elif self.color==4:
+                if self.nchan > 1:
+                    image = image.mean(axis=-1)
+                self.img.setImage(image, autoLevels=False, lut=None)
+                self.img.setLevels(self.saturation[0][self.currentZ])
+            elif self.color==5:
+                if self.nchan > 1:
+                    image = image.mean(axis=-1)
+                self.img.setImage(image, autoLevels=False, lut=self.cmap[0])
+                self.img.setLevels(self.saturation[0][self.currentZ])
+        else:
+            image = np.zeros((self.Ly,self.Lx), np.uint8)
+            if len(self.flows)>=self.view-1 and len(self.flows[self.view-1])>0:
+                image = self.flows[self.view-1][self.currentZ]
+            if self.view>1:
+                self.img.setImage(image, autoLevels=False, lut=self.bwr)
+            else:
+                self.img.setImage(image, autoLevels=False, lut=None)
+            self.img.setLevels([0.0, 255.0])
+        
+        for r in range(3):
+            self.sliders[r].setValue([self.saturation[r][self.currentZ][0], 
+                                      self.saturation[r][self.currentZ][1]])
+        self.win.show()
+        self.show()
+    
+    
     def plot_clicked(self, event):
         if event.button()==QtCore.Qt.LeftButton and not event.modifiers() & (QtCore.Qt.ShiftModifier | QtCore.Qt.AltModifier):
             if event.double():
@@ -222,54 +422,146 @@ class woundmask_tab(QMainWindow):
         #        QtWidgets.QApplication.restoreOverrideCursor()
         #        QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.DefaultCursor)
         
+    # def reset(self):
+    #     # ---- start sets of points ---- #
+    #     self.selected = 0
+    #     self.X2 = 0
+    #     self.resize = -1
+    #     self.onechan = False
+    #     self.loaded = False
+    #     self.channel = [0,1]
+    #     self.current_point_set = []
+    #     self.in_stroke = False
+    #     self.strokes = []
+    #     self.stroke_appended = True
+    #     self.ncells = 0
+    #     self.zdraw = []
+    #     self.removed_cell = []
+    #     self.cellcolors = np.array([255,255,255])[np.newaxis,:]
+    #     # -- set menus to default -- #
+    #     self.color = 0
+    #     # self.RGBDropDown.setCurrentIndex(self.color)
+    #     self.view = 0
+    #     # self.RGBChoose.button(self.view).setChecked(True)
+    #     # self.BrushChoose.setCurrentIndex(1)
+    #     # self.SCheckBox.setChecked(True)
+    #     # self.SCheckBox.setEnabled(False)
+
+    #     # -- zero out image stack -- #
+    #     self.opacity = 128 # how opaque masks should be
+    #     self.outcolor = [200,200,255,200]
+    #     self.NZ, self.Ly, self.Lx = 1,512,512
+    #     self.saturation = [[0,255] for n in range(self.NZ)]
+    #     # self.slider.setValue([0,255])
+    #     #self.slider.setHigh(255)
+    #     # self.slider.show()
+    #     self.currentZ = 0
+    #     self.flows = [[],[],[],[],[[]]]
+    #     self.stack = np.zeros((1,self.Ly,self.Lx,3))
+    #     # masks matrix
+    #     self.layerz = 0*np.ones((self.Ly,self.Lx,4), np.uint8)
+    #     # image matrix with a scale disk
+    #     self.radii = 0*np.ones((self.Ly,self.Lx,4), np.uint8)
+    #     self.cellpix = np.zeros((1,self.Ly,self.Lx), np.uint32)
+    #     self.outpix = np.zeros((1,self.Ly,self.Lx), np.uint32)
+    #     self.ismanual = np.zeros(0, 'bool')
+    #     # self.update_plot()
+    #     # self.orthobtn.setChecked(False)
+    #     self.filename = []
+    #     self.loaded = False
+    #     self.recompute_masks = False
+        
+        
     def reset(self):
         # ---- start sets of points ---- #
         self.selected = 0
-        self.X2 = 0
-        self.resize = -1
-        self.onechan = False
+        self.nchan = 3
         self.loaded = False
         self.channel = [0,1]
         self.current_point_set = []
         self.in_stroke = False
         self.strokes = []
         self.stroke_appended = True
+        self.resize = False
         self.ncells = 0
         self.zdraw = []
         self.removed_cell = []
         self.cellcolors = np.array([255,255,255])[np.newaxis,:]
-        # -- set menus to default -- #
-        self.color = 0
-        # self.RGBDropDown.setCurrentIndex(self.color)
-        self.view = 0
-        # self.RGBChoose.button(self.view).setChecked(True)
-        # self.BrushChoose.setCurrentIndex(1)
-        # self.SCheckBox.setChecked(True)
-        # self.SCheckBox.setEnabled(False)
+        
 
         # -- zero out image stack -- #
         self.opacity = 128 # how opaque masks should be
         self.outcolor = [200,200,255,200]
-        self.NZ, self.Ly, self.Lx = 1,512,512
-        self.saturation = [[0,255] for n in range(self.NZ)]
-        # self.slider.setValue([0,255])
-        #self.slider.setHigh(255)
-        # self.slider.show()
+        self.NZ, self.Ly, self.Lx = 1,224,224
+        self.saturation = []
+        for r in range(3):
+            self.saturation.append([[0,255] for n in range(self.NZ)])
+            self.sliders[r].setValue([0,255])
+            self.sliders[r].setEnabled(False)
+            self.sliders[r].show()
         self.currentZ = 0
         self.flows = [[],[],[],[],[[]]]
-        self.stack = np.zeros((1,self.Ly,self.Lx,3))
         # masks matrix
-        self.layerz = 0*np.ones((self.Ly,self.Lx,4), np.uint8)
         # image matrix with a scale disk
+        self.stack = np.zeros((1,self.Ly,self.Lx,3))
+        self.Lyr, self.Lxr = self.Ly, self.Lx
+        self.Ly0, self.Lx0 = self.Ly, self.Lx
         self.radii = 0*np.ones((self.Ly,self.Lx,4), np.uint8)
-        self.cellpix = np.zeros((1,self.Ly,self.Lx), np.uint32)
-        self.outpix = np.zeros((1,self.Ly,self.Lx), np.uint32)
+        self.layerz = 0*np.ones((self.Ly,self.Lx,4), np.uint8)
+        self.cellpix = np.zeros((1,self.Ly,self.Lx), np.uint16)
+        self.outpix = np.zeros((1,self.Ly,self.Lx), np.uint16)
+        if self.restore and "upsample" in self.restore:
+            self.cellpix_resize = self.cellpix
+            self.cellpix_orig = self.cellpix
+            self.outpix_resize = self.cellpix
+            self.outpix_orig = self.cellpix
         self.ismanual = np.zeros(0, 'bool')
-        # self.update_plot()
-        # self.orthobtn.setChecked(False)
+        
+        # -- set menus to default -- #
+        self.color = 0
+        # self.RGBDropDown.setCurrentIndex(self.color)
+        self.view = 0
+        # self.ViewDropDown.setCurrentIndex(0)
+        # self.ViewDropDown.model().item(3).setEnabled(False)
+        self.delete_restore()
+
+        # self.BrushChoose.setCurrentIndex(1)
+        self.clear_all()
+
+        #self.update_plot()
         self.filename = []
         self.loaded = False
         self.recompute_masks = False
+
+        self.deleting_multiple = False
+        self.removing_cells_list = []
+        self.removing_region = False
+        self.remove_roi_obj = None        
+        
+    def clear_all(self):
+        self.prev_selected = 0
+        self.selected = 0
+        if self.restore and "upsample" in self.restore: 
+            self.layerz = 0*np.ones((self.Lyr,self.Lxr,4), np.uint8)
+            self.cellpix = np.zeros((self.NZ,self.Lyr,self.Lxr), np.uint16)
+            self.outpix = np.zeros((self.NZ,self.Lyr,self.Lxr), np.uint16)
+            self.cellpix_resize = self.cellpix.copy()
+            self.outpix_resize = self.outpix.copy()
+            self.cellpix_orig = np.zeros((self.NZ,self.Ly0,self.Lx0), np.uint16)
+            self.outpix_orig = np.zeros((self.NZ,self.Ly0,self.Lx0), np.uint16)
+        else:
+            self.layerz = 0*np.ones((self.Ly,self.Lx,4), np.uint8)
+            self.cellpix = np.zeros((self.NZ,self.Ly,self.Lx), np.uint16)
+            self.outpix = np.zeros((self.NZ,self.Ly,self.Lx), np.uint16)
+        
+        self.cellcolors = np.array([255,255,255])[np.newaxis,:]
+        self.ncells = 0
+        self.toggle_removals()
+        self.update_scale()
+        self.update_layer()
+        
+        
+        
         
     # def update_crosshairs(self):
     #     self.yortho = min(self.Ly-1, max(0, int(self.yortho)))

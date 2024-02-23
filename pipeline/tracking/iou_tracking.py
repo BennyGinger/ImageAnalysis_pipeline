@@ -10,6 +10,7 @@ from cellpose.utils import stitch3D
 from cellpose.metrics import _intersection_over_union
 from scipy.stats import mode
 import numpy as np
+from tifffile import imsave
 
 
 def track_cells(masks: np.ndarray, stitch_threshold: float)-> np.ndarray:
@@ -21,6 +22,7 @@ def track_cells(masks: np.ndarray, stitch_threshold: float)-> np.ndarray:
     
     # Create mask with all possible cells
     master_mask = create_master_mask(masks)
+    master_mask = np.ma.getdata(master_mask)
 
     return master_mask_stitching(masks, master_mask, stitch_threshold)
 

@@ -19,10 +19,9 @@ def chan_shift_file_name(file_list: list[PathLike], channel_list: list, reg_chan
     chan_2b_process.remove(reg_channel)
     tuples_list = []
     for chan in chan_2b_process:
-        ref_list = sorted(d[reg_channel])
         chan_list = sorted(d[chan])
-        for i in range(len(ref_list)):
-            tuples_list.append((ref_list[i],chan_list[i]))
+        for i in range(len(chan_list)):
+            tuples_list.append((chan_list[i]))
     return tuples_list
 
 def select_reg_mtd(reg_mtd: str)-> StackReg:
@@ -39,11 +38,10 @@ def select_reg_mtd(reg_mtd: str)-> StackReg:
 
 def correct_chan_shift(input_dict: dict)-> None:
     # Load ref_img and img
-    ref_img_path,img_path = input_dict['img_pairs']
-    ref_img = imread(ref_img_path)
-    img = imread(img_path)
+    img_path = input_dict['img_pairs']
+    print(img_path)
     # Apply transfo
-    reg_img = input_dict['stackreg'].register_transform(ref_img,img)
+    reg_img = input_dict['stackreg'].transform(img, input_dict['tmats'])
     # Save
     reg_img[reg_img<0] = 0
     imwrite(img_path,reg_img.astype(np.uint16))
@@ -138,9 +136,17 @@ def channel_shift_register(exp_set_list: list[Experiment], reg_mtd: str, reg_cha
         stackreg = select_reg_mtd(reg_mtd)
         print(f" --> Applying channel shift correction on the images with '{reg_channel}' as reference and {reg_mtd} methods")
         
+        chan_2b_process = exp_set.active_channel_list.copy()
+        chan_2b_process.remove(reg_channel)
+        
+        img_ref = load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=[0])
+        img_proc = load_stack(img_list=exp_set.processed_images_list,channel_list=[chan_2b_process[0]],frame_range=[0])
+        
+        #create transformation matrix to apply to all images
+        tmats = stackreg.register(ref=img_ref,mov=img_proc)
         # Generate input data for parallel processing
         img_pairs_list = chan_shift_file_name(exp_set.processed_images_list,exp_set.active_channel_list,reg_channel)
-        input_data = [{'stackreg':stackreg,'img_pairs':img_pairs} for img_pairs in img_pairs_list]
+        input_data = [{'stackreg':stackreg,'tmats':tmats, 'img_pairs':img_pairs} for img_pairs in img_pairs_list]
                 
         with ProcessPoolExecutor() as executor:
             executor.map(correct_chan_shift,input_data)

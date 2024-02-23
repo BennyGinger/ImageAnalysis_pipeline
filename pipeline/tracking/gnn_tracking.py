@@ -8,9 +8,12 @@ from os.path import join
 
 def model_select(model):
     model_dict = {}
-    if model == 'neutrophil':
+    if model == 'neutrophil_old':
+        model_dict['model_metric'] = './models/neutrophil_old/all_params.pth'
+        model_dict['model_lightning'] = './models/neutrophil_old/epoch=73.ckpt'   
+    elif model == 'neutrophil':
         model_dict['model_metric'] = './models/neutrophil/all_params.pth'
-        model_dict['model_lightning'] = './models/neutrophil/epoch=73.ckpt'   
+        model_dict['model_lightning'] = './models/neutrophil/epoch=175.ckpt' 
     else:
         raise AttributeError(f'{model =} is not a valid modelname.')
     return model_dict

@@ -5,7 +5,7 @@ from cellpose import models, core
 from cellpose.io import logger_setup, masks_flows_to_seg
 from os import PathLike
 from os.path import isfile
-from tifffile import imwrite
+from tifffile import imwrite, imsave
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from image_handeling.Experiment_Classes import Experiment
 from image_handeling.data_utility import load_stack, is_processed, create_save_folder, gen_input_data, delete_old_masks, save_tif
