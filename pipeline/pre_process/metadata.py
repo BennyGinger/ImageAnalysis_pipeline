@@ -3,6 +3,7 @@ from os import sep, mkdir, PathLike
 from os.path import isdir
 from tifffile import TiffFile
 from nd2reader import ND2Reader
+from nd2 import ND2File
 import numpy as np
 
 def get_tif_meta(img_path: PathLike) -> dict:
@@ -35,6 +36,36 @@ def calculate_um_per_pixel(meta_dict: dict) -> tuple[float,float]: # Calculate t
     height_micron = round(meta_dict['ImageLength']*meta_dict['YResolution'],ndigits=3)
     y_um_per_pix = round(height_micron/meta_dict['ImageLength'],ndigits=3)
     return x_um_per_pix,y_um_per_pix
+
+def get_ND2_metadata(img_path:PathLike)-> dict:
+    # Get ND2 img metadata
+    nd_obj = ND2File(img_path)
+    
+    # Get meta (sizes always include txy)
+    nd2meta = {}
+    nd2meta['img_width'] = nd_obj.sizes['X']
+    nd2meta['img_length'] = nd_obj.sizes['Y']
+    nd2meta['n_frames'] = nd_obj.sizes['T']
+    nd2meta['full_n_channels'] = nd_obj.sizes['C'] 
+    nd2meta['n_slices'] = 'needs to be found and added' #nd_obj.sizes['T'] #TODO missing needs to be cheed if it is in .sclices for images with z stack
+    nd2meta['n_series'] = nd_obj.sizes['P']
+    nd2meta['um_per_pixel'] = nd_obj.metadata.channels[0].volume.axesCalibration[:2]
+    nd2meta['axes'] = ''
+    nd2meta['interval_sec'] = nd_obj.experiment[0].parameters.periodMs/1000 
+    nd2meta['file_type'] = '.nd2'
+    
+    #if 'c' not in nd2meta: nd2meta['c'] = 1
+    
+    #if 'v' not in nd2meta: nd2meta['v'] = 1
+    
+   # if 'z' not in nd2meta: nd2meta['z'] = 1
+    
+    ### Check for nd2 bugs with foccused EDF and z stack
+    #if nd2meta['z']*nd2meta['t']*nd2meta['v']!=nd2meta['total_images_per_channel']:
+     #   nd2meta['z'] = 1
+    nd_obj.close()
+    
+    return nd2meta
 
 def get_ND2_meta(img_path: PathLike)-> dict: 
     # Get ND2 img metadata
