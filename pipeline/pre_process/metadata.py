@@ -45,21 +45,34 @@ def get_ND2_metadata(img_path:PathLike)-> dict:
     nd2meta = {}
     nd2meta['img_width'] = nd_obj.sizes['X']
     nd2meta['img_length'] = nd_obj.sizes['Y']
-    nd2meta['n_frames'] = nd_obj.sizes['T']
-    nd2meta['full_n_channels'] = nd_obj.sizes['C'] 
-    nd2meta['n_slices'] = 'needs to be found and added' #nd_obj.sizes['T'] #TODO missing needs to be cheed if it is in .sclices for images with z stack
-    nd2meta['n_series'] = nd_obj.sizes['P']
+    if 'T' in nd_obj.sizes: 
+        nd2meta['t'] = nd_obj.sizes['T']
+    else:
+        nd2meta['t'] = 1
+        
+    if 'C' in nd_obj.sizes: 
+        nd2meta['full_n_channels'] = nd_obj.sizes['C']
+    else:
+        nd2meta['full_n_channels'] = 1    
+
+    if 'Z' in nd_obj.sizes: 
+        nd2meta['n_slices'] = nd_obj.sizes['Z']
+    else:
+        nd2meta['n_slices'] = 1  
+        
+    if 'P' in nd_obj.sizes: 
+        nd2meta['n_series'] = nd_obj.sizes['P']
+    else:
+        nd2meta['n_series'] = 1  
+
     nd2meta['um_per_pixel'] = nd_obj.metadata.channels[0].volume.axesCalibration[:2]
     nd2meta['axes'] = ''
-    nd2meta['interval_sec'] = nd_obj.experiment[0].parameters.periodMs/1000 
+    
+    if not nd2meta['t'] == 1:
+        nd2meta['interval_sec'] = nd_obj.experiment[0].parameters.periodMs/1000 
+    
+    
     nd2meta['file_type'] = '.nd2'
-    
-    #if 'c' not in nd2meta: nd2meta['c'] = 1
-    
-    #if 'v' not in nd2meta: nd2meta['v'] = 1
-    
-   # if 'z' not in nd2meta: nd2meta['z'] = 1
-    
     ### Check for nd2 bugs with foccused EDF and z stack
     #if nd2meta['z']*nd2meta['t']*nd2meta['v']!=nd2meta['total_images_per_channel']:
      #   nd2meta['z'] = 1
