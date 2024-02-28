@@ -180,7 +180,7 @@ def get_metadata(img_path: PathLike, active_channel_list: list=[], full_channel_
     """Gather metadata from all image files (.nd2 and/or .tif) and is attributed to its own experiment folder"""
     print(f"\nExtracting metadata from {img_path}")
     if img_path.endswith('.nd2'):
-        meta_dict = get_ND2_meta(img_path)
+        meta_dict = get_ND2_metadata(img_path)
     elif img_path.endswith(('.tif','.tiff')):
         meta_dict = get_tif_meta(img_path)
     else:
