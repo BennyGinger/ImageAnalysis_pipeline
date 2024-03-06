@@ -7,16 +7,16 @@ class PreProcessSettings:
     settings: dict
     bg_sub: dict = field(init=False)
     chan_shift: dict = field(init=False)
-    register: dict = field(init=False)
+    frame_shift: dict = field(init=False)
     blur: dict = field(init=False)
     
     def __post_init__(self)-> None:
         if self.settings['run_bg_sub']:
             self.bg_sub = self.settings['bg_sub']
-        if self.settings['run_chan_shift']:
+        if self.settings['run_channel_reg']:
             self.chan_shift = self.settings['chan_shift']
-        if self.settings['run_register']:
-            self.register = self.settings['register']
+        if self.settings['run_frame_reg']:
+            self.frame_shift = self.settings['frame_shift']
         if self.settings['run_blur']:
             self.blur = self.settings['blur']
         self.update_overwrite()

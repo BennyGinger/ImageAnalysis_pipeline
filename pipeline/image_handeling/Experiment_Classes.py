@@ -3,6 +3,7 @@ from dataclasses import dataclass, fields, field
 import json
 from os import sep, listdir
 from os.path import join
+import numpy as np
 import pandas as pd
 
 @dataclass
@@ -15,9 +16,19 @@ class LoadClass:
 @dataclass
 class Process(LoadClass):
     background_sub: list = field(default_factory=list)
-    channel_shift_corrected: list = field(default_factory=list)
-    img_registered: list = field(default_factory=list)
+    channel_reg: list = field(default_factory=list)
+    tmats_channel: dict = field(default_factory=dict)
+    frame_reg: list = field(default_factory=list)
+    tmats_frame: dict = field(default_factory=dict)
     img_blured: list = field(default_factory=list)
+    
+    def ndarrayJSONencoder(self, tmats: dict)-> None:
+        for chan, tmat in tmats.items():
+            self.tmats_channel[chan] = tmat.tolist()
+    
+    def get_tmats(self)-> dict:
+        return {chan:np.array(tmat) for chan, tmat in self.tmats_channel.items()}
+        
     
 @dataclass
 class Masks(LoadClass):

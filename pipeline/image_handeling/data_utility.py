@@ -41,7 +41,7 @@ def img_list_src(exp_set: Experiment, img_fold_src: PathLike)-> list[PathLike]:
     # If not manually specified, return the latest processed images list
     if exp_set.process.img_blured:
         return exp_set.blur_images_list
-    elif exp_set.process.img_registered:
+    elif exp_set.process.frame_reg:
         return exp_set.register_images_list
     else:
         return exp_set.processed_images_list

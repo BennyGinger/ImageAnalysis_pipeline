@@ -6,7 +6,7 @@ from re import search
 from .image_sequence import img_seq_all
 from .image_blur import blur_img
 from .background_sub import background_sub
-from .image_registration import register_img, channel_shift_register
+from .image_registration import register_img, register_channel_shift
 from settings.Setting_Classes import PreProcessSettings
 from image_handeling.Experiment_Classes import Experiment
 from image_handeling.Base_Module_Class import BaseModule
@@ -56,9 +56,9 @@ class PreProcess(BaseModule):
         if hasattr(sets,'bg_sub'):
             self.experiment_list = self.bg_sub(**sets.bg_sub)
         if hasattr(sets,'chan_shift'):
-            self.experiment_list = self.chan_shift(**sets.chan_shift)
-        if hasattr(sets,'register'):
-            self.experiment_list = self.register(**sets.register)
+            self.experiment_list = self.register_channel(**sets.chan_shift)
+        if hasattr(sets,'frame_shift'):
+            self.experiment_list = self.register_frame(**sets.frame_shift)
         if hasattr(sets,'blur'):
             self.experiment_list = self.blur(**sets.blur)
         return self.experiment_list
@@ -66,10 +66,10 @@ class PreProcess(BaseModule):
     def bg_sub(self, sigma: float=0, size: int=7, overwrite: bool=False)-> list[Experiment]:
         return background_sub(self.experiment_list,sigma,size,overwrite)
     
-    def chan_shift(self, reg_channel: str, reg_mtd: str, overwrite: bool=False, first_img_only: bool=False)-> list[Experiment]:
-        return channel_shift_register(self.experiment_list,reg_mtd,reg_channel,overwrite,first_img_only)
+    def register_channel(self, reg_channel: str, reg_mtd: str, overwrite: bool=False)-> list[Experiment]:
+        return register_channel_shift(self.experiment_list,reg_mtd,reg_channel,overwrite)
     
-    def register(self, reg_channel: str, reg_mtd: str, reg_ref: str, overwrite: bool=False)-> list[Experiment]:
+    def register_frame(self, reg_channel: str, reg_mtd: str, reg_ref: str, overwrite: bool=False)-> list[Experiment]:
         return register_img(self.experiment_list,reg_channel,reg_mtd,reg_ref,overwrite)
     
     def blur(self, kernel: tuple[int], sigma: int, img_fold_src: PathLike="", overwrite: bool=False)-> list[Experiment]:

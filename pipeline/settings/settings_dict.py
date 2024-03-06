@@ -10,14 +10,13 @@ settings = {
                "size": 7,
                "overwrite": False},
     
-    "run_chan_shift": True,
+    "run_channel_reg": True,
     "chan_shift": {"reg_channel": "RFP",
                    "reg_mtd": "rigid_body",
-                   "overwrite": False,
-                   "first_img_only": True},
+                   "overwrite": False},
     
-    "run_register": True,
-    "register": {"reg_channel": "RFP",
+    "run_frame_reg": True,
+    "frame_shift": {"reg_channel": "RFP",
                  "reg_mtd": "rigid_body",
                  "reg_ref": "previous",
                  "overwrite": False},
