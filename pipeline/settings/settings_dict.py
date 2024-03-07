@@ -1,11 +1,11 @@
 settings = {
-    "input_folder": '/home/Test_images/nd2/Run2',
+    "input_folder": '/media/ben/Analysis/Python/Docker_mount/Test_images/nd2/Run2',
     "init":{"active_channel_list": ['GFP','RFP'],
             'full_channel_list':[],
             "overwrite": True},
     
     
-    "run_bg_sub": True,
+    "run_bg_sub": False,
     "bg_sub": {"sigma": 0.0,
                "size": 7,
                "overwrite": False},
@@ -18,10 +18,10 @@ settings = {
     "run_frame_reg": True,
     "frame_shift": {"reg_channel": "RFP",
                  "reg_mtd": "rigid_body",
-                 "reg_ref": "previous",
+                 "reg_ref": "first",
                  "overwrite": False},
     
-    "run_blur": True,
+    "run_blur": False,
     "blur": {"kernel": (15,15),
              "sigma": 5,
              "img_fold_src": "",

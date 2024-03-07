@@ -6,7 +6,14 @@ from typing import Iterable
 import numpy as np
 from tifffile import imread, imwrite
 
-def load_stack(img_list: list[PathLike], channel_list: Iterable[str], frame_range: Iterable[int])-> np.ndarray:
+def load_stack(img_list: list[PathLike], channel_list: str | Iterable[str], frame_range: int | Iterable[int], return_2D: bool=False)-> np.ndarray:
+    # Convert to list if string or int
+    if isinstance(channel_list, str):
+        channel_list = [channel_list]
+    
+    if isinstance(frame_range, int):
+        frame_range = [frame_range]
+    
     # Load/Reload stack. Expected shape of images tzxyc
     exp_list = []
     for chan in channel_list:
@@ -20,11 +27,23 @@ def load_stack(img_list: list[PathLike], channel_list: Iterable[str], frame_rang
                     f_lst.append(imread(img))
             chan_list.append(f_lst)
         exp_list.append(chan_list)
+    
+    # Process stack
     if len(channel_list)==1:
         stack = np.squeeze(np.stack(exp_list))
     else:
         stack = np.moveaxis(np.squeeze(np.stack(exp_list)), [0], [-1])
-    return stack
+
+    # If stack is already 2D or want to load 3D
+    if len(f_lst)==1 or not return_2D:
+        return stack
+    
+    # if stack is time series, then z is axis 1
+    if len(frame_range)>1:
+        return np.amax(stack, axis=1)
+    # if not then z is axis 0
+    else:
+        return np.amax(stack, axis=0)
 
 def img_list_src(exp_set: Experiment, img_fold_src: PathLike)-> list[PathLike]:
     """If not manually specified, return the latest processed images list"""
