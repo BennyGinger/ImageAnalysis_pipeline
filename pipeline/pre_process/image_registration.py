@@ -1,6 +1,8 @@
 from __future__ import annotations
 from os.path import join
 from os import sep, PathLike
+import shutil
+from typing import Iterable
 from tifffile import imread
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
@@ -26,56 +28,75 @@ def select_reg_mtd(reg_mtd: str)-> StackReg:
     return stackreg
 
 def apply_tmat_to_img(input_dict: dict)-> None:
+    """Transform the image with the given tmat and save it to the save_path."""
     img = imread(input_dict['img_path'])
     reg_img = input_dict['stackreg'].transform(img,input_dict['tmat'])
     reg_img[reg_img<0] = 0
-    save_tif(reg_img.astype(np.uint16),input_dict['save_path'],*input_dict['metadata'])
+    save_tif(reg_img.astype(np.uint16),input_dict['save_path'],**input_dict['metadata'])
+
+def get_tmats_chan_dict(stackreg: StackReg, img_ref: np.ndarray, path_list: list[PathLike], 
+                   channel_list: list[str], frame: int)-> dict[str,np.ndarray]:
+    """Register the channel ref to every other channel imgs for the given frame. 
+    Output is a dict with the channel as key and the tmat np.ndarray (2D) as value."""
+    
+    tmats_dict = {}
+    for chan in channel_list:
+        img = load_stack(path_list,chan,frame,True)
+        tmats_dict[chan] = stackreg.register(img_ref,img)
+    return tmats_dict
+
+def get_tmats_frame_dict(stackreg: StackReg, img_ref: np.ndarray, path_list: list[PathLike],
+                         frame_iterable: Iterable[int], reg_channel: str)-> dict[int,np.ndarray]:
+    """Register the frame ref to every other frame imgs for the given channel.
+    Output is a dict with the frame as key and the tmat np.ndarray (2D) as value."""
+    tmats_dict = {}
+    for frame in frame_iterable:
+        img = load_stack(path_list,reg_channel,frame,True)
+        tmats_dict[frame] = stackreg.register(img_ref,img)
+    return tmats_dict
+
+def sort_by_channel(file_list: list[PathLike], channel_list: list)-> dict[str,list[PathLike]]:
+    """Sort the images by channel. Output is a dict with the channel as key and the list of images as value."""
+    sorted_channel = {chan: [file for file in file_list if chan in file] for chan in channel_list}
+    return sorted_channel
+
+def sort_by_frame(file_list: list[PathLike], n_frames: int)-> dict[int,list[PathLike]]:
+    """Sort the images by frame. Output is a dict with the frame as key and the list of images as value."""
+    sorted_frames = {frame: [file for file in file_list if f"_f{frame+1:04d}" in file] for frame in range(n_frames)}
+    return sorted_frames
+
+def copy_first_frame(img_path: list[str], folder_name_dst: str)-> None:
+    for path in img_path: 
+        shutil.copyfile(path,path.replace('Images',folder_name_dst))
+
 
 ####################################################################################
 ############################# Channel shift correction #############################
 ####################################################################################
 
-def get_tmats_dict(sorted_img_dict: dict[str,list], stackreg: StackReg, channel_list: list, reg_channel: str)-> dict[str,np.ndarray]:
-    """Register the ref channel img with every other channel imgs, for the first frame only. Output is a dict with
-    the channel to be porcessed (excluding the ref channel) as key and the tmat np.ndarray (2D)."""
-    # Get the ref img
-    ref_list = sorted_img_dict[reg_channel]
-    img_ref = load_stack(ref_list,reg_channel,0,True)
-    
-    # Get the other channel(s) to be processed
-    chan_2b_process = channel_list.copy()
-    chan_2b_process.remove(reg_channel)
-    
-    tmats_dict = {}
-    for chan in chan_2b_process:
-        chan_list = sorted_img_dict[chan]
-        img = load_stack(chan_list,chan,0,True)
-        tmats_dict[chan] = stackreg.register(img_ref,img)
-    return tmats_dict
-
-def sort_img_by_channel(file_list: list[PathLike], channel_list: list)-> dict[str,list[PathLike]]:
-    """Sort the images by channel. Output is a dict with the channel as key and the list of images as value."""
-    raw_imgs = {chan: [file for file in file_list if chan in file] for chan in channel_list}
-    return raw_imgs
-
 def correct_chan_shift(exp_set: Experiment, stackreg: StackReg, reg_channel: str)-> tuple[Experiment,dict[str,np.ndarray]]:
-    # Sort the images by channel
-    sorted_img_dict = sort_img_by_channel(exp_set.processed_images_list,exp_set.active_channel_list)
+    # Load ref image
+    img_ref = load_stack(exp_set.processed_images_list,reg_channel,0,True)
     
-    # Get the tmats for all channels
-    tmats_dict = get_tmats_dict(sorted_img_dict,stackreg,exp_set.active_channel_list,reg_channel)
+    # Sort the images by channel
+    sorted_channel = sort_by_channel(exp_set.processed_images_list,exp_set.active_channel_list)
+    del sorted_channel[reg_channel] # Remove the ref channel from the dict, as it doesn't need to be processed
+    
+    # Get all the tmats
+    tmats_dict = get_tmats_chan_dict(stackreg,img_ref,exp_set.processed_images_list,sorted_channel.keys(),0)
     
     # Generate input data for parallel processing
-    del sorted_img_dict[reg_channel] # Remove the ref channel from the dict, as it doesn't need to be processed
     input_data = [{'stackreg':stackreg,
                    'img_path':path,
+                   'save_path':path,
                    'tmat':tmats_dict[chan],
-                   'metadata':(exp_set.analysis.um_per_pixel,exp_set.analysis.interval_sec)
-                   } for chan, img_path_lst in sorted_img_dict.items() for path in img_path_lst]
+                   'metadata':{'um_per_pixel':exp_set.analysis.um_per_pixel,
+                               'finterval':exp_set.analysis.interval_sec}} 
+                  for chan, img_path_lst in sorted_channel.items() for path in img_path_lst]
     
     with ProcessPoolExecutor() as executor:
         executor.map(apply_tmat_to_img,input_data)
-    return exp_set,tmats_dict
+    return exp_set
 
 ############################# main function #############################
 def register_channel_shift(exp_set_list: list[Experiment], reg_mtd: str, reg_channel: str, chan_shift_overwrite: bool=False)-> list[Experiment]:
@@ -104,32 +125,48 @@ def register_channel_shift(exp_set_list: list[Experiment], reg_mtd: str, reg_cha
 ####################################################################################
 ############################## Frame shift correction ##############################
 ####################################################################################
+def get_tmats_frame_dict(stackreg: StackReg, img_ref: np.ndarray, path_list: list[PathLike],
+                         frame_iterable: Iterable[int], reg_channel: str)-> dict[int,np.ndarray]:
+    """Register the frame ref to every other frame imgs for the given channel.
+    Output is a dict with the frame as key and the tmat np.ndarray (2D) as value."""
+    
+    
+    tmats_dict = {}
+    for frame in frame_iterable:
+        img = load_stack(path_list,reg_channel,frame,True)
+        tmats_dict[frame] = stackreg.register(img_ref,img)
+    return tmats_dict
 
 
 
-
-#TODO: save first frame to folder
 def register_with_first(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: PathLike)-> None:
     # Load ref image
     img_ref = load_stack(exp_set.processed_images_list,reg_channel,0,True)
     
+    # List of images to register
+    img_list = []
     # Get all transfo matrix for the ref channel
-    tmats_dict = {}
-    for frame in range(exp_set.img_properties.n_frames):
-        img = load_stack(exp_set.processed_images_list,reg_channel,frame,True)
-        tmats_dict[frame] = stackreg.register(img_ref,img)
+    tmats_dict = get_tmats_frame_dict(stackreg,
+                                      img_ref,
+                                      exp_set.processed_images_list,
+                                      range(1,exp_set.img_properties.n_frames), # The first image is the ref
+                                      reg_channel)
     
     # Generate input data for parallel processing
-    sort_by_frame = {frame: [path for path in exp_set.processed_images_list if f"_f{frame+1:04d}" in path] 
-                  for frame in range(exp_set.img_properties.n_frames)}
-    del sort_by_frame[0] # Remove the first frame from the dict, as it doesn't need to be processed
+    sorted_frame = sort_by_frame(exp_set.processed_images_list,exp_set.img_properties.n_frames)
+    
+    # Copy the first frame to the reg_folder
+    copy_first_frame(sorted_frame[0],"Images_Registered")
+    
+    # Remove the first frame from the dict
+    del sorted_frame[0]
     
     input_data = [{'stackreg':stackreg,
                    'img_path':path,
                    'save_path':path.replace('Images','Images_Registered'),
                    'tmat':tmats_dict[frame],
                    'metadata':(exp_set.analysis.um_per_pixel,exp_set.analysis.interval_sec)
-                   } for frame, img_path_lst in sort_by_frame.items() for path in img_path_lst]
+                   } for frame, img_path_lst in sorted_frame.items() for path in img_path_lst]
     
     with ProcessPoolExecutor() as executor:
         executor.map(apply_tmat_to_img,input_data)
