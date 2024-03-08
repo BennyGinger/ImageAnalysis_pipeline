@@ -114,7 +114,7 @@ def register_channel_shift(exp_set_list: list[Experiment], reg_mtd: str, reg_cha
         print(f" --> Applying channel shift correction on the images with '{reg_channel}' as reference and {reg_mtd} methods")
         
         # If not, correct the channel shift
-        exp_set, tmats_dict = correct_chan_shift(exp_set,stackreg,reg_channel)
+        exp_set = correct_chan_shift(exp_set,stackreg,reg_channel)
         
         # Save settings
         exp_set.process.channel_reg = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}"]
@@ -125,78 +125,42 @@ def register_channel_shift(exp_set_list: list[Experiment], reg_mtd: str, reg_cha
 ####################################################################################
 ############################## Frame shift correction ##############################
 ####################################################################################
-def get_tmats_frame_dict(stackreg: StackReg, img_ref: np.ndarray, path_list: list[PathLike],
-                         frame_iterable: Iterable[int], reg_channel: str)-> dict[int,np.ndarray]:
-    """Register the frame ref to every other frame imgs for the given channel.
-    Output is a dict with the frame as key and the tmat np.ndarray (2D) as value."""
-    
-    
-    tmats_dict = {}
-    for frame in frame_iterable:
-        img = load_stack(path_list,reg_channel,frame,True)
-        tmats_dict[frame] = stackreg.register(img_ref,img)
-    return tmats_dict
-
-
-
-def register_with_first(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: PathLike)-> None:
+def register_with_first(stackreg: StackReg, exp_set: Experiment, reg_channel: str, method: str)-> None:
     # Load ref image
-    img_ref = load_stack(exp_set.processed_images_list,reg_channel,0,True)
+    if method=='first':
+        img_ref = load_stack(exp_set.processed_images_list,reg_channel,0,True)
+    elif method=='mean':
+        img_ref = np.mean(load_stack(exp_set.processed_images_list,reg_channel,range(exp_set.img_properties.n_frames)),axis=0)
     
-    # List of images to register
-    img_list = []
-    # Get all transfo matrix for the ref channel
-    tmats_dict = get_tmats_frame_dict(stackreg,
-                                      img_ref,
-                                      exp_set.processed_images_list,
-                                      range(1,exp_set.img_properties.n_frames), # The first image is the ref
-                                      reg_channel)
+    # Get all transfo matrix for the ref channel, not need to process the first frame if method is 'first'
+    frame_range = range(1,exp_set.img_properties.n_frames) if method=='first' else range(exp_set.img_properties.n_frames)
+    tmats_dict = get_tmats_frame_dict(stackreg,img_ref,exp_set.processed_images_list,frame_range,reg_channel)
     
     # Generate input data for parallel processing
     sorted_frame = sort_by_frame(exp_set.processed_images_list,exp_set.img_properties.n_frames)
-    
-    # Copy the first frame to the reg_folder
-    copy_first_frame(sorted_frame[0],"Images_Registered")
-    
-    # Remove the first frame from the dict
-    del sorted_frame[0]
+    if method=='first':
+        copy_first_frame(sorted_frame[0],"Images_Registered") # Copy the first frame to the reg_folder
+        del sorted_frame[0] # Remove the first frame from the dict, as it doesn't need to be processed
     
     input_data = [{'stackreg':stackreg,
                    'img_path':path,
                    'save_path':path.replace('Images','Images_Registered'),
                    'tmat':tmats_dict[frame],
-                   'metadata':(exp_set.analysis.um_per_pixel,exp_set.analysis.interval_sec)
-                   } for frame, img_path_lst in sorted_frame.items() for path in img_path_lst]
+                   'metadata':{'um_per_pixel':exp_set.analysis.um_per_pixel,
+                               'finterval':exp_set.analysis.interval_sec}} 
+                  for frame, img_path_lst in sorted_frame.items() for path in img_path_lst]
     
+    # Apply the transfo matrix to the images
     with ProcessPoolExecutor() as executor:
         executor.map(apply_tmat_to_img,input_data)
     return exp_set
-    # serie_id = int(exp_set.exp_path.split(sep)[-1].split('_')[-1][1:])
-    # for f in range(exp_set.img_properties.n_frames):
-    #     # Load image to register
-    #     img = load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=[f])
-    #     if exp_set.img_properties.n_slices>1: 
-    #         img = np.amax(img,axis=0)
-    #     # Get the transfo matrix
-    #     tmats = stackreg.register(ref=img_ref,mov=img)
-        
-    #     for chan in exp_set.active_channel_list:
-    #         # Load image to transform
-    #         img = load_stack(img_list=exp_set.processed_images_list,channel_list=[chan],frame_range=[f])
-    #         for z in range(exp_set.img_properties.n_slices):
-    #             # Apply transfo
-    #             if exp_set.img_properties.n_slices==1: reg_img = stackreg.transform(mov=img,tmat=tmats)
-    #             else: reg_img = stackreg.transform(mov=img[z,...],tmat=tmats)
-    #             # Save
-    #             reg_img[reg_img<0] = 0
-    #             file_name = join(sep,img_folder+sep,chan+f"_s{serie_id:02d}"+'_f%04d'%(f+1)+'_z%04d.tif'%(z+1))
-    #             save_tif(reg_img.astype(np.uint16),file_name,exp_set.analysis.um_per_pixel,exp_set.analysis.interval_sec)
 
 def register_with_mean(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: PathLike)-> None:
     # Load ref image
-    if exp_set.img_properties.n_slices==1: img_ref = np.mean(load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=range(exp_set.img_properties.n_frames)),axis=0)
-    else: img_ref = np.mean(np.amax(load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=range(exp_set.img_properties.n_frames)),axis=1),axis=0)
-
+    img_ref = np.mean(load_stack(exp_set.processed_images_list,reg_channel,range(exp_set.img_properties.n_frames)),axis=0)
+    
+    
+    
     serie = int(exp_set.exp_path.split(sep)[-1].split('_')[-1][1:])
     for f in range(exp_set.img_properties.n_frames):
         # Load image to register
