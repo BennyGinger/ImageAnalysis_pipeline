@@ -2,7 +2,7 @@ from __future__ import annotations
 from os import sep, mkdir, PathLike
 from os.path import isdir
 from tifffile import TiffFile
-from nd2reader import ND2Reader
+# from nd2reader import ND2Reader
 from nd2 import ND2File
 import numpy as np
 
@@ -80,25 +80,25 @@ def get_ND2_metadata(img_path:PathLike)-> dict:
     
     return nd2meta
 
-def get_ND2_meta(img_path: PathLike)-> dict: 
-    # Get ND2 img metadata
-    nd_obj = ND2Reader(img_path)
+# def get_ND2_meta(img_path: PathLike)-> dict: 
+#     # Get ND2 img metadata
+#     nd_obj = ND2Reader(img_path)
     
-    # Get meta (sizes always include txy)
-    nd2_meta = {**nd_obj.metadata,**nd_obj.sizes}
-    nd2_meta['timesteps'] = nd_obj.timesteps
-    if 'c' not in nd2_meta: nd2_meta['c'] = 1
+#     # Get meta (sizes always include txy)
+#     nd2_meta = {**nd_obj.metadata,**nd_obj.sizes}
+#     nd2_meta['timesteps'] = nd_obj.timesteps
+#     if 'c' not in nd2_meta: nd2_meta['c'] = 1
     
-    if 'v' not in nd2_meta: nd2_meta['v'] = 1
+#     if 'v' not in nd2_meta: nd2_meta['v'] = 1
     
-    if 'z' not in nd2_meta: nd2_meta['z'] = 1
+#     if 'z' not in nd2_meta: nd2_meta['z'] = 1
     
-    nd2_meta['axes'] = ''
-    ### Check for nd2 bugs with foccused EDF and z stack
-    if nd2_meta['z']*nd2_meta['t']*nd2_meta['v']!=nd2_meta['total_images_per_channel']:
-        nd2_meta['z'] = 1
-    nd2_meta['file_type'] = '.nd2'
-    return nd2_meta
+#     nd2_meta['axes'] = ''
+#     ### Check for nd2 bugs with foccused EDF and z stack
+#     if nd2_meta['z']*nd2_meta['t']*nd2_meta['v']!=nd2_meta['total_images_per_channel']:
+#         nd2_meta['z'] = 1
+#     nd2_meta['file_type'] = '.nd2'
+#     return nd2_meta
 
 def calculate_interval_sec(timesteps: list, n_frames: int, n_series: int, n_slices: int) -> int:
     # Calculate the interval between frames in seconds
