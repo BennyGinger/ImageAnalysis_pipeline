@@ -57,7 +57,7 @@ def threshold(exp_set_list: list[Experiment], channel_seg: str, overwrite: bool=
         
         # Initialize input args and save folder
         create_save_folder(exp_set.exp_path,'Masks_Threshold')
-        delete_old_masks(exp_set.masks.threshold_seg,channel_seg,exp_set.mask_threshold_list,overwrite)
+        delete_old_masks(exp_set.masks.threshold_seg,channel_seg,exp_set.threshold_masks_lst,overwrite)
         img_data = gen_input_data(exp_set,img_fold_src,[channel_seg],manual_threshold=manual_threshold)
         
         print(f" --> Segmenting object...")

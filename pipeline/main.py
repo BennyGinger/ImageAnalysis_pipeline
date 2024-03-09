@@ -1,9 +1,7 @@
 from __future__ import annotations
 from time import time
 from pre_process.PreProcess_Class import PreProcess
-from segmentation.Segmentation_Class import Segmentation
 from settings.settings_dict import settings
-import cProfile
 
 INPUT_FOLDER = settings['input_folder']
 

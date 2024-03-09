@@ -77,9 +77,9 @@ def save_as_tiff(masks_cp: np.ndarray | list[np.ndarray], mask_path: PathLike)->
         for z_silce in range(masks_cp.shape[0]):
             split_name = mask_path.split("_z")
             mask_path = f"{split_name[0]}_z{z_silce+1:04d}.tif"
-            imsave(mask_path,masks_cp[z_silce,...].astype('uint16'))
+            imwrite(mask_path,masks_cp[z_silce,...].astype('uint16'))
     else:
-        imsave(mask_path,masks_cp.astype('uint16'))
+        imwrite(mask_path,masks_cp.astype('uint16'))
                      
 def initialize_model(model_settings: dict)-> tuple[models.CellposeModel,dict]:
     logger_setup()
@@ -174,7 +174,7 @@ def cellpose_segmentation(exp_set_list: list[Experiment], channel_to_seg: str, m
         # Else run cellpose
         print(f" --> Segmenting cells as {file_type} for the '{channel_to_seg}' channel")
         create_save_folder(exp_set.exp_path,'Masks_Cellpose')
-        delete_old_masks(exp_set.masks.cellpose_seg,channel_to_seg,exp_set.mask_cellpose_list,overwrite)
+        delete_old_masks(exp_set.masks.cellpose_seg,channel_to_seg,exp_set.cellpose_masks_lst,overwrite)
         
         # Setup model and eval settings
         model,model_settings,cellpose_eval = initialize_cellpose(exp_set.img_properties.n_slices,process_as_2D,

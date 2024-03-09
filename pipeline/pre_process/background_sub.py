@@ -24,7 +24,7 @@ def background_sub(exp_set_list: list[Experiment], sigma: float=0.0, size: int=7
         print(f" --> Applying background substraction to the images with sigma={sigma} and size={size}")
         
         # Add smo_object to img_path
-        processed_images_list = exp_set.processed_images_list.copy()
+        processed_images_list = exp_set.raw_imgs_lst.copy()
         smo = SMO(shape=(exp_set.img_properties.img_width,exp_set.img_properties.img_length),sigma=sigma,size=size)
         processed_images_list = [(img_path,smo) for img_path in processed_images_list]
         

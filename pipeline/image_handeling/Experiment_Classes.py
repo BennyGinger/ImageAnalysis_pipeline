@@ -20,14 +20,6 @@ class Process(LoadClass):
     frame_reg: list = field(default_factory=list)
     img_blured: list = field(default_factory=list)
     
-    # def ndarrayJSONencoder(self, tmats: dict)-> None:
-    #     for chan, tmat in tmats.items():
-    #         self.tmats_channel[chan] = tmat.tolist()
-    
-    # def get_tmats(self)-> dict:
-    #     return {chan:np.array(tmat) for chan, tmat in self.tmats_channel.items()}
-        
-    
 @dataclass
 class Masks(LoadClass):
     threshold_seg: dict = field(default_factory=dict)
@@ -76,42 +68,42 @@ class Experiment(LoadClass):
             self = init_from_json(join(sep,self.exp_path+sep,'exp_settings.json'))
     
     @property
-    def processed_images_list(self)-> list:
+    def raw_imgs_lst(self)-> list:
         im_folder = join(sep,self.exp_path+sep,'Images')
         return [join(sep,im_folder+sep,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
     
     @property
-    def register_images_list(self)-> list:
+    def registered_imgs_lst(self)-> list:
         im_folder = join(sep,self.exp_path+sep,'Images_Registered')
         return [join(sep,im_folder+sep,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
     
     @property
-    def blur_images_list(self)-> list:
+    def blured_imgs_lst(self)-> list:
         im_folder = join(sep,self.exp_path+sep,'Images_Blured')
         return [join(sep,im_folder+sep,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
 
     @property
-    def mask_threshold_list(self)-> list:
+    def threshold_masks_lst(self)-> list:
         mask_folder = join(sep,self.exp_path+sep,'Masks_Threshold')
         return [join(sep,mask_folder+sep,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
     
     @property
-    def mask_cellpose_list(self)-> list:
+    def cellpose_masks_lst(self)-> list:
         mask_folder = join(sep,self.exp_path+sep,'Masks_Cellpose')
         return [join(sep,mask_folder+sep,f) for f in sorted(listdir(mask_folder)) if f.endswith(('.tif','.npy'))]
     
     @property
-    def mask_manual_track_list(self)-> list:
+    def man_tracked_masks_lst(self)-> list:
         mask_folder = join(sep,self.exp_path+sep,'Masks_Manual_Track')
         return [join(sep,mask_folder+sep,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
     
     @property
-    def mask_gnn_track_list(self)-> list:
+    def gnn_tracked_masks_lst(self)-> list:
         mask_folder = join(sep,self.exp_path+sep,'Masks_GNN_Track')
         return [join(sep,mask_folder+sep,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
     
     @property
-    def mask_iou_track_list(self)-> list:
+    def iou_tracked_masks_lst(self)-> list:
         mask_folder = join(sep,self.exp_path+sep,'Masks_IoU_Track')
         return [join(sep,mask_folder+sep,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
     

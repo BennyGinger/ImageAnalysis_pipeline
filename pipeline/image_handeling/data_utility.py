@@ -49,51 +49,51 @@ def img_list_src(exp_set: Experiment, img_fold_src: PathLike)-> list[PathLike]:
     """If not manually specified, return the latest processed images list"""
     
     if img_fold_src and img_fold_src == 'Images':
-        return exp_set.processed_images_list
+        return exp_set.raw_imgs_lst
     
     if img_fold_src and img_fold_src == 'Images_Registered':
-        return exp_set.register_images_list
+        return exp_set.registered_imgs_lst
     
     if img_fold_src and img_fold_src == 'Images_Blured':
-        return exp_set.blur_images_list
+        return exp_set.blured_imgs_lst
     
     # If not manually specified, return the latest processed images list
     if exp_set.process.img_blured:
-        return exp_set.blur_images_list
+        return exp_set.blured_imgs_lst
     elif exp_set.process.frame_reg:
-        return exp_set.register_images_list
+        return exp_set.registered_imgs_lst
     else:
-        return exp_set.processed_images_list
+        return exp_set.raw_imgs_lst
 
 def mask_list_src(exp_set: Experiment, mask_fold_src: PathLike)-> list[PathLike]:
     """If not manually specified, return the latest processed images list"""
     
     if mask_fold_src and mask_fold_src == 'Masks_Threshold' or mask_fold_src == 'threshold_seg':
-        return exp_set.mask_threshold_list
+        return exp_set.threshold_masks_lst
     
     if mask_fold_src and mask_fold_src == 'Masks_Cellpose' or mask_fold_src == 'cellpose_seg':
-        return exp_set.mask_cellpose_list
+        return exp_set.cellpose_masks_lst
     
     if mask_fold_src and mask_fold_src == 'Masks_IoU_Track' or mask_fold_src == 'iou_tracking':
-        return exp_set.mask_iou_track_list
+        return exp_set.iou_tracked_masks_lst
     
     if mask_fold_src and mask_fold_src == 'Masks_Manual_Track' or mask_fold_src == 'man_tracking':
-        return exp_set.mask_manual_track_list
+        return exp_set.man_tracked_masks_lst
     
     if mask_fold_src and mask_fold_src == 'Masks_GNN_Track' or mask_fold_src == 'gnn_tracking':
-        return exp_set.mask_gnn_track_list
+        return exp_set.gnn_tracked_masks_lst
     
     # If not manually specified, return the latest processed images list
     if exp_set.masks.gnn_tracking:
-        return exp_set.mask_gnn_track_list
+        return exp_set.gnn_tracked_masks_lst
     elif exp_set.masks.manual_tracking:
-        return exp_set.mask_manual_track_list
+        return exp_set.man_tracked_masks_lst
     elif exp_set.masks.iou_tracking:
-        return exp_set.mask_iou_track_list
+        return exp_set.iou_tracked_masks_lst
     elif exp_set.masks.cellpose_seg:
-        return exp_set.mask_cellpose_list
+        return exp_set.cellpose_masks_lst
     else:
-        return exp_set.mask_threshold_list
+        return exp_set.threshold_masks_lst
 
 def is_processed(process: dict, channel_seg: str, overwrite: bool)-> bool:
     if overwrite:
