@@ -1,18 +1,17 @@
 from __future__ import annotations
 from image_handeling.Experiment_Classes import Experiment
 from concurrent.futures import ProcessPoolExecutor
-from tifffile import imread, imwrite
+from tifffile import imread
 from smo import SMO
-import numpy as np
+from image_handeling.data_utility import save_tif
 
-def apply_bg_sub(processed_image: list)-> None:
+def apply_bg_sub(input_dict: dict)-> None:
     # Initiate SMO
-    proc_img_path,smo = processed_image
-    img = imread(proc_img_path)
-    bg_img = smo.bg_corrected(img)
+    img = imread(input_dict['img_path'])
+    bg_img = input_dict['smo'].bg_corrected(img)
     # Reset neg val to 0
     bg_img[bg_img<0] = 0
-    imwrite(proc_img_path,bg_img.astype(np.uint16))
+    save_tif(bg_img,input_dict['img_path'],**input_dict['metadata'])
 
 # # # # # # # # main function # # # # # # # #
 def background_sub(exp_set_list: list[Experiment], sigma: float=0.0, size: int=7, bg_sub_overwrite: bool=False)-> list[Experiment]:
@@ -24,12 +23,15 @@ def background_sub(exp_set_list: list[Experiment], sigma: float=0.0, size: int=7
         print(f" --> Applying background substraction to the images with sigma={sigma} and size={size}")
         
         # Add smo_object to img_path
-        processed_images_list = exp_set.raw_imgs_lst.copy()
         smo = SMO(shape=(exp_set.img_properties.img_width,exp_set.img_properties.img_length),sigma=sigma,size=size)
-        processed_images_list = [(img_path,smo) for img_path in processed_images_list]
+        input_data = [{'img_path':path,
+                       'smo':smo,
+                       'metadata':{'um_per_pixel':exp_set.analysis.um_per_pixel,
+                                   'finterval':exp_set.analysis.interval_sec}}
+                      for path in exp_set.raw_imgs_lst]
         
         with ProcessPoolExecutor() as executor:
-            executor.map(apply_bg_sub,processed_images_list)
+            executor.map(apply_bg_sub,input_data)
             
         exp_set.process.background_sub = (f"sigma={sigma}",f"size={size}")
         exp_set.save_as_json()
