@@ -33,9 +33,9 @@ settings = {
                  "diameter": 60.0,
                  "flow_threshold": 0.4,
                  "cellprob_threshold": 0.0,
-                 "overwrite": True,
+                 "overwrite": False,
                  "img_fold_src": "",
-                 "process_as_2D": False,
+                 "process_as_2D": True,
                  "save_as_npy": False,
                  "nuclear_marker": "",},
     

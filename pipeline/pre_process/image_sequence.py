@@ -27,7 +27,6 @@ def write_ND2(img_data: list)-> None:
     img_obj = ND2Reader(meta['img_path'])
     serie,frame,z_slice = [int(i[1:])-1 for i in img_name.split('_')[1:]]
     chan = meta['full_channel_list'].index(img_name.split('_')[0])
-    
     # Get the image       
     if meta['n_slices']>1: 
         img = img_obj.get_frame_2D(c=chan,t=frame,z=z_slice,x=meta['img_width'],y=meta['img_length'],v=serie)
@@ -54,7 +53,6 @@ def write_tif(img_data: list)-> None:
     meta,img_name,img = img_data
     _,frame,z_slice = [int(i[1:])-1 for i in img_name.split('_')[1:]]             
     chan = meta['full_channel_list'].index(img_name.split('_')[0])
-    
     im_folder = join(sep,meta['exp_path_list'][0]+sep,'Images')
     save_tif(img[frame,z_slice,chan,...],join(sep,im_folder+sep,img_name)+".tif",meta['um_per_pixel'],meta['interval_sec'])
     
@@ -67,6 +65,7 @@ def write_img(meta_dict: dict)-> None:
         img_name_list = [(meta_dict,x) for x in img_name_list]
         with ProcessPoolExecutor() as executor: # nd2 file are messed up with multithreading
             executor.map(write_ND2,img_name_list)
+    
     elif meta_dict['file_type'] == '.tif':
         # Add metadata and img to img_name_list
         img_arr = expand_dim_tif(meta_dict['img_path'],meta_dict['axes'])
@@ -84,6 +83,8 @@ def init_exp_settings(exp_path: PathLike, meta_dict: dict)-> Experiment:
         exp_set = init_from_dict(meta_dict)
     return exp_set
 
+
+    # # # # # # # main function # # # # # # #
 def img_seq_exp(img_path: PathLike, active_channel_list: list[str], full_channel_list: list[str]=[], overwrite: bool=False)-> list[Experiment]:
     """Create an image seq for individual image files (.nd2 or .tif), based on the number of field of view and return a list of Settings objects"""
     # Get metadata
@@ -115,13 +116,3 @@ def img_seq_exp(img_path: PathLike, active_channel_list: list[str], full_channel
         exp_set.save_as_json()
         exp_set_list.append(exp_set)
     return exp_set_list
-    
-# # # # # # # main function # # # # # # #
-def img_seq_all(img_path_list: list[PathLike], active_channel_list: list=[], 
-                          full_channel_list: list=[], img_seq_overwrite: bool=False)-> list[Experiment]:
-    """Process all the images files (.nd2 or .tif) found in parent_folder and return a list of Settings objects"""
-    exp_set_list = []
-    for img_path in img_path_list:
-        exp_set_list.extend(img_seq_exp(img_path,active_channel_list,full_channel_list,img_seq_overwrite))
-    return exp_set_list
-

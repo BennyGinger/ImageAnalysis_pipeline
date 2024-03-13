@@ -48,7 +48,6 @@ BUILD_IN_MODELS = ['cyto3', 'nuclei', 'cyto2_cp3',
                 'bact_phase_cp3', 'bact_fluor_cp3',
                 'deepbacs_cp3', 'cyto2']
 
-
 IN_HOUSE_MODELS = []
 
 def apply_cellpose_segmentation(img_dict: dict)-> None:
