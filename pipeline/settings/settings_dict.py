@@ -5,23 +5,23 @@ settings = {
             "overwrite": True},
     
     
-    "run_bg_sub": True,
+    "run_bg_sub": False,
     "bg_sub": {"sigma": 0.0,
                "size": 7,
                "overwrite": False},
     
-    "run_channel_reg": True,
+    "run_channel_reg": False,
     "chan_shift": {"reg_channel": "RFP",
                    "reg_mtd": "rigid_body",
                    "overwrite": False},
     
-    "run_frame_reg": True,
+    "run_frame_reg": False,
     "frame_shift": {"reg_channel": "RFP",
                  "reg_mtd": "rigid_body",
                  "img_ref": "previous",
                  "overwrite": True},
     
-    "run_blur": True,
+    "run_blur": False,
     "blur": {"kernel": (15,15),
              "sigma": 5,
              "img_fold_src": "",

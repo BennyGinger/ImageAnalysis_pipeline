@@ -1,10 +1,14 @@
 from __future__ import annotations
+
+# Force the multiprocessing to to start with new interpreter, as pytorch by default will pre-configure the interpreter, which will 'hog' CPU usage
+from multiprocessing import set_start_method
+set_start_method("spawn",force=True)
+
 from time import time
 from pre_process.PreProcess_Class import PreProcess
 from settings.settings_dict import settings
-
+import cellpose
 INPUT_FOLDER = settings['input_folder']
-
 
 
 if __name__ == "__main__":
