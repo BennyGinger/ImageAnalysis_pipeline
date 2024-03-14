@@ -153,7 +153,7 @@ def get_metadata(img_path: PathLike, active_channel_list: list=[], full_channel_
 # Final output: 
 # {'active_channel_list': ['C1', 'C2'],
 #  'axes': '',
-#  'exp_path_list': ['/home/Test_images/nd2/Run2/c2z25t23v1_nd2_s1'],
+#  'exp_path_list': ['/home/Test_images/nd2/Run2/c2z25t23v1_nd2_s1'], return a list pf path based on the number of series
 #  'file_type': '.nd2',
 #  'full_channel_list': ['C1', 'C2'],
 #  'full_n_channels': 2,

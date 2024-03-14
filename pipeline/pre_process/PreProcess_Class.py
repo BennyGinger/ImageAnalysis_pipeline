@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from os.path import join
 from os import sep, walk, PathLike
 from re import search
-from .image_sequence import img_seq_exp
+from .image_sequence import get_image_sequence
 from .image_blur import blur_img
 from .background_sub import background_sub
 from .image_registration import correct_frame_shift, correct_channel_shift
@@ -48,7 +48,7 @@ class PreProcess(BaseModule):
     def extract_img_seq(self, img_path_list: list[PathLike])-> list[Experiment]:
         exp_list = []
         for img_path in img_path_list:
-            exp_list.extend(img_seq_exp(img_path,self.active_channel_list,self.full_channel_list,self.overwrite))
+            exp_list.extend(get_image_sequence(img_path,self.active_channel_list,self.full_channel_list,self.overwrite))
         return exp_list
     
     def process_from_settings(self, settings: dict)-> list[Experiment]:

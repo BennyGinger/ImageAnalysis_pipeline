@@ -10,7 +10,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from .metadata import get_metadata
 
 
-def name_img_list(meta_dict: dict)-> list[PathLike]:
+def create_img_name_list(meta_dict: dict)-> list[PathLike]:
     """Return a list of generated image names based on the metadata of the experiment"""
     # Create a name for each image
     img_name_list = []
@@ -21,60 +21,76 @@ def name_img_list(meta_dict: dict)-> list[PathLike]:
                     img_name_list.append(chan+'_s%02d'%(serie+1)+'_f%04d'%(t+1)+'_z%04d'%(z+1))
     return img_name_list
 
-def write_ND2(img_data: list)-> None:
-    # Unpack img_data
-    meta,img_name = img_data
+def write_ND2(input_data: dict)-> None:
+    meta = input_data['metadata']
+    # Get the serie,frame,z_slice from the img_name
+    serie,frame,z_slice = [int(i[1:])-1 for i in input_data['img_name'].split('_')[1:]]
+    # To get the original index of the channel, as active and full channel list may not be the same
+    chan = meta['full_channel_list'].index(input_data['img_name'].split('_')[0])
+    # Open the ND2 file
     img_obj = ND2Reader(meta['img_path'])
-    serie,frame,z_slice = [int(i[1:])-1 for i in img_name.split('_')[1:]]
-    chan = meta['full_channel_list'].index(img_name.split('_')[0])
+    # Create save path
+    save_path = join(meta['exp_path_list'][serie],'Images',input_data['img_name']+".tif")
     # Get the image       
     if meta['n_slices']>1: 
         img = img_obj.get_frame_2D(c=chan,t=frame,z=z_slice,x=meta['img_width'],y=meta['img_length'],v=serie)
-    else: img = img_obj.get_frame_2D(c=chan,t=frame,x=meta['img_width'],y=meta['img_length'],v=serie)
-    # Save
-    im_folder = join(sep,meta['exp_path_list'][serie]+sep,'Images')
-    save_tif(img,join(sep,im_folder+sep,img_name)+".tif",meta['um_per_pixel'],meta['interval_sec'])
+        save_tif(img,save_path,meta['um_per_pixel'],meta['interval_sec'])
+        return
     
+    img = img_obj.get_frame_2D(c=chan,t=frame,x=meta['img_width'],y=meta['img_length'],v=serie)
+    save_tif(img,save_path,meta['um_per_pixel'],meta['interval_sec'])
+     
 def expand_dim_tif(img_path: PathLike, axes: str)-> np.ndarray:
-    """Adjust the dimension of the image to TZCYX"""
+    """Adjust the dimension of the image to TZCYX, if any dimension is missing. 
+    Return the image as a numpy array."""
     # Open tif file
     img = imread(img_path)
     ref_axes = 'TZCYX'
     
     if len(axes)<len(ref_axes):
-        missing_axes = [ref_axes.index(x) for x in ref_axes if x not in axes]
+        missing_axes = [ref_axes.index(ax) for ax in ref_axes if ax not in axes]
         # Add missing axes
         for ax in missing_axes:
             img = np.expand_dims(img,axis=ax)
     return img
 
-def write_tif(img_data: list)-> None:
-    # Unpack img_data
-    meta,img_name,img = img_data
-    _,frame,z_slice = [int(i[1:])-1 for i in img_name.split('_')[1:]]             
-    chan = meta['full_channel_list'].index(img_name.split('_')[0])
-    im_folder = join(sep,meta['exp_path_list'][0]+sep,'Images')
-    save_tif(img[frame,z_slice,chan,...],join(sep,im_folder+sep,img_name)+".tif",meta['um_per_pixel'],meta['interval_sec'])
+def write_tif(input_data: dict)-> None:
+    meta = input_data['metadata']
+    # Get the frame,z_slice from the img_name, no serie as there is only one serie for tiff files
+    _,frame,z_slice = [int(i[1:])-1 for i in input_data['img_name'].split('_')[1:]]             
+    # To get the original index of the channel, as active and full channel list may not be the same
+    chan = meta['full_channel_list'].index(input_data['img_name'].split('_')[0])
+    # Create save path
+    save_path = join(meta['exp_path_list'][0],'Images',input_data['img_name']+".tif")
+    save_tif(input_data['img'][frame,z_slice,chan,...],save_path,meta['um_per_pixel'],meta['interval_sec'])
     
 def write_img(meta_dict: dict)-> None:
     # Create all the names for the images+metadata
-    img_name_list = name_img_list(meta_dict)
+    img_names = create_img_name_list(meta_dict)
     
     if meta_dict['file_type'] == '.nd2':
-        # Add metadata and img_obj to img_name_list
-        img_name_list = [(meta_dict,x) for x in img_name_list]
+        # Generate input data: list[dict]
+        input_data = [{'metadata':meta_dict,
+                       'img_name':name}
+                      for name in img_names]
+        
         with ProcessPoolExecutor() as executor: # nd2 file are messed up with multithreading
-            executor.map(write_ND2,img_name_list)
+            executor.map(write_ND2,input_data)
     
     elif meta_dict['file_type'] == '.tif':
-        # Add metadata and img to img_name_list
+        # Get the image with the correct dimension
         img_arr = expand_dim_tif(meta_dict['img_path'],meta_dict['axes'])
-        img_name_list = [(meta_dict,x,img_arr) for x in img_name_list]
+        # Generate input data: list[dict]
+        input_data = [{'metadata':meta_dict,
+                       'img_name':name,
+                       'img':img_arr}
+                      for name in img_names]
+        
         with ThreadPoolExecutor() as executor:
-            executor.map(write_tif,img_name_list)
+            executor.map(write_tif,input_data)
 
 def init_exp_settings(exp_path: PathLike, meta_dict: dict)-> Experiment:
-    """Initialize Settings object from json file or metadata"""
+    """Initialize Experiment object from json file or metadata (just in case the json file is not available)"""
     
     if exists(join(sep,exp_path+sep,'exp_settings.json')):
         exp_set = init_from_json(join(sep,exp_path+sep,'exp_settings.json'))
@@ -83,32 +99,32 @@ def init_exp_settings(exp_path: PathLike, meta_dict: dict)-> Experiment:
         exp_set = init_from_dict(meta_dict)
     return exp_set
 
-
-    # # # # # # # main function # # # # # # #
-def img_seq_exp(img_path: PathLike, active_channel_list: list[str], full_channel_list: list[str]=[], overwrite: bool=False)-> list[Experiment]:
+# # # # # # # main function # # # # # # #
+def get_image_sequence(img_path: PathLike, active_channel_list: list[str], full_channel_list: list[str]=[], overwrite: bool=False)-> list[Experiment]:
     """Create an image seq for individual image files (.nd2 or .tif), based on the number of field of view and return a list of Settings objects"""
     # Get metadata
     meta_dict = get_metadata(img_path,active_channel_list,full_channel_list)
     
-    # If img are already processed
     exp_set_list = []
     for serie in range(meta_dict['n_series']):
         exp_path = meta_dict['exp_path_list'][serie]
         meta_dict['exp_path'] = exp_path
         print(f"--> Checking exp {exp_path} for image sequence")
         
+        # If exp has been processed but removed
         if exists(join(sep,exp_path+sep,'REMOVED_EXP.txt')):
             print(" --> Exp. has been removed")
             continue
         
         save_folder = create_save_folder(exp_path,'Images')
         
+        # If img are already processed
         if any(scandir(save_folder)) and not overwrite:
             print(f" --> Images have already been converted to image sequence")
             exp_set_list.append(init_exp_settings(exp_path,meta_dict))
             continue
         
-        # If images are not processed
+        # If images are not processed, extract imseq and initialize exp_set object
         print(f" --> Extracting images and converting to image sequence")
         write_img(meta_dict)
         
