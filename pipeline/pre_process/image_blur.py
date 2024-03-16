@@ -8,13 +8,7 @@ import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 
 
-def apply_blur(input_dict: dict)-> None:
-    img = imread(input_dict['img_path'])
-    # Blur image and save
-    blur_img = GaussianBlur(img,**input_dict['blur']).astype(np.uint16)
-    save_tif(blur_img,input_dict['save_path'],**input_dict['metadata'])
-
-# # # # # # # # main functions # # # # # # # # # 
+################################## main function ###################################
 def blur_img(exp_set_list: list[Experiment], blur_kernel: list[int], blur_sigma: int, img_fold_src: PathLike="", blur_overwrite: bool = False)-> None:
     # Check if kernel contains 2 odd intengers >= to 3
     if not all(i%2!=0 for i in blur_kernel) and not all(i>=3 for i in blur_kernel):
@@ -49,3 +43,10 @@ def blur_img(exp_set_list: list[Experiment], blur_kernel: list[int], blur_sigma:
         exp_set.process.img_blured = [f"blur_kernel={blur_kernel}",f"blur_sigma={blur_sigma}"]
         exp_set.save_as_json()
     return exp_set_list
+
+################################ Satelite functions ################################
+def apply_blur(input_dict: dict)-> None:
+    img = imread(input_dict['img_path'])
+    # Blur image and save
+    blur_img = GaussianBlur(img,**input_dict['blur']).astype(np.uint16)
+    save_tif(blur_img,input_dict['save_path'],**input_dict['metadata'])

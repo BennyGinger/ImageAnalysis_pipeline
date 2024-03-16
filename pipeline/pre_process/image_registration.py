@@ -10,7 +10,29 @@ from image_handeling.data_utility import load_stack, create_save_folder, save_ti
 
 ####################################################################################
 ############################# Channel shift correction #############################
-####################################################################################
+################################## main function ###################################
+def correct_channel_shift(exp_set_list: list[Experiment], reg_mtd: str, reg_channel: str, chan_shift_overwrite: bool=False)-> list[Experiment]:
+    """Main function to apply the channel shift correction to the images."""
+    for exp_set in exp_set_list:
+        # Check if the channel shift was already applied
+        if exp_set.process.channel_reg and not chan_shift_overwrite:
+            print(f" --> Channel shift was already applied on the images with {exp_set.process.channel_reg}")
+            continue
+        # Or if it's needed
+        if len(exp_set.active_channel_list)==1:
+            print(f" --> Only one channel in the active_channel_list, no need to apply channel shift")
+            continue
+        # If not, correct the channel shift
+        stackreg = select_reg_mtd(reg_mtd)
+        print(f" --> Applying channel shift correction on the images with '{reg_channel}' as reference and {reg_mtd} methods")
+        # Apply the channel shift correction
+        apply_chan_shift(exp_set,stackreg,reg_channel)
+        # Save settings
+        exp_set.process.channel_reg = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}"]
+        exp_set.save_as_json()
+    return exp_set_list
+
+################################ Satelite functions ################################
 def get_tmats_chan(stackreg: StackReg, exp_set: Experiment, reg_channel: str)-> dict[str,np.ndarray]:
     """Register the first frame of all channels to the ref channel. 
     Output is a dict with the channel (excluding the ref channel) as key and the tmat np.ndarray (2D) as value."""
@@ -46,31 +68,33 @@ def apply_chan_shift(exp_set: Experiment, stackreg: StackReg, reg_channel: str)-
     with ProcessPoolExecutor() as executor:
         executor.map(apply_tmat_to_img,input_data)
 
-############################# main function #############################
-def correct_channel_shift(exp_set_list: list[Experiment], reg_mtd: str, reg_channel: str, chan_shift_overwrite: bool=False)-> list[Experiment]:
-    """Main function to apply the channel shift correction to the images."""
-    for exp_set in exp_set_list:
-        # Check if the channel shift was already applied
-        if exp_set.process.channel_reg and not chan_shift_overwrite:
-            print(f" --> Channel shift was already applied on the images with {exp_set.process.channel_reg}")
-            continue
-        # Or if it's needed
-        if len(exp_set.active_channel_list)==1:
-            print(f" --> Only one channel in the active_channel_list, no need to apply channel shift")
-            continue
-        # If not, correct the channel shift
-        stackreg = select_reg_mtd(reg_mtd)
-        print(f" --> Applying channel shift correction on the images with '{reg_channel}' as reference and {reg_mtd} methods")
-        # Apply the channel shift correction
-        apply_chan_shift(exp_set,stackreg,reg_channel)
-        # Save settings
-        exp_set.process.channel_reg = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}"]
-        exp_set.save_as_json()
-    return exp_set_list
 
 ####################################################################################
 ############################## Frame shift correction ##############################
-####################################################################################
+################################## main function ###################################
+def correct_frame_shift(exp_set_list: list[Experiment], reg_channel: str, reg_mtd: str, img_ref: str, reg_overwrite: bool=False)-> list[Experiment]:
+    """Main function to apply the frame shift correction to the images."""
+    for exp_set in exp_set_list:
+        create_save_folder(exp_set.exp_path,'Images_Registered')
+        # Check if the frame shift was already applied
+        if exp_set.process.frame_reg and not reg_overwrite:
+            print(f" --> Registration was already applied to the images with {exp_set.process.frame_reg}")
+            continue
+        # Or if it's needed
+        if exp_set.img_properties.n_frames==1:
+            print(f" --> Only one frame in the image, no need to apply frame shift")
+            continue
+        # If not, correct the frame shift
+        stackreg = select_reg_mtd(reg_mtd)
+        print(f" --> Registering images with '{img_ref}_image' reference and {reg_mtd} method")
+        # Apply the frame shift correction
+        apply_frame_shift(stackreg,exp_set,reg_channel,img_ref)
+        # Save settings
+        exp_set.process.frame_reg = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}",f"img_ref={img_ref}"]
+        exp_set.save_as_json()
+    return exp_set_list
+
+################################ Satelite functions ################################
 def get_tmats_first(stackreg: StackReg, exp_set: Experiment, reg_channel: str)-> dict[int,np.ndarray]:
     """Register all frames of the given channel compared to the first frame.
     Output is a dict with the frame (excluding the first one) as key and the tmat np.ndarray (2D) as value."""
@@ -153,28 +177,6 @@ def apply_frame_shift(stackreg: StackReg, exp_set: Experiment, reg_channel: str,
         executor.map(apply_tmat_to_img,input_data)
     return exp_set
 
-############################# main functions #############################
-def correct_frame_shift(exp_set_list: list[Experiment], reg_channel: str, reg_mtd: str, img_ref: str, reg_overwrite: bool=False)-> list[Experiment]:
-    """Main function to apply the frame shift correction to the images."""
-    for exp_set in exp_set_list:
-        create_save_folder(exp_set.exp_path,'Images_Registered')
-        # Check if the frame shift was already applied
-        if exp_set.process.frame_reg and not reg_overwrite:
-            print(f" --> Registration was already applied to the images with {exp_set.process.frame_reg}")
-            continue
-        # Or if it's needed
-        if exp_set.img_properties.n_frames==1:
-            print(f" --> Only one frame in the image, no need to apply frame shift")
-            continue
-        # If not, correct the frame shift
-        stackreg = select_reg_mtd(reg_mtd)
-        print(f" --> Registering images with '{img_ref}_image' reference and {reg_mtd} method")
-        # Apply the frame shift correction
-        apply_frame_shift(stackreg,exp_set,reg_channel,img_ref)
-        # Save settings
-        exp_set.process.frame_reg = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}",f"img_ref={img_ref}"]
-        exp_set.save_as_json()
-    return exp_set_list
 
 ####################################################################################
 ################################ Utility function ##################################

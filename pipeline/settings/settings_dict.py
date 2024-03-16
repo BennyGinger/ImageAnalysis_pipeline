@@ -1,8 +1,8 @@
 settings = {
-    "input_folder": '/home/Test_images/nd2/Run2',
+    "input_folder": '/home/Test_images/tiff/Run2',
     "init":{"active_channel_list": ['GFP','RFP'],
             'full_channel_list':[],
-            "overwrite": True},
+            "overwrite": False},
     
     
     "run_bg_sub": False,
@@ -28,19 +28,19 @@ settings = {
              "overwrite": False},
 
     "run_cellpose": True,
-    "cellpose": {"channel_to_seg":"GFP",
+    "cellpose": {"channel_to_seg":"RFP",
                  "model_type": "cyto3",
                  "diameter": 60.0,
                  "flow_threshold": 0.4,
                  "cellprob_threshold": 0.0,
-                 "overwrite": False,
+                 "overwrite": True,
                  "img_fold_src": "",
                  "process_as_2D": True,
                  "save_as_npy": False,
                  "nuclear_marker": "",},
     
-    "run_threshold": True,
-    "threshold": {"channel_to_seg":"GFP",
+    "run_threshold": False,
+    "threshold": {"channel_to_seg":"RFP",
                   "overwrite": False,
                   "manual_threshold": None,
                   "img_fold_src": "",},

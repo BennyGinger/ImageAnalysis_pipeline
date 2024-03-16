@@ -14,7 +14,6 @@ INPUT_FOLDER = settings['input_folder']
 if __name__ == "__main__":
 
     t1 = time()
-    # cProfile.run('PreProcess(INPUT_FOLDER,**settings["init"]).process_from_settings(settings)',sort='cumulative')
     exp_list = PreProcess(INPUT_FOLDER,**settings['init']).process_from_settings(settings)
     exp_list = Segmentation(INPUT_FOLDER,exp_list).segment_from_settings(settings)
     

@@ -5,15 +5,8 @@ from tifffile import imread
 from smo import SMO
 from image_handeling.data_utility import save_tif
 
-def apply_bg_sub(input_dict: dict)-> None:
-    # Initiate SMO
-    img = imread(input_dict['img_path'])
-    bg_img = input_dict['smo'].bg_corrected(img)
-    # Reset neg val to 0
-    bg_img[bg_img<0] = 0
-    save_tif(bg_img,input_dict['img_path'],**input_dict['metadata'])
 
-# # # # # # # # main function # # # # # # # #
+################################## main function ###################################
 def background_sub(exp_set_list: list[Experiment], sigma: float=0.0, size: int=7, bg_sub_overwrite: bool=False)-> list[Experiment]:
     """For each experiment, apply a background substraction on the images and return a list of Settings objects"""
     for exp_set in exp_set_list:
@@ -37,3 +30,11 @@ def background_sub(exp_set_list: list[Experiment], sigma: float=0.0, size: int=7
         exp_set.save_as_json()
     return exp_set_list
 
+################################ Satelite functions ################################
+def apply_bg_sub(input_dict: dict)-> None:
+    # Initiate SMO
+    img = imread(input_dict['img_path'])
+    bg_img = input_dict['smo'].bg_corrected(img)
+    # Reset neg val to 0
+    bg_img[bg_img<0] = 0
+    save_tif(bg_img,input_dict['img_path'],**input_dict['metadata'])

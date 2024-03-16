@@ -10,6 +10,41 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from .metadata import get_metadata
 
 
+################################## main function ###################################
+def get_image_sequence(img_path: PathLike, active_channel_list: list[str], full_channel_list: list[str]=[], overwrite: bool=False)-> list[Experiment]:
+    """Create an image seq for individual image files (.nd2 or .tif), based on the number of field of view and return a list of Settings objects"""
+    # Get metadata
+    meta_dict = get_metadata(img_path,active_channel_list,full_channel_list)
+    
+    exp_set_list = []
+    for serie in range(meta_dict['n_series']):
+        exp_path = meta_dict['exp_path_list'][serie]
+        meta_dict['exp_path'] = exp_path
+        print(f"--> Checking exp {exp_path} for image sequence")
+        
+        # If exp has been processed but removed
+        if exists(join(sep,exp_path+sep,'REMOVED_EXP.txt')):
+            print(" --> Exp. has been removed")
+            continue
+        
+        save_folder = create_save_folder(exp_path,'Images')
+        
+        # If img are already processed
+        if any(scandir(save_folder)) and not overwrite:
+            print(f" --> Images have already been converted to image sequence")
+            exp_set_list.append(init_exp_settings(exp_path,meta_dict))
+            continue
+        
+        # If images are not processed, extract imseq and initialize exp_set object
+        print(f" --> Extracting images and converting to image sequence")
+        write_img(meta_dict)
+        
+        exp_set = init_from_dict(meta_dict)
+        exp_set.save_as_json()
+        exp_set_list.append(exp_set)
+    return exp_set_list
+
+################################ Satelite functions ################################
 def create_img_name_list(meta_dict: dict)-> list[PathLike]:
     """Return a list of generated image names based on the metadata of the experiment"""
     # Create a name for each image
@@ -99,36 +134,4 @@ def init_exp_settings(exp_path: PathLike, meta_dict: dict)-> Experiment:
         exp_set = init_from_dict(meta_dict)
     return exp_set
 
-# # # # # # # main function # # # # # # #
-def get_image_sequence(img_path: PathLike, active_channel_list: list[str], full_channel_list: list[str]=[], overwrite: bool=False)-> list[Experiment]:
-    """Create an image seq for individual image files (.nd2 or .tif), based on the number of field of view and return a list of Settings objects"""
-    # Get metadata
-    meta_dict = get_metadata(img_path,active_channel_list,full_channel_list)
-    
-    exp_set_list = []
-    for serie in range(meta_dict['n_series']):
-        exp_path = meta_dict['exp_path_list'][serie]
-        meta_dict['exp_path'] = exp_path
-        print(f"--> Checking exp {exp_path} for image sequence")
-        
-        # If exp has been processed but removed
-        if exists(join(sep,exp_path+sep,'REMOVED_EXP.txt')):
-            print(" --> Exp. has been removed")
-            continue
-        
-        save_folder = create_save_folder(exp_path,'Images')
-        
-        # If img are already processed
-        if any(scandir(save_folder)) and not overwrite:
-            print(f" --> Images have already been converted to image sequence")
-            exp_set_list.append(init_exp_settings(exp_path,meta_dict))
-            continue
-        
-        # If images are not processed, extract imseq and initialize exp_set object
-        print(f" --> Extracting images and converting to image sequence")
-        write_img(meta_dict)
-        
-        exp_set = init_from_dict(meta_dict)
-        exp_set.save_as_json()
-        exp_set_list.append(exp_set)
-    return exp_set_list
+

@@ -45,7 +45,7 @@ def load_stack(img_list: list[PathLike], channel_list: str | Iterable[str], fram
     else:
         return np.amax(stack, axis=0)
 
-def img_list_src(exp_set: Experiment, img_fold_src: PathLike)-> list[PathLike]:
+def img_list_src(exp_set: Experiment, img_fold_src: str)-> list[PathLike]:
     """If not manually specified, return the latest processed images list"""
     
     if img_fold_src and img_fold_src == 'Images':
@@ -65,7 +65,7 @@ def img_list_src(exp_set: Experiment, img_fold_src: PathLike)-> list[PathLike]:
     else:
         return exp_set.raw_imgs_lst
 
-def mask_list_src(exp_set: Experiment, mask_fold_src: PathLike)-> list[PathLike]:
+def mask_list_src(exp_set: Experiment, mask_fold_src: str)-> list[PathLike]:
     """If not manually specified, return the latest processed images list"""
     
     if mask_fold_src and mask_fold_src == 'Masks_Threshold' or mask_fold_src == 'threshold_seg':
@@ -113,13 +113,14 @@ def create_save_folder(exp_path: PathLike, folder_name: str)-> PathLike:
     print(f" ---> Saving folder already exists: {save_folder}")
     return save_folder
 
-def gen_input_data(exp_set: Experiment, img_fold_src: PathLike, channel_seg_list: list, **kwargs)-> list[dict]:
-    img_path_list = img_list_src(exp_set,img_fold_src)
+def gen_input_data(exp_set: Experiment, img_fold_src: str, channel_seg_list: list, **kwargs)-> list[dict]:
+    # img_path_list = img_list_src(exp_set,img_fold_src)
     channel_seg = channel_seg_list[0]
     input_data = []
     for frame in range(exp_set.img_properties.n_frames):
         input_dict = {}
-        imgs_path = [img for img in img_path_list if f"_f{frame+1:04d}" in img and channel_seg in img]
+        # imgs_path = [img for img in img_path_list if f"_f{frame+1:04d}" in img and channel_seg in img]
+        imgs_path = img_list_src(exp_set,img_fold_src)
         input_dict['imgs_path'] = imgs_path
         input_dict['frame'] = frame
         input_dict['channel_seg_list'] = channel_seg_list
