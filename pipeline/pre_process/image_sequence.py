@@ -30,7 +30,7 @@ def get_image_sequence(img_path: PathLike, active_channel_list: list[str], full_
         save_folder = create_save_folder(exp_path,'Images')
         
         # If img are already processed
-        if any(scandir(save_folder)) and not overwrite:
+        if any(scandir(save_folder)) and not overwrite: #BUG: If the experiment is overwritten, then any other processes will be reset to zero in the settings, for example any cellpose mask in the settings won't exist even though the image themselves are there...
             print(f" --> Images have already been converted to image sequence")
             exp_set_list.append(init_exp_settings(exp_path,meta_dict))
             continue
@@ -56,12 +56,17 @@ def create_img_name_list(meta_dict: dict)-> list[PathLike]:
                     img_name_list.append(chan+'_s%02d'%(serie+1)+'_f%04d'%(t+1)+'_z%04d'%(z+1))
     return img_name_list
 
+def extract_image_params(img_name: str, full_channel_list: list[str])-> tuple[int,int,int,int]:
+    # Get the serie,frame,z_slice from the img_name
+    serie,frame,z_slice = [int(i[1:])-1 for i in img_name.split('_')[1:]]
+    # To get the original index of the channel, as active and full channel list may not be the same
+    chan = full_channel_list.index(img_name.split('_')[0])
+    return serie,frame,z_slice,chan
+
 def write_ND2(input_data: dict)-> None:
     meta = input_data['metadata']
-    # Get the serie,frame,z_slice from the img_name
-    serie,frame,z_slice = [int(i[1:])-1 for i in input_data['img_name'].split('_')[1:]]
-    # To get the original index of the channel, as active and full channel list may not be the same
-    chan = meta['full_channel_list'].index(input_data['img_name'].split('_')[0])
+    # Get img parameters
+    serie,frame,z_slice,chan = extract_image_params(input_data['img_name'],meta['full_channel_list'])
     # Open the ND2 file
     img_obj = ND2Reader(meta['img_path'])
     # Create save path
@@ -92,9 +97,7 @@ def expand_dim_tif(img_path: PathLike, axes: str)-> np.ndarray:
 def write_tif(input_data: dict)-> None:
     meta = input_data['metadata']
     # Get the frame,z_slice from the img_name, no serie as there is only one serie for tiff files
-    _,frame,z_slice = [int(i[1:])-1 for i in input_data['img_name'].split('_')[1:]]             
-    # To get the original index of the channel, as active and full channel list may not be the same
-    chan = meta['full_channel_list'].index(input_data['img_name'].split('_')[0])
+    _,frame,z_slice,chan = extract_image_params(input_data['img_name'],meta['full_channel_list'])
     # Create save path
     save_path = join(meta['exp_path_list'][0],'Images',input_data['img_name']+".tif")
     save_tif(input_data['img'][frame,z_slice,chan,...],save_path,meta['um_per_pixel'],meta['interval_sec'])

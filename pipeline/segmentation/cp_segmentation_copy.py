@@ -3,7 +3,7 @@ from typing import Callable
 import numpy as np
 from cellpose import models, core
 from cellpose.io import logger_setup, masks_flows_to_seg
-from os import PathLike
+from os import PathLike, sep
 from os.path import isfile
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from image_handeling.Experiment_Classes import Experiment
@@ -53,11 +53,11 @@ def run_cellpose(img_dict: dict)-> None:
     # Load image/stack and model
     img = load_stack(img_dict['imgs_path'],img_dict['channels'],[img_dict['frame']],img_dict['as_2D'])
     model: models.CellposeModel = img_dict['model']
-    # Save path
-    path: PathLike = img_dict['imgs_path'][0]
-    .replace('Images','Masks_Cellpose').replace('Registered','').replace('Blured','')
+    # Save path, take the first img path, remove the last part (name of the img) and replace it with mask name
+    mask_path = sep.join([*img_dict['imgs_path'][0].split(sep)[:-1],img_dict['mask_name']])
+    mask_path = mask_path.replace('Images','Masks_Cellpose').replace('Registered','').replace('Blured','')
     # log
-    print(f"  ---> Processing img {mask_path}")
+    print(f"  ---> Processing frame {img_dict['frame']}")
     # Run Cellpose
     masks_cp, flows, _ = model.eval(img,**img_dict['cellpose_eval'])
     # Save
@@ -163,7 +163,6 @@ class CellposeSetup:
         channels = [self.channel_seg]
         if self.nuclear_marker:
             channels.append(self.nuclear_marker)
-        
         # Sort images by frames and channels
         sorted_frames = {frame:[img for img in img_list_src(self.exp_set,img_fold_src) if f"_f{frame+1:04d}" in img] 
                          for frame in range(self.exp_set.img_properties.n_frames)}
@@ -172,6 +171,7 @@ class CellposeSetup:
         input_data = [{'imgs_path':sorted_frames[frame],
                        'frame':frame,
                        'model':self.model,
+                       'channels':channels,
                        'mask_name':f'{self.channel_seg}_s{self.exp_set.img_properties.n_series:02d}_f{frame+1:04d}_z0001.tif',
                        'cellpose_eval':self.cellpose_eval,
                        'as_2D':self.process_as_2D,
@@ -179,7 +179,6 @@ class CellposeSetup:
                        'metadata':{'um_per_pixel':self.exp_set.analysis.um_per_pixel,
                                'finterval':self.exp_set.analysis.interval_sec}} 
                       for frame in range(self.exp_set.img_properties.n_frames)]
-        
         return input_data
 
 def parallel_executor(func: Callable, input_args: list[dict], gpu: bool, z_axis: int)-> None:
@@ -192,7 +191,6 @@ def parallel_executor(func: Callable, input_args: list[dict], gpu: bool, z_axis:
         for args in input_args:
             func(args)
         return
-    
     # If CPU 2D or 3D: parallelization
     with ProcessPoolExecutor() as executor:
         executor.map(func,input_args)
@@ -206,6 +204,7 @@ def cellpose_segmentation(exp_set_list: list[Experiment], channel_seg: str, mode
     
     
     for exp_set in exp_set_list:
+        print(exp_set.__dict__)
         file_type = '.tif'
         if save_as_npy:
             file_type = '.npy'

@@ -129,16 +129,20 @@ def gen_input_data(exp_set: Experiment, img_fold_src: str, channel_seg_list: lis
     return input_data
 
 def delete_old_masks(class_setting_dict: dict, channel_seg: str, mask_files_list: list[PathLike], overwrite: bool=False)-> None:
+    print("entering delete")
     if not overwrite:
+        print("check ow")
         return
     if not class_setting_dict:
+        print(f"check setting dict {class_setting_dict}")
         return
     if channel_seg not in class_setting_dict:
+        print("check channel seg")
         return
     print(f" ---> Deleting old masks for the '{channel_seg}' channel")
     files_list = [file for file in mask_files_list if file.__contains__(channel_seg)]
     for file in files_list:
-        if isfile(file):
+        if file.endswith((".tif",".tiff",".npy")):
             remove(file)
 
 def get_resolution(um_per_pixel: tuple[float,float])-> tuple[float,float]:
