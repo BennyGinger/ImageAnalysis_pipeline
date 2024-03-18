@@ -39,9 +39,9 @@ settings = {
                  "save_as_npy": False,
                  "nuclear_marker": "",},
     
-    "run_threshold": False,
+    "run_threshold": True,
     "threshold": {"channel_to_seg":"RFP",
-                  "overwrite": False,
+                  "overwrite": True,
                   "manual_threshold": None,
                   "img_fold_src": "",},
 }

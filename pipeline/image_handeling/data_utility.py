@@ -95,6 +95,7 @@ def mask_list_src(exp_set: Experiment, mask_fold_src: str)-> list[PathLike]:
     else:
         return exp_set.threshold_masks_lst
 
+# TODO: Add a check whether the images are in the save folder
 def is_processed(process: dict, channel_seg: str, overwrite: bool)-> bool:
     if overwrite:
         return False
@@ -129,15 +130,13 @@ def gen_input_data(exp_set: Experiment, img_fold_src: str, channel_seg_list: lis
     return input_data
 
 def delete_old_masks(class_setting_dict: dict, channel_seg: str, mask_files_list: list[PathLike], overwrite: bool=False)-> None:
-    print("entering delete")
+    """Check if old masks exists, if the case, the delete old masks. Only
+    if overwrite is True and class_setting_dict is not empty and channel_seg is in class_setting_dict"""
     if not overwrite:
-        print("check ow")
         return
     if not class_setting_dict:
-        print(f"check setting dict {class_setting_dict}")
         return
     if channel_seg not in class_setting_dict:
-        print("check channel seg")
         return
     print(f" ---> Deleting old masks for the '{channel_seg}' channel")
     files_list = [file for file in mask_files_list if file.__contains__(channel_seg)]
@@ -153,4 +152,25 @@ def save_tif(array: np.ndarray, save_path: PathLike, um_per_pixel: tuple[float,f
     """Save array as tif with metadata"""
     imagej_metadata = {'finterval':finterval, 'unit': 'um'}
     imwrite(save_path,array.astype(np.uint16),imagej=True,metadata=imagej_metadata,resolution=get_resolution(um_per_pixel))
-    
+
+def gen_input_data(exp_set: Experiment, img_sorted_frames: dict[str,list], channels: str | list[str], **kwargs)-> list[dict]:
+    """Generate input data for multi-processing or -threading. Add all additionnal arguments as kwargs
+
+    Args:
+        exp_set (Experiment): The experiment settings.
+        img_sorted_frames (dict[str,list]): List of imgs sorted by frames.
+        channels (list[str]): The list of channels to include.
+        **kwargs: Additional keyword arguments.
+
+    Returns:
+        list[dict]: A list of dictionaries representing the input data.
+
+    """
+    input_data = [{**kwargs,
+                   **{'imgs_path':img_sorted_frames[frame],
+                   'frame':frame,
+                   'channels':channels,
+                   'metadata':{'um_per_pixel':exp_set.analysis.um_per_pixel,
+                               'finterval':exp_set.analysis.interval_sec}}}
+                  for frame in range(exp_set.img_properties.n_frames)]
+    return input_data

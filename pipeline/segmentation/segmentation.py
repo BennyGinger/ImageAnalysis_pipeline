@@ -6,9 +6,7 @@ import numpy as np
 from tifffile import imsave
 from concurrent.futures import ThreadPoolExecutor
 from image_handeling.Experiment_Classes import Experiment
-from image_handeling.data_utility import is_processed, load_stack, create_save_folder, gen_input_data, delete_old_masks, save_tif
-
-# TODO: replace imsave with save_tif
+from image_handeling.data_utility import is_processed, load_stack, create_save_folder, img_list_src, delete_old_masks, save_tif, gen_input_data
 
 def determine_threshold(img: np.ndarray, manual_threshold: float=None)-> float:
     # Set the threshold's value. Either as input or automatically if thres==None
@@ -32,9 +30,9 @@ def create_threshold_settings(manual_threshold: float | None, threshold_value_li
         
 def apply_threshold(img_dict: dict)-> float:
     
-    img = load_stack(img_dict['imgs_path'],img_dict['channel_seg_list'],[img_dict['frame']])
-    if img.ndim == 3:
-        img = np.amax(img,axis=0)
+    img = load_stack(img_dict['imgs_path'],img_dict['channels'],[img_dict['frame']],return_2D=True)
+    
+    # Save directory
     savedir = img_dict['imgs_path'][0].replace("Images","Masks_Threshold").replace('_Registered','').replace('_Blured','')
     
     threshold_value = determine_threshold(img,img_dict['manual_threshold'])
@@ -42,8 +40,8 @@ def apply_threshold(img_dict: dict)-> float:
     # Apply the threshold
     _,mask = cv2.threshold(img.astype(np.uint8),threshold_value,255,cv2.THRESH_BINARY)
     
-    # Clean and save
-    imsave(savedir,clean_mask(mask))
+    # Save
+    save_tif(mask,savedir,**img_dict['metadata'])
     return threshold_value
 
 # # # # # # # # main functions # # # # # # # # # 
@@ -58,7 +56,13 @@ def threshold(exp_set_list: list[Experiment], channel_seg: str, overwrite: bool=
         # Initialize input args and save folder
         create_save_folder(exp_set.exp_path,'Masks_Threshold')
         delete_old_masks(exp_set.masks.threshold_seg,channel_seg,exp_set.threshold_masks_lst,overwrite)
-        img_data = gen_input_data(exp_set,img_fold_src,[channel_seg],manual_threshold=manual_threshold)
+        
+        # Sort images by frames and channels
+        imgs_list = [img for img in img_list_src(exp_set,img_fold_src) if channel_seg in img]
+        sorted_frames = {frame:[img for img in imgs_list if f"_f{frame+1:04d}" in img] for frame in range(exp_set.img_properties.n_frames)}
+        
+        # Generate input data
+        img_data = gen_input_data(exp_set,sorted_frames,channel_seg,manual_threshold=manual_threshold)
         
         print(f" --> Segmenting object...")
         # Determine threshold value

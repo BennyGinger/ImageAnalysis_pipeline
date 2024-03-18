@@ -5,7 +5,7 @@ from os.path import join
 from typing import Any
 from image_handeling.Base_Module_Class import BaseModule
 from image_handeling.Experiment_Classes import Experiment, init_from_json
-from .cp_segmentation_copy import cellpose_segmentation
+from .cp_segmentation import cellpose_segmentation
 from .segmentation import threshold
 from settings.Setting_Classes import SegmentationSettings
 

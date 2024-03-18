@@ -30,16 +30,18 @@ def get_image_sequence(img_path: PathLike, active_channel_list: list[str], full_
         save_folder = create_save_folder(exp_path,'Images')
         
         # If img are already processed
-        if any(scandir(save_folder)) and not overwrite: #BUG: If the experiment is overwritten, then any other processes will be reset to zero in the settings, for example any cellpose mask in the settings won't exist even though the image themselves are there...
+        if any(scandir(save_folder)) and not overwrite:
             print(f" --> Images have already been converted to image sequence")
-            exp_set_list.append(init_exp_settings(exp_path,meta_dict))
+            exp_set = init_exp_settings(exp_path,meta_dict)
+            exp_set_list.append(exp_set)
+            # No need to save the settings as they are already saved
             continue
         
         # If images are not processed, extract imseq and initialize exp_set object
         print(f" --> Extracting images and converting to image sequence")
         write_img(meta_dict)
         
-        exp_set = init_from_dict(meta_dict)
+        exp_set = init_exp_settings(exp_path,meta_dict)
         exp_set.save_as_json()
         exp_set_list.append(exp_set)
     return exp_set_list
@@ -50,13 +52,14 @@ def create_img_name_list(meta_dict: dict)-> list[PathLike]:
     # Create a name for each image
     img_name_list = []
     for serie in range(meta_dict['n_series']):
-        for t in range(meta_dict['n_frames']):
+        for f in range(meta_dict['n_frames']):
             for z in range(meta_dict['n_slices']):
                 for chan in meta_dict['active_channel_list']:
-                    img_name_list.append(chan+'_s%02d'%(serie+1)+'_f%04d'%(t+1)+'_z%04d'%(z+1))
+                    img_name_list.append(chan+'_s%02d'%(serie+1)+'_f%04d'%(f+1)+'_z%04d'%(z+1))
     return img_name_list
 
 def extract_image_params(img_name: str, full_channel_list: list[str])-> tuple[int,int,int,int]:
+    """Extract the serie,frame,z_slice and channel from the image name. Return a tuple with the extracted parameters."""
     # Get the serie,frame,z_slice from the img_name
     serie,frame,z_slice = [int(i[1:])-1 for i in img_name.split('_')[1:]]
     # To get the original index of the channel, as active and full channel list may not be the same
@@ -128,7 +131,8 @@ def write_img(meta_dict: dict)-> None:
             executor.map(write_tif,input_data)
 
 def init_exp_settings(exp_path: PathLike, meta_dict: dict)-> Experiment:
-    """Initialize Experiment object from json file or metadata (just in case the json file is not available)"""
+    """Initialize Experiment object from json file if exists, else from the metadata dict. 
+    Return the Experiment object."""
     
     if exists(join(sep,exp_path+sep,'exp_settings.json')):
         exp_set = init_from_json(join(sep,exp_path+sep,'exp_settings.json'))
