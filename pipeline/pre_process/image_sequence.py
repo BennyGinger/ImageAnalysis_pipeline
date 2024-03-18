@@ -3,7 +3,8 @@ from os import sep, scandir, PathLike
 from os.path import join, exists
 from image_handeling.Experiment_Classes import init_from_dict, init_from_json, Experiment
 from image_handeling.data_utility import create_save_folder, save_tif
-from nd2reader import ND2Reader
+# from nd2reader import ND2Reader
+from nd2 import ND2File
 from tifffile import imread
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
@@ -21,33 +22,29 @@ def name_img_list(meta_dict: dict)-> list[PathLike]:
                     img_name_list.append(chan+'_s%02d'%(serie+1)+'_f%04d'%(t+1)+'_z%04d'%(z+1))
     return img_name_list
 
-def get_frame(nd_obj, channel:int, timestamp:int, field_of_view:int, z_stack_number:int):
-
-        channel = 0 if channel is None else channel
+def get_frame(nd_obj, timestamp:int, field_of_view:int, z_stack_number:int):
         field_of_view = 0 if field_of_view is None else field_of_view
         timestamp = 0 if timestamp is None else timestamp
         z_stack_number = 0 if z_stack_number is None else z_stack_number
-
+        
         for entry in nd_obj.events():
-                if ('Z Index' not in entry or entry['Z Index'] == z_stack_number) and ('T Index' not in entry or entry['T Index'] == timestamp) and ('P Index' not in entry or entry['P Index'] == field_of_view) and ('C Index' not in entry or entry['C Index'] == channel):
-                # if entry['T Index'] == timestamp and entry['P Index'] == field_of_view:
+                if ('Z Index' not in entry or entry['Z Index'] == z_stack_number) and entry['T Index'] == timestamp and entry['P Index'] == field_of_view:
                         return entry['Index']
         return None
 
 def write_ND2(img_data: list)-> None:
     # Unpack img_data
     meta,img_name = img_data
-    img_obj = ND2Reader(meta['img_path'])
+    img_obj = ND2File(meta['img_path'])
     serie,frame,z_slice = [int(i[1:])-1 for i in img_name.split('_')[1:]]
     chan = meta['full_channel_list'].index(img_name.split('_')[0])
     
-    # Get the image       
-    if meta['n_slices']>1: 
-        img = img_obj.get_frame_2D(c=chan,t=frame,z=z_slice,x=meta['img_width'],y=meta['img_length'],v=serie)
-    else: img = img_obj.get_frame_2D(c=chan,t=frame,x=meta['img_width'],y=meta['img_length'],v=serie)
+    # Get the image
+    img = img_obj.read_frame(get_frame(nd_obj=img_obj, timestamp=frame, field_of_view=serie, z_stack_number=z_slice)) 
+
     # Save
     im_folder = join(sep,meta['exp_path_list'][serie]+sep,'Images')
-    save_tif(img,join(sep,im_folder+sep,img_name)+".tif",meta['um_per_pixel'],meta['interval_sec'])
+    save_tif(img[chan],join(sep,im_folder+sep,img_name)+".tif",meta['um_per_pixel'],meta['interval_sec'])
     
 def expand_dim_tif(img_path: PathLike, axes: str)-> np.ndarray:
     """Adjust the dimension of the image to TZCYX"""
