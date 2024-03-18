@@ -65,21 +65,21 @@ class VerticalQTabBar(QTabBar):
 def start_gui():
     
     
-    # warnings.filterwarnings("ignore")
+    warnings.filterwarnings("ignore")
 
-    # app = QApplication(sys.argv)
+    app = QApplication(sys.argv)
     
-    vertical_tab_widget = VerticalQTabWidget()
-    widget1 = tab_pre_process.preprocess_tab()
+    # vertical_tab_widget = VerticalQTabWidget()
+    # widget1 = tab_pre_process.preprocess_tab()
     # widget2 = gui.MainW()
-    widget3 = tab_pre_process.preprocess_tab()
+    # widget3 = tab_pre_process.preprocess_tab()
     # widget4 = tab_wound_mask.woundmask_tab()
     # widget5 = tab_test.woundmask_tab()
     # widget6 = gui.MainW()
     
-    vertical_tab_widget.addTab(widget1, "Preprocess")
+    # vertical_tab_widget.addTab(widget1, "Preprocess")
     # vertical_tab_widget.addTab(widget2, "Segmentation")
-    vertical_tab_widget.addTab(widget3, "Tracking")
+    # vertical_tab_widget.addTab(widget3, "Tracking")
     # vertical_tab_widget.addTab(widget4, "Wound Mask")
     # vertical_tab_widget.addTab(widget5, "Analysis")
     # vertical_tab_widget.addTab(widget6, "Cellpose")
@@ -90,27 +90,27 @@ def start_gui():
     
 
 
-    # myWindow = VerticalTabWidget()
+    myWindow = VerticalTabWidget()
     
     # tab1 = tab_pre_process.preprocess_tab()
     # myWindow.addTab(tab1, 'Preprocess')
     
-    # tab2 = gui.MainW()
-    # myWindow.addTab(tab2, 'Segmentation')
+    tab2 = gui.MainW()
+    myWindow.addTab(tab2, 'Segmentation')
     
     # tab3 = tab_pre_process.preprocess_tab()
     # myWindow.addTab(tab3, 'Tracking')
     
-    # # tab4 = tab_wound_mask.woundmask_tab()
-    # # myWindow.addTab(tab4, 'Wound Mask')
+    # tab4 = tab_wound_mask.woundmask_tab()
+    # myWindow.addTab(tab4, 'Wound Mask')
    
-    # tab5 = tab_test.woundmask_tab()
-    # myWindow.addTab(tab5, 'Analysis')
+    tab5 = tab_test.woundmask_tab()
+    myWindow.addTab(tab5, 'Analysis')
     
-    # tab6 = gui.MainW()
-    # myWindow.addTab(tab6, 'Cellpose')
+    tab6 = gui.MainW()
+    myWindow.addTab(tab6, 'Cellpose')
 
 
 
-    # myWindow.show()
-    # sys.exit(app.exec_())
+    myWindow.show()
+    sys.exit(app.exec_())

@@ -21,6 +21,19 @@ def name_img_list(meta_dict: dict)-> list[PathLike]:
                     img_name_list.append(chan+'_s%02d'%(serie+1)+'_f%04d'%(t+1)+'_z%04d'%(z+1))
     return img_name_list
 
+def get_frame(nd_obj, channel:int, timestamp:int, field_of_view:int, z_stack_number:int):
+
+        channel = 0 if channel is None else channel
+        field_of_view = 0 if field_of_view is None else field_of_view
+        timestamp = 0 if timestamp is None else timestamp
+        z_stack_number = 0 if z_stack_number is None else z_stack_number
+
+        for entry in nd_obj.events():
+                if ('Z Index' not in entry or entry['Z Index'] == z_stack_number) and ('T Index' not in entry or entry['T Index'] == timestamp) and ('P Index' not in entry or entry['P Index'] == field_of_view) and ('C Index' not in entry or entry['C Index'] == channel):
+                # if entry['T Index'] == timestamp and entry['P Index'] == field_of_view:
+                        return entry['Index']
+        return None
+
 def write_ND2(img_data: list)-> None:
     # Unpack img_data
     meta,img_name = img_data
