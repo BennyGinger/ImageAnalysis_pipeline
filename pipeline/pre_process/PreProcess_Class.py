@@ -17,20 +17,20 @@ EXTENTION = ('.nd2','.tif','.tiff')
 class PreProcess(BaseModule):
     # Attributes from the BaseModule class:
         # input_folder: PathLike | list[PathLike]
-        # experiment_list: list[Experiment] = field(init=False)
+        # exp_obj_lst: list[Experiment] = field(init=False)
     active_channel_list: list[str] = field(default_factory=list)
     full_channel_list: list[str] = field(default_factory=list)
     overwrite: bool = False
 
     def __post_init__(self)-> None:
         super().__post_init__()
-        exp_files_list = self.search_exp_files()
+        exp_files_lst = self.search_exp_files()
         print('done')
         ## Set up the full channel list if not provided
         if not self.full_channel_list:
             self.full_channel_list = self.active_channel_list
         ## Convert the images to img_seq
-        self.experiment_list = self.extract_img_seq(exp_files_list)
+        self.exp_obj_lst = self.extract_img_seq(exp_files_lst)
         
     def search_exp_files(self)-> list[str]:
         # look through the folder and collect all image files
@@ -57,26 +57,26 @@ class PreProcess(BaseModule):
             sets.update_overwrite(overwrite_all=True)
         
         if hasattr(sets,'bg_sub'):
-            self.experiment_list = self.bg_sub(**sets.bg_sub)
+            self.exp_obj_lst = self.bg_sub(**sets.bg_sub)
         if hasattr(sets,'chan_shift'):
-            self.experiment_list = self.channel_shift(**sets.chan_shift)
+            self.exp_obj_lst = self.channel_shift(**sets.chan_shift)
         if hasattr(sets,'frame_shift'):
-            self.experiment_list = self.frame_shift(**sets.frame_shift)
+            self.exp_obj_lst = self.frame_shift(**sets.frame_shift)
         if hasattr(sets,'blur'):
-            self.experiment_list = self.blur(**sets.blur)
-        return self.experiment_list
+            self.exp_obj_lst = self.blur(**sets.blur)
+        return self.exp_obj_lst
     
     def bg_sub(self, sigma: float=0, size: int=7, overwrite: bool=False)-> list[Experiment]:
-        return background_sub(self.experiment_list,sigma,size,overwrite)
+        return background_sub(self.exp_obj_lst,sigma,size,overwrite)
     
     def channel_shift(self, reg_channel: str, reg_mtd: str, overwrite: bool=False)-> list[Experiment]:
-        return correct_channel_shift(self.experiment_list,reg_mtd,reg_channel,overwrite)
+        return correct_channel_shift(self.exp_obj_lst,reg_mtd,reg_channel,overwrite)
     
     def frame_shift(self, reg_channel: str, reg_mtd: str, img_ref: str, overwrite: bool=False)-> list[Experiment]:
-        return correct_frame_shift(self.experiment_list,reg_channel,reg_mtd,img_ref,overwrite)
+        return correct_frame_shift(self.exp_obj_lst,reg_channel,reg_mtd,img_ref,overwrite)
     
     def blur(self, kernel: tuple[int], sigma: int, img_fold_src: PathLike="", overwrite: bool=False)-> list[Experiment]:
-        return blur_img(self.experiment_list,kernel,sigma,img_fold_src,overwrite)
+        return blur_img(self.exp_obj_lst,kernel,sigma,img_fold_src,overwrite)
 
 
 def get_img_path(folder: PathLike)-> list[PathLike]:

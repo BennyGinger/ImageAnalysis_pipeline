@@ -45,24 +45,24 @@ def apply_threshold(img_dict: dict)-> float:
     return threshold_value
 
 # # # # # # # # main functions # # # # # # # # # 
-def threshold(exp_set_list: list[Experiment], channel_seg: str, overwrite: bool=False, manual_threshold: int=None, img_fold_src: PathLike="")-> list[Experiment]:
-    for exp_set in exp_set_list:
+def threshold(exp_obj_lst: list[Experiment], channel_seg: str, overwrite: bool=False, manual_threshold: int=None, img_fold_src: PathLike="")-> list[Experiment]:
+    for exp_obj in exp_obj_lst:
         # Check if exist
-        if is_processed(exp_set.masks.threshold_seg,channel_seg,overwrite):
+        if is_processed(exp_obj.masks.threshold_seg,channel_seg,overwrite):
                 # Log
-            print(f" --> Object has already been segmented for the channel {list(exp_set.masks.threshold_seg.keys())}")
+            print(f" --> Object has already been segmented for the channel {list(exp_obj.masks.threshold_seg.keys())}")
             continue
         
         # Initialize input args and save folder
-        create_save_folder(exp_set.exp_path,'Masks_Threshold')
-        delete_old_masks(exp_set.masks.threshold_seg,channel_seg,exp_set.threshold_masks_lst,overwrite)
+        create_save_folder(exp_obj.exp_path,'Masks_Threshold')
+        delete_old_masks(exp_obj.masks.threshold_seg,channel_seg,exp_obj.threshold_masks_lst,overwrite)
         
         # Sort images by frames and channels
-        imgs_list = [img for img in img_list_src(exp_set,img_fold_src) if channel_seg in img]
-        sorted_frames = {frame:[img for img in imgs_list if f"_f{frame+1:04d}" in img] for frame in range(exp_set.img_properties.n_frames)}
+        imgs_list = [img for img in img_list_src(exp_obj,img_fold_src) if channel_seg in img]
+        sorted_frames = {frame:[img for img in imgs_list if f"_f{frame+1:04d}" in img] for frame in range(exp_obj.img_properties.n_frames)}
         
         # Generate input data
-        img_data = gen_input_data(exp_set,sorted_frames,channel_seg,manual_threshold=manual_threshold)
+        img_data = gen_input_data(exp_obj,sorted_frames,channel_seg,manual_threshold=manual_threshold)
         
         print(f" --> Segmenting object...")
         # Determine threshold value
@@ -74,7 +74,7 @@ def threshold(exp_set_list: list[Experiment], channel_seg: str, overwrite: bool=
         settings_dict = create_threshold_settings(manual_threshold,threshold_value_list)
 
         # Save settings
-        exp_set.masks.threshold_seg[channel_seg] = settings_dict
-        exp_set.save_as_json()    
-    return exp_set_list  
+        exp_obj.masks.threshold_seg[channel_seg] = settings_dict
+        exp_obj.save_as_json()    
+    return exp_obj_lst  
 

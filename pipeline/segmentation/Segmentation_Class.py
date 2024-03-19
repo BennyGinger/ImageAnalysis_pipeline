@@ -16,45 +16,45 @@ class Segmentation(BaseModule):
         # experiment_list: list[Experiment] = field(init=False)
     def __post_init__(self)-> None:
         super().__post_init__()
-        if self.experiment_list:
+        if self.exp_obj_lst:
             return
         
         # Initialize the experiment list
         jsons_path = gather_all_json_path(self.input_folder)
-        self.experiment_list = [init_from_json(json_path) for json_path in jsons_path]
+        self.exp_obj_lst = [init_from_json(json_path) for json_path in jsons_path]
             
     def segment_from_settings(self, settings: dict)-> list[Experiment]:
         sets = SegmentationSettings(settings)
         
         if hasattr(sets,'cellpose'):
-            self.experiment_list = self.cellpose(**sets.cellpose)
+            self.exp_obj_lst = self.cellpose(**sets.cellpose)
         if hasattr(sets,'threshold'):
-            self.experiment_list = self.thresholding(**sets.threshold)
-        return self.experiment_list
+            self.exp_obj_lst = self.thresholding(**sets.threshold)
+        return self.exp_obj_lst
     
     def cellpose(self, channel_to_seg: str | list[str], model_type: str | PathLike = 'cyto3', diameter: float = 60, flow_threshold: float = 0.4, 
                  cellprob_threshold: float = 0, overwrite: bool = False, img_fold_src: str = "", process_as_2D: bool = False, save_as_npy: bool = False,
                  nuclear_marker: str = "",**kwargs: Any)-> list[Experiment]:
         
         if isinstance(channel_to_seg,str):
-            return cellpose_segmentation(self.experiment_list,channel_to_seg,model_type,diameter,flow_threshold,
+            return cellpose_segmentation(self.exp_obj_lst,channel_to_seg,model_type,diameter,flow_threshold,
                                          cellprob_threshold,overwrite,img_fold_src,process_as_2D,save_as_npy,nuclear_marker,**kwargs)
         if isinstance(channel_to_seg,list):
             for channel in channel_to_seg:
-                self.experiment_list = self.cellpose(channel,model_type,diameter,flow_threshold,cellprob_threshold,
+                self.exp_obj_lst = self.cellpose(channel,model_type,diameter,flow_threshold,cellprob_threshold,
                               overwrite,img_fold_src,process_as_2D,save_as_npy,nuclear_marker,**kwargs)
-            return self.experiment_list
+            return self.exp_obj_lst
         raise ValueError("channel_to_seg should be a string or a list of strings")
        
     def thresholding(self, channel_to_seg: str | list[str], overwrite: bool=False, manual_threshold: int=None, img_fold_src: str="")-> list[Experiment]:
         
         if isinstance(channel_to_seg,str):
-            return threshold(self.experiment_list,channel_to_seg,overwrite,manual_threshold,img_fold_src)
+            return threshold(self.exp_obj_lst,channel_to_seg,overwrite,manual_threshold,img_fold_src)
         
         if isinstance(channel_to_seg,list):
             for channel in channel_to_seg:
-                self.experiment_list = self.thresholding(channel,overwrite,manual_threshold,img_fold_src)
-            return self.experiment_list      
+                self.exp_obj_lst = self.thresholding(channel,overwrite,manual_threshold,img_fold_src)
+            return self.exp_obj_lst      
         raise ValueError("channel_to_seg should be a string or a list of strings")   
                 
                 

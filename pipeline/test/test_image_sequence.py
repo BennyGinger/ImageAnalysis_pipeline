@@ -1,7 +1,7 @@
 
 import numpy as np
 from tifffile import imwrite
-from pre_process.image_sequence import create_img_name_list, expand_dim_tif, extract_image_params, write_tif
+from pre_process.image_sequence import get_img_params_lst, expand_array_dim, extract_image_params
 
 def test_create_img_name_list():
     meta_dict = {
@@ -24,7 +24,7 @@ def test_create_img_name_list():
         'RFP_s02_f0002_z0001', 'RFP_s02_f0002_z0002', 'RFP_s02_f0002_z0003', 'RFP_s02_f0002_z0004',
         'RFP_s02_f0003_z0001', 'RFP_s02_f0003_z0002', 'RFP_s02_f0003_z0003', 'RFP_s02_f0003_z0004'
     ]
-    assert sorted(create_img_name_list(meta_dict)) == sorted(expected_output)
+    assert sorted(get_img_params_lst(meta_dict)) == sorted(expected_output)
 
 def test_expand_dim_tif(tmpdir):
     # Create a temporary 3D numpy array
@@ -36,7 +36,7 @@ def test_expand_dim_tif(tmpdir):
 
     # Test case 1: All axes are present
     axes = 'CYX'
-    expanded_data = expand_dim_tif(img_path, axes)
+    expanded_data = expand_array_dim(img_path, axes)
     
     # Check that the output is a 5D numpy array
     assert isinstance(expanded_data, np.ndarray)
@@ -45,14 +45,14 @@ def test_expand_dim_tif(tmpdir):
 
     # Test case 2: Missing axes
     axes = 'TYX'
-    expanded_data = expand_dim_tif(img_path, axes)
+    expanded_data = expand_array_dim(img_path, axes)
     assert isinstance(expanded_data, np.ndarray)
     assert expanded_data.ndim == 5
     assert img_data.shape[0] == expanded_data.shape[0]
 
     # Test case 3: Missing multiple axes
     axes = 'ZYX'
-    expanded_data = expand_dim_tif(img_path, axes)
+    expanded_data = expand_array_dim(img_path, axes)
     assert isinstance(expanded_data, np.ndarray)
     assert expanded_data.ndim == 5
     assert img_data.shape[0] == expanded_data.shape[1]

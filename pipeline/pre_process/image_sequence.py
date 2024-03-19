@@ -3,11 +3,10 @@ from os import sep, scandir, PathLike
 from os.path import join, exists
 from image_handeling.Experiment_Classes import init_from_dict, init_from_json, Experiment
 from image_handeling.data_utility import create_save_folder, save_tif
-from nd2reader import ND2Reader
 from nd2 import ND2File
 from tifffile import imread
 import numpy as np
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from .metadata import get_metadata
 
 
@@ -17,7 +16,7 @@ def get_image_sequence(img_path: PathLike, active_channel_list: list[str], full_
     # Get metadata
     meta_dict = get_metadata(img_path,active_channel_list,full_channel_list)
     
-    exp_set_list = []
+    exp_obj_list = []
     for serie in range(meta_dict['n_series']):
         exp_path = meta_dict['exp_path_list'][serie]
         meta_dict['exp_path'] = exp_path
@@ -33,169 +32,93 @@ def get_image_sequence(img_path: PathLike, active_channel_list: list[str], full_
         # If img are already processed
         if any(scandir(save_folder)) and not overwrite:
             print(f" --> Images have already been converted to image sequence")
-            exp_set = init_exp_settings(exp_path,meta_dict)
-            exp_set_list.append(exp_set)
+            exp_obj = init_exp_obj(exp_path,meta_dict)
+            exp_obj_list.append(exp_obj)
             # No need to save the settings as they are already saved
             continue
         
         # If images are not processed, extract imseq and initialize exp_set object
         print(f" --> Extracting images and converting to image sequence")
-        write_img(meta_dict)
+        process_img_array(meta_dict)
         
-        exp_set = init_exp_settings(exp_path,meta_dict)
-        exp_set.save_as_json()
-        exp_set_list.append(exp_set)
-    return exp_set_list
+        exp_obj = init_exp_obj(exp_path,meta_dict)
+        exp_obj.save_as_json()
+        exp_obj_list.append(exp_obj)
+    return exp_obj_list
 
 ################################ Satelite functions ################################
-def create_img_name_list(meta_dict: dict)-> list[PathLike]:
-    """Return a list of generated image names based on the metadata of the experiment"""
+def init_exp_obj(exp_path: PathLike, meta_dict: dict)-> Experiment:
+    """Initialize Experiment object from json file if exists, else from the metadata dict. 
+    Return the Experiment object."""
+    
+    if exists(join(sep,exp_path+sep,'exp_settings.json')):
+        exp_obj = init_from_json(join(sep,exp_path+sep,'exp_settings.json'))
+    else:
+        meta_dict['exp_path'] = exp_path
+        exp_obj = init_from_dict(meta_dict)
+    return exp_obj
+
+def get_img_params_lst(meta_dict: dict)-> list[dict]:
+    """Return a list of dict containing the slice indexes of all images,
+    that is the serie (position), frame, z-slice and channel of each images, as well as the name of the image
+    to be saved"""
     # Create a name for each image
-    img_name_list = []
+    img_params_lst = []
     for serie in range(meta_dict['n_series']):
         for f in range(meta_dict['n_frames']):
             for z in range(meta_dict['n_slices']):
                 for chan in meta_dict['active_channel_list']:
-                    img_name_list.append(chan+'_s%02d'%(serie+1)+'_f%04d'%(f+1)+'_z%04d'%(z+1))
-    return img_name_list
+                    # img_name_list.append(chan+'_s%02d'%(serie+1)+'_f%04d'%(f+1)+'_z%04d'%(z+1))
+                    chan_idx = meta_dict['full_channel_list'].index(chan)
+                    img_params_lst.append({'array_slice':(serie,f,z,chan_idx),
+                                          'serie':serie,
+                                          'img_name':chan+'_s%02d'%(serie+1)+'_f%04d'%(f+1)+'_z%04d'%(z+1)})
+    return img_params_lst
 
-def extract_image_params(img_name: str, full_channel_list: list[str])-> tuple[int,int,int,int]:
-    """Extract the serie,frame,z_slice and channel from the image name. Return a tuple with the extracted parameters."""
-    # Get the serie,frame,z_slice from the img_name
-    serie,frame,z_slice = [int(i[1:])-1 for i in img_name.split('_')[1:]]
-    # To get the original index of the channel, as active and full channel list may not be the same
-    chan = full_channel_list.index(img_name.split('_')[0])
-    return serie,frame,z_slice,chan
-
-# def write_ND2(input_data: dict)-> None:
-#     meta = input_data['metadata']
-#     # Get img parameters
-#     serie,frame,z_slice,chan = extract_image_params(input_data['img_name'],meta['full_channel_list'])
-#     # Open the ND2 file
-#     img_obj = ND2Reader(meta['img_path'])
-#     # Create save path
-#     save_path = join(meta['exp_path_list'][serie],'Images',input_data['img_name']+".tif")
-#     # Get the image       
-#     if meta['n_slices']>1: 
-#         img = img_obj.get_frame_2D(c=chan,t=frame,z=z_slice,x=meta['img_width'],y=meta['img_length'],v=serie)
-#         save_tif(img,save_path,meta['um_per_pixel'],meta['interval_sec'])
-#         return
-    
-#     img = img_obj.get_frame_2D(c=chan,t=frame,x=meta['img_width'],y=meta['img_length'],v=serie)
-#     save_tif(img,save_path,meta['um_per_pixel'],meta['interval_sec'])
-
-# def write_ND2(img_data: dict)-> None:
-#     # Unpack img_data
-#     meta = img_data['metadata']
-    
-#     # Get img parameters
-#     serie,frame,z_slice,chan = extract_image_params(img_data['img_name'],meta['full_channel_list'])
-    
-#     # Get the image
-#     with ND2File(meta['img_path']) as img_obj:
-#         img = img_obj.read_frame(get_frame(nd_obj=img_obj, timestamp=frame, field_of_view=serie, z_stack_number=z_slice))
-#         img_obj.close()
-
-#     # Create save path
-#     save_path = join(meta['exp_path_list'][serie],'Images',img_data['img_name']+".tif")
-#     save_tif(img,save_path,meta['um_per_pixel'],meta['interval_sec'])
-    
-    
-# def expand_dim_tif(img_path: PathLike, axes: str)-> np.ndarray:
-#     """Adjust the dimension of the image to TZCYX, if any dimension is missing. 
-#     Return the image as a numpy array."""
-#     # Open tif file
-#     img = imread(img_path)
-#     ref_axes = 'TZCYX'
-    
-#     if len(axes)<len(ref_axes):
-#         missing_axes = [ref_axes.index(ax) for ax in ref_axes if ax not in axes]
-#         # Add missing axes
-#         for ax in missing_axes:
-#             img = np.expand_dims(img,axis=ax)
-#     return img
-
-def expand_dim_tif(img_arr: np.ndarray, axes: str)-> np.ndarray:
-    """Adjust the dimension of the image to TZCYX, if any dimension is missing. 
-    Return the image as a numpy array."""
+def expand_array_dim(array: np.ndarray, axes: str)-> np.ndarray:
+    """Add missing dimension of the ndarray to have a final PTZCYX array shape. 
+    P = position (serie), T = time, Z = z-slice, C = channel, Y = height, X = width"""
     # Open tif file
-    ref_axes = 'TZCYX'
+    ref_axes = 'PTZCYX'
     
     if len(axes)<len(ref_axes):
         missing_axes = [ref_axes.index(ax) for ax in ref_axes if ax not in axes]
         # Add missing axes
         for ax in missing_axes:
-            img_arr = np.expand_dims(img_arr,axis=ax)
-    return img_arr
+            array = np.expand_dims(array,axis=ax)
+    return array
 
-def write_tif(input_data: dict)-> None:
+def write_img(input_data: dict)-> None:
+    """Write the image to the save path within multithreading."""
+    # Unpack input data
     meta = input_data['metadata']
-    # Get the frame,z_slice from the img_name, no serie as there is only one serie for tiff files
-    _,frame,z_slice,chan = extract_image_params(input_data['img_name'],meta['full_channel_list'])
-    # Create save path
-    save_path = join(meta['exp_path_list'][0],'Images',input_data['img_name']+".tif")
-    save_tif(input_data['img'][frame,z_slice,chan,...],save_path,meta['um_per_pixel'],meta['interval_sec'])
+    # Create save path and write the image
+    save_path = join(meta['exp_path_list'][input_data['serie']],'Images',input_data['img_name']+".tif")
+    save_tif(input_data['array'][input_data['array_slice']],save_path,meta['um_per_pixel'],meta['interval_sec'])
     
-# def write_img(meta_dict: dict)-> None:
-#     # Create all the names for the images+metadata
-#     img_names = create_img_name_list(meta_dict)
-    
-#     if meta_dict['file_type'] == '.nd2':
-#         # Generate input data: list[dict]
-#         input_data = [{'metadata':meta_dict,
-#                        'img_name':name}
-#                       for name in img_names]
-        
-#         with ProcessPoolExecutor() as executor: # nd2 file are messed up with multithreading
-#             executor.map(write_ND2,input_data)
-    
-#     elif meta_dict['file_type'] == '.tif':
-#         # Get the image with the correct dimension
-#         img_arr = expand_dim_tif(meta_dict['img_path'],meta_dict['axes'])
-#         # Generate input data: list[dict]
-#         input_data = [{'metadata':meta_dict,
-#                        'img_name':name,
-#                        'img':img_arr}
-#                       for name in img_names]
-        
-#         with ThreadPoolExecutor() as executor:
-#             executor.map(write_tif,input_data)
-
-def write_img(meta_dict: dict)-> None:
+def process_img_array(meta_dict: dict)-> None:
+    """Get an ndarray of the image stack and extract each image to be saved as tif file.
+    It uses multithreading to save each image."""
     # Create all the names for the images+metadata
-    img_names = create_img_name_list(meta_dict)
-    
+    img_params_lst = get_img_params_lst(meta_dict)
+    # Get the img array
     if meta_dict['file_type'] == '.nd2':
-        # Get img array
         with ND2File(meta_dict['img_path']) as nd_obj:
-            img_arr = nd_obj.asarray()
-            nd_obj.close()
-        
+            array = nd_obj.asarray()
+            nd_obj.close()  
     elif meta_dict['file_type'] == '.tif':
-        # Get img array
-        img_arr = imread(meta_dict['img_path'])
+        array = imread(meta_dict['img_path'])
         
-    # Get the image with the correct dimension
-    img_arr = expand_dim_tif(img_arr,meta_dict['axes'])
-    
+    # Adjust array with missing dimension
+    array = expand_array_dim(array,meta_dict['axes'])
     # Generate input data: list[dict]
-    input_data = [{'metadata':meta_dict,
-                    'img_name':name,
-                    'img':img_arr}
-                    for name in img_names]
+    input_data = [{**{'metadata':meta_dict,
+                    'array':array},**param}
+                    for param in img_params_lst]
     
     with ThreadPoolExecutor() as executor:
-        executor.map(write_tif,input_data)
+        executor.map(write_img,input_data)
 
-def init_exp_settings(exp_path: PathLike, meta_dict: dict)-> Experiment:
-    """Initialize Experiment object from json file if exists, else from the metadata dict. 
-    Return the Experiment object."""
-    
-    if exists(join(sep,exp_path+sep,'exp_settings.json')):
-        exp_set = init_from_json(join(sep,exp_path+sep,'exp_settings.json'))
-    else:
-        meta_dict['exp_path'] = exp_path
-        exp_set = init_from_dict(meta_dict)
-    return exp_set
+
 
 

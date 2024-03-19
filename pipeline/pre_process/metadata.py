@@ -2,33 +2,7 @@ from __future__ import annotations
 from os import sep, mkdir, PathLike
 from os.path import isdir
 from tifffile import TiffFile
-from nd2reader import ND2Reader
 from nd2 import ND2File
-import numpy as np
-
-def get_tif_meta(img_path: PathLike) -> dict:
-    # Open tif and read meta
-    with TiffFile(img_path) as tif:
-        imagej_meta = tif.imagej_metadata
-        imagej_meta['axes'] = tif.series[0].axes
-        for page in tif.pages: # Add additional meta
-            for tag in page.tags:
-                if tag.name in ['ImageWidth','ImageLength',]:
-                    imagej_meta[tag.name] = tag.value
-                if tag.name in ['XResolution','YResolution']:
-                    imagej_meta[tag.name] = tag.value[0]/tag.value[1]
-    
-    if 'frames' not in imagej_meta: imagej_meta['frames'] = 1
-    
-    if 'channels' not in imagej_meta: imagej_meta['channels'] = 1
-    
-    if 'slices' not in imagej_meta: imagej_meta['slices'] = 1
-    
-    if 'finterval' not in imagej_meta: imagej_meta['finterval'] = 0
-    
-    imagej_meta['n_series'] = 1
-    imagej_meta['file_type'] = '.tif'
-    return imagej_meta
 
 def get_tif_meta(img_path: PathLike) -> dict:
     tiff_meta = {}
@@ -77,97 +51,36 @@ def get_ND2_meta(img_path: PathLike)-> dict:
     # Get ND2 img metadata
     with ND2File(img_path) as nd_obj:
         nd2meta = {**nd_obj.sizes}
+        # Add missing keys and get axes
+        nd2meta['axes'] = 'PTZCYX'
+        if 'T' not in nd2meta:
+            nd2meta['T'] = 1
+            nd2meta['axes'] = nd2meta['axes'].replace('T','')
+        if 'C' not in nd2meta:
+            nd2meta['C'] = 1
+            nd2meta['axes'] = nd2meta['axes'].replace('C','')  
+        if 'Z' not in nd2meta:
+            nd2meta['Z'] = 1
+            nd2meta['axes'] = nd2meta['axes'].replace('Z','')   
+        if 'P' not in nd2meta:
+            nd2meta['P'] = 1
+            nd2meta['axes'] = nd2meta['axes'].replace('P','')
+
+        # Rename meta
+        original_keys = ['C', 'Z', 'T', 'P', 'X', 'Y']
+        new_keys = ['full_n_channels', 'n_slices', 'n_frames', 'n_series', 'img_width', 'img_length']
+        for i, key in enumerate(original_keys):
+            nd2meta[new_keys[i]] = nd2meta.pop(key)
+
+        # Uniformize meta
         nd2meta['um_per_pixel'] = nd_obj.metadata.channels[0].volume.axesCalibration[:2]
-        if nd2meta['T']>1:
+        if nd2meta['n_frames']>1:
             nd2meta['interval_sec'] = nd_obj.experiment[0].parameters.periodMs/1000
         else:
             nd2meta['interval_sec'] = None
+        nd2meta['file_type'] = '.nd2'
         nd_obj.close()
-    
-    # Add missing keys
-    nd2meta['axes'] = 'TZCYX'
-    if 'T' not in nd2meta:
-        nd2meta['T'] = 1
-        nd2meta['axes'] = nd2meta['axes'].replace('T','')
-    
-    if 'C' not in nd2meta:
-        nd2meta['C'] = 1
-        nd2meta['axes'] = nd2meta['axes'].replace('C','')
-    
-    if 'Z' not in nd2meta:
-        nd2meta['Z'] = 1
-        nd2meta['axes'] = nd2meta['axes'].replace('Z','')
-    
-    if 'P' not in nd2meta:
-        nd2meta['P'] = 1
-
-    original_keys = ['C', 'Z', 'T', 'P', 'X', 'Y']
-    new_keys = ['full_n_channels', 'n_slices', 'n_frames', 'n_series', 'img_width', 'img_length']
-
-    for i, key in enumerate(original_keys):
-        nd2meta[new_keys[i]] = nd2meta.pop(key)
-
-    
-    nd2meta['file_type'] = '.nd2'
-    nd_obj.close()
-    
     return nd2meta
-
-
-# def get_ND2_meta(img_path: PathLike)-> dict: 
-#     # Get ND2 img metadata
-#     nd_obj = ND2Reader(img_path)
-    
-#     # Get meta (sizes always include txy)
-#     nd2_meta = {**nd_obj.metadata,**nd_obj.sizes}
-#     nd2_meta['timesteps'] = nd_obj.timesteps
-#     if 'c' not in nd2_meta: nd2_meta['c'] = 1
-    
-#     if 'v' not in nd2_meta: nd2_meta['v'] = 1
-    
-#     if 'z' not in nd2_meta: nd2_meta['z'] = 1
-    
-#     nd2_meta['axes'] = ''
-#     ### Check for nd2 bugs with foccused EDF and z stack
-#     if nd2_meta['z']*nd2_meta['t']*nd2_meta['v']!=nd2_meta['total_images_per_channel']:
-#         nd2_meta['z'] = 1
-#     nd2_meta['file_type'] = '.nd2'
-#     return nd2_meta
-
-# def calculate_interval_sec(timesteps: list, n_frames: int, n_series: int, n_slices: int) -> int:
-#     # Calculate the interval between frames in seconds
-#     if n_frames==1: 
-#         return 0
-#     interval_sec = np.round(np.diff(timesteps[::n_series*n_slices]/1000).mean())
-    
-#     if int(interval_sec)==0:
-#         print("\n---- Warning: The interval between frames could not be retrieved correctly. The interval will be set to 0 ----")
-#         return 0
-#     return int(interval_sec)
-
-# def uniformize_meta(meta_dict: dict) -> dict:
-#     # Uniformize both nd2 and tif meta
-#     uni_meta = {}
-#     new_keys = ['img_width','img_length','n_frames','full_n_channels','n_slices','n_series','um_per_pixel','axes','interval_sec','file_type']
-#     if meta_dict['file_type']=='.nd2':
-#         old_keys = ['x','y','t','c','z','v','pixel_microns','axes','missing','file_type']
-#     elif meta_dict['file_type']=='.tif':
-#         old_keys = ['ImageWidth','ImageLength','frames','channels','slices','n_series','missing','axes','finterval','file_type']
-    
-#     for new_key,old_key in zip(new_keys,old_keys):
-#         if new_key=='um_per_pixel' and old_key=='missing':
-#             uni_meta[new_key] = calculate_um_per_pixel(meta_dict)
-            
-#         elif new_key=='um_per_pixel' and old_key=='pixel_microns':
-#             uni_meta[new_key] = (meta_dict[old_key],meta_dict[old_key])
-        
-#         elif new_key=='interval_sec' and old_key=='missing':
-#             uni_meta[new_key] = calculate_interval_sec(meta_dict['timesteps'],meta_dict['t'],meta_dict['v'],meta_dict['z'])
-        
-#         else: uni_meta[new_key] = meta_dict[old_key]
-    
-#     uni_meta['interval_sec'] = int(round(uni_meta['interval_sec']))
-#     return uni_meta
 
 def create_exp_folder(meta_dict: dict) -> dict:
     meta_dict['exp_path_list'] = []
@@ -230,7 +143,7 @@ def get_metadata(img_path: PathLike, active_channel_list: list=[], full_channel_
     
 # Final output: 
 # {'active_channel_list': ['C1', 'C2'],
-#  'axes': '',
+#  'axes': 'TZCYX',
 #  'exp_path_list': ['/home/Test_images/nd2/Run2/c2z25t23v1_nd2_s1'], return a list pf path based on the number of series
 #  'file_type': '.nd2',
 #  'full_channel_list': ['C1', 'C2'],

@@ -1,11 +1,11 @@
 settings = {
-    "input_folder": '/home/Test_images/nd2/Run2',
+    "input_folder": '/home/Test_images/tiff/Run2',
     "init":{"active_channel_list": ['GFP','RFP'],
             'full_channel_list':[],
             "overwrite": True},
     
     
-    "run_bg_sub": False,
+    "run_bg_sub": True,
     "bg_sub": {"sigma": 0.0,
                "size": 7,
                "overwrite": False},

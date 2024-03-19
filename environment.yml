@@ -49,5 +49,6 @@ dependencies:
    - rich
    - cellpose[gui]
    - pandas==1.4.3
+   - nd2
  
  
