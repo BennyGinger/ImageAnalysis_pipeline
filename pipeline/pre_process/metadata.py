@@ -3,6 +3,7 @@ from os import sep, mkdir, PathLike
 from os.path import isdir
 from tifffile import TiffFile
 from nd2reader import ND2Reader
+from nd2 import ND2File
 import numpy as np
 
 def get_tif_meta(img_path: PathLike) -> dict:
@@ -29,67 +30,144 @@ def get_tif_meta(img_path: PathLike) -> dict:
     imagej_meta['file_type'] = '.tif'
     return imagej_meta
 
-def calculate_um_per_pixel(meta_dict: dict) -> tuple[float,float]: # Calculate the um per pixel output = (x,y)
-    width_micron = round(meta_dict['ImageWidth']*meta_dict['XResolution'],ndigits=3)
-    x_um_per_pix = round(width_micron/meta_dict['ImageWidth'],ndigits=3)
-    height_micron = round(meta_dict['ImageLength']*meta_dict['YResolution'],ndigits=3)
-    y_um_per_pix = round(height_micron/meta_dict['ImageLength'],ndigits=3)
+def get_tif_meta(img_path: PathLike) -> dict:
+    tiff_meta = {}
+    # Open tif and read meta
+    with TiffFile(img_path) as tif:
+        imagej_meta = tif.imagej_metadata
+        imagej_meta['axes'] = tif.series[0].axes
+        for page in tif.pages: # Add additional meta
+            for tag in page.tags:
+                if tag.name in ['ImageWidth','ImageLength',]:
+                    imagej_meta[tag.name] = tag.value
+                if tag.name in ['XResolution','YResolution']:
+                    imagej_meta[tag.name] = tag.value[0]/tag.value[1]
+
+    if 'frames' not in imagej_meta: imagej_meta['frames'] = 1
+
+    if 'channels' not in imagej_meta: imagej_meta['channels'] = 1
+
+    if 'slices' not in imagej_meta: imagej_meta['slices'] = 1
+
+    if 'finterval' not in imagej_meta: 
+        imagej_meta['finterval'] = None
+    else:
+        imagej_meta['finterval'] = int(imagej_meta['finterval'])
+
+    original_keys = ['ImageWidth','ImageLength','frames','channels','slices','axes','finterval']
+    new_keys = ['img_width','img_length','n_frames','full_n_channels','n_slices','axes','interval_sec']
+
+    # Rename meta
+    for i, key in enumerate(original_keys):
+        tiff_meta[new_keys[i]] = imagej_meta[key]
+
+    # Uniformize meta
+    tiff_meta['n_series'] = 1
+    tiff_meta['um_per_pixel'] = calculate_um_per_pixel(imagej_meta)
+    tiff_meta['file_type'] = '.tif'
+    return tiff_meta
+
+def calculate_um_per_pixel(meta_dict: dict) -> tuple[float,float]:
+    """Calculate the um per pixel from the metadata of a tiff file. Output axes = (x,y)"""
+    x_um_per_pix = round(1/meta_dict['XResolution'],ndigits=3)
+    y_um_per_pix = round(1/meta_dict['YResolution'],ndigits=3)
     return x_um_per_pix,y_um_per_pix
 
-def get_ND2_meta(img_path: PathLike)-> dict: 
+def get_ND2_meta(img_path: PathLike)-> dict:
     # Get ND2 img metadata
-    nd_obj = ND2Reader(img_path)
+    with ND2File(img_path) as nd_obj:
+        nd2meta = {**nd_obj.sizes}
+        nd2meta['um_per_pixel'] = nd_obj.metadata.channels[0].volume.axesCalibration[:2]
+        if nd2meta['T']>1:
+            nd2meta['interval_sec'] = nd_obj.experiment[0].parameters.periodMs/1000
+        else:
+            nd2meta['interval_sec'] = None
+        nd_obj.close()
     
-    # Get meta (sizes always include txy)
-    nd2_meta = {**nd_obj.metadata,**nd_obj.sizes}
-    nd2_meta['timesteps'] = nd_obj.timesteps
-    if 'c' not in nd2_meta: nd2_meta['c'] = 1
+    # Add missing keys
+    nd2meta['axes'] = 'TZCYX'
+    if 'T' not in nd2meta:
+        nd2meta['T'] = 1
+        nd2meta['axes'] = nd2meta['axes'].replace('T','')
     
-    if 'v' not in nd2_meta: nd2_meta['v'] = 1
+    if 'C' not in nd2meta:
+        nd2meta['C'] = 1
+        nd2meta['axes'] = nd2meta['axes'].replace('C','')
     
-    if 'z' not in nd2_meta: nd2_meta['z'] = 1
+    if 'Z' not in nd2meta:
+        nd2meta['Z'] = 1
+        nd2meta['axes'] = nd2meta['axes'].replace('Z','')
     
-    nd2_meta['axes'] = ''
-    ### Check for nd2 bugs with foccused EDF and z stack
-    if nd2_meta['z']*nd2_meta['t']*nd2_meta['v']!=nd2_meta['total_images_per_channel']:
-        nd2_meta['z'] = 1
-    nd2_meta['file_type'] = '.nd2'
-    return nd2_meta
+    if 'P' not in nd2meta:
+        nd2meta['P'] = 1
 
-def calculate_interval_sec(timesteps: list, n_frames: int, n_series: int, n_slices: int) -> int:
-    # Calculate the interval between frames in seconds
-    if n_frames==1: 
-        return 0
-    interval_sec = np.round(np.diff(timesteps[::n_series*n_slices]/1000).mean())
-    
-    if int(interval_sec)==0:
-        print("\n---- Warning: The interval between frames could not be retrieved correctly. The interval will be set to 0 ----")
-        return 0
-    return int(interval_sec)
+    original_keys = ['C', 'Z', 'T', 'P', 'X', 'Y']
+    new_keys = ['full_n_channels', 'n_slices', 'n_frames', 'n_series', 'img_width', 'img_length']
 
-def uniformize_meta(meta_dict: dict) -> dict:
-    # Uniformize both nd2 and tif meta
-    uni_meta = {}
-    new_keys = ['img_width','img_length','n_frames','full_n_channels','n_slices','n_series','um_per_pixel','axes','interval_sec','file_type']
-    if meta_dict['file_type']=='.nd2':
-        old_keys = ['x','y','t','c','z','v','pixel_microns','axes','missing','file_type']
-    elif meta_dict['file_type']=='.tif':
-        old_keys = ['ImageWidth','ImageLength','frames','channels','slices','n_series','missing','axes','finterval','file_type']
+    for i, key in enumerate(original_keys):
+        nd2meta[new_keys[i]] = nd2meta.pop(key)
+
     
-    for new_key,old_key in zip(new_keys,old_keys):
-        if new_key=='um_per_pixel' and old_key=='missing':
-            uni_meta[new_key] = calculate_um_per_pixel(meta_dict)
+    nd2meta['file_type'] = '.nd2'
+    nd_obj.close()
+    
+    return nd2meta
+
+
+# def get_ND2_meta(img_path: PathLike)-> dict: 
+#     # Get ND2 img metadata
+#     nd_obj = ND2Reader(img_path)
+    
+#     # Get meta (sizes always include txy)
+#     nd2_meta = {**nd_obj.metadata,**nd_obj.sizes}
+#     nd2_meta['timesteps'] = nd_obj.timesteps
+#     if 'c' not in nd2_meta: nd2_meta['c'] = 1
+    
+#     if 'v' not in nd2_meta: nd2_meta['v'] = 1
+    
+#     if 'z' not in nd2_meta: nd2_meta['z'] = 1
+    
+#     nd2_meta['axes'] = ''
+#     ### Check for nd2 bugs with foccused EDF and z stack
+#     if nd2_meta['z']*nd2_meta['t']*nd2_meta['v']!=nd2_meta['total_images_per_channel']:
+#         nd2_meta['z'] = 1
+#     nd2_meta['file_type'] = '.nd2'
+#     return nd2_meta
+
+# def calculate_interval_sec(timesteps: list, n_frames: int, n_series: int, n_slices: int) -> int:
+#     # Calculate the interval between frames in seconds
+#     if n_frames==1: 
+#         return 0
+#     interval_sec = np.round(np.diff(timesteps[::n_series*n_slices]/1000).mean())
+    
+#     if int(interval_sec)==0:
+#         print("\n---- Warning: The interval between frames could not be retrieved correctly. The interval will be set to 0 ----")
+#         return 0
+#     return int(interval_sec)
+
+# def uniformize_meta(meta_dict: dict) -> dict:
+#     # Uniformize both nd2 and tif meta
+#     uni_meta = {}
+#     new_keys = ['img_width','img_length','n_frames','full_n_channels','n_slices','n_series','um_per_pixel','axes','interval_sec','file_type']
+#     if meta_dict['file_type']=='.nd2':
+#         old_keys = ['x','y','t','c','z','v','pixel_microns','axes','missing','file_type']
+#     elif meta_dict['file_type']=='.tif':
+#         old_keys = ['ImageWidth','ImageLength','frames','channels','slices','n_series','missing','axes','finterval','file_type']
+    
+#     for new_key,old_key in zip(new_keys,old_keys):
+#         if new_key=='um_per_pixel' and old_key=='missing':
+#             uni_meta[new_key] = calculate_um_per_pixel(meta_dict)
             
-        elif new_key=='um_per_pixel' and old_key=='pixel_microns':
-            uni_meta[new_key] = (meta_dict[old_key],meta_dict[old_key])
+#         elif new_key=='um_per_pixel' and old_key=='pixel_microns':
+#             uni_meta[new_key] = (meta_dict[old_key],meta_dict[old_key])
         
-        elif new_key=='interval_sec' and old_key=='missing':
-            uni_meta[new_key] = calculate_interval_sec(meta_dict['timesteps'],meta_dict['t'],meta_dict['v'],meta_dict['z'])
+#         elif new_key=='interval_sec' and old_key=='missing':
+#             uni_meta[new_key] = calculate_interval_sec(meta_dict['timesteps'],meta_dict['t'],meta_dict['v'],meta_dict['z'])
         
-        else: uni_meta[new_key] = meta_dict[old_key]
+#         else: uni_meta[new_key] = meta_dict[old_key]
     
-    uni_meta['interval_sec'] = int(round(uni_meta['interval_sec']))
-    return uni_meta
+#     uni_meta['interval_sec'] = int(round(uni_meta['interval_sec']))
+#     return uni_meta
 
 def create_exp_folder(meta_dict: dict) -> dict:
     meta_dict['exp_path_list'] = []
@@ -141,7 +219,7 @@ def get_metadata(img_path: PathLike, active_channel_list: list=[], full_channel_
         meta_dict = get_tif_meta(img_path)
     else:
         raise ValueError('Image format not supported, please use .nd2 or .tif/.tiff')
-    meta_dict = uniformize_meta(meta_dict)
+    # meta_dict = uniformize_meta(meta_dict)
     
     meta_dict['img_path'] = img_path
     
