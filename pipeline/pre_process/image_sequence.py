@@ -3,13 +3,15 @@ from os import sep, scandir, PathLike
 from os.path import join, exists
 from image_handeling.Experiment_Classes import init_from_dict, init_from_json, Experiment
 from image_handeling.data_utility import create_save_folder, save_tif
-# from nd2reader import ND2Reader
 from nd2 import ND2File
 from tifffile import imread
 import numpy as np
+import warnings
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from .metadata import get_metadata
 
+
+# img_obj: object
 
 def name_img_list(meta_dict: dict)-> list[PathLike]:
     """Return a list of generated image names based on the metadata of the experiment"""
@@ -34,13 +36,18 @@ def get_frame(nd_obj, timestamp:int, field_of_view:int, z_stack_number:int):
 
 def write_ND2(img_data: list)-> None:
     # Unpack img_data
-    meta,img_name = img_data
-    img_obj = ND2File(meta['img_path'])
+    img_obj, meta,img_name = img_data
+    # with ND2File(meta['img_path']) as img_obj:
+    # img_obj = ND2File(meta['img_path'])
+        # img_obj_temp = copy.deepcopy(img_obj)
+    # img_obj.close()
     serie,frame,z_slice = [int(i[1:])-1 for i in img_name.split('_')[1:]]
     chan = meta['full_channel_list'].index(img_name.split('_')[0])
     
     # Get the image
-    img = img_obj.read_frame(get_frame(nd_obj=img_obj, timestamp=frame, field_of_view=serie, z_stack_number=z_slice)) 
+    index = get_frame(nd_obj=img_obj, timestamp=frame, field_of_view=serie, z_stack_number=z_slice)
+    img = img_obj.read_frame(index)
+    # img_obj.close()
 
     # Save
     im_folder = join(sep,meta['exp_path_list'][serie]+sep,'Images')
@@ -74,9 +81,13 @@ def write_img(meta_dict: dict)-> None:
     
     if meta_dict['file_type'] == '.nd2':
         # Add metadata and img_obj to img_name_list
-        img_name_list = [(meta_dict,x) for x in img_name_list]
+        warnings.filterwarnings("ignore", category=UserWarning) # unableling user warnings, because we have to reuse the nd2_object for the different cores
+        img_obj = ND2File(meta_dict['img_path'])
+        img_name_list = [(img_obj, meta_dict,x) for x in img_name_list]
         with ProcessPoolExecutor() as executor: # nd2 file are messed up with multithreading
             executor.map(write_ND2,img_name_list)
+        img_obj.close()
+        warnings.filterwarnings("default", category=UserWarning) # enableing the warnings again
     elif meta_dict['file_type'] == '.tif':
         # Add metadata and img to img_name_list
         img_arr = expand_dim_tif(meta_dict['img_path'],meta_dict['axes'])
