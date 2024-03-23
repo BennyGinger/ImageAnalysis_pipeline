@@ -7,10 +7,10 @@ from image_handeling.data_utility import save_tif
 
 
 ################################## main function ###################################
-def background_sub(exp_obj_lst: list[Experiment], sigma: float=0.0, size: int=7, bg_sub_overwrite: bool=False)-> list[Experiment]:
+def background_sub(exp_obj_lst: list[Experiment], sigma: float=0.0, size: int=7, overwrite: bool=False)-> list[Experiment]:
     """For each experiment, apply a background substraction on the images and return a list of Settings objects"""
     for exp_obj in exp_obj_lst:
-        if exp_obj.process.background_sub and not bg_sub_overwrite:
+        if exp_obj.process.background_sub and not overwrite:
             print(f" --> Background substraction was already applied to the images with {exp_obj.process.background_sub}")
             continue
         print(f" --> Applying background substraction to the images with sigma={sigma} and size={size}")

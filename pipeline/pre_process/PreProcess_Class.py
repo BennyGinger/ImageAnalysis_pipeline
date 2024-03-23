@@ -7,7 +7,7 @@ from .image_sequence import get_image_sequence
 from .image_blur import blur_img
 from .background_sub import background_sub
 from .image_registration import correct_frame_shift, correct_channel_shift
-from settings.Setting_Classes import PreProcessSettings
+from settings.Setting_Classes import Settings
 from image_handeling.Experiment_Classes import Experiment
 from image_handeling.Base_Module_Class import BaseModule
 
@@ -52,7 +52,7 @@ class PreProcess(BaseModule):
         return exp_list
     
     def process_from_settings(self, settings: dict)-> list[Experiment]:
-        sets = PreProcessSettings(settings)
+        sets = Settings(settings).preprocess
         if self.overwrite:
             sets.update_overwrite(overwrite_all=True)
         

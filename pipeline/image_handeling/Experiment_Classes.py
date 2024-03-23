@@ -66,6 +66,7 @@ class Experiment(LoadClass):
         
         if 'exp_setting.json' in listdir(self.exp_path):
             self = init_from_json(join(sep,self.exp_path+sep,'exp_settings.json'))
+            self.status = 'processed'
     
     @property
     def raw_imgs_lst(self)-> list:

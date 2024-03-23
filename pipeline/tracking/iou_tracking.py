@@ -4,13 +4,13 @@ import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
 from os.path import join
 from image_handeling.Experiment_Classes import Experiment
-from image_handeling.data_utility import is_processed, mask_list_src, load_stack, create_save_folder, delete_old_masks, save_tif
+from image_handeling.data_utility import is_processed, mask_list_src, load_stack, create_save_folder, delete_old_masks
 from mask_transformation.mask_morph import morph_missing_mask
 from cellpose.utils import stitch3D
 from cellpose.metrics import _intersection_over_union
 from scipy.stats import mode
 import numpy as np
-
+from tifffile import imwrite
 
 def track_cells(masks: np.ndarray, stitch_threshold: float)-> np.ndarray:
     print('  ---> Tracking cells...')
@@ -134,7 +134,7 @@ def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src
         mask_src_list = [file for file in mask_src_list if file.__contains__('_z0001')]
         for i,path in enumerate(mask_src_list):
             mask_path = path.replace('Masks','Masks_IoU_Track').replace('_Cellpose','').replace('_Threshold','')
-            imsave(mask_path,mask_stack[i,...].astype('uint16'))
+            imwrite(mask_path,mask_stack[i,...].astype('uint16'))
         
         # Save settings
         exp_set.masks.iou_tracking[channel_seg] = {'mask_fold_src':mask_fold_src,'stitch_thres_percent':stitch_thres_percent,

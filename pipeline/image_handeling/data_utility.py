@@ -1,6 +1,6 @@
 from __future__ import annotations
 from os import sep, mkdir, remove, PathLike
-from os.path import isdir, join, isfile
+from os.path import isdir, join
 from image_handeling.Experiment_Classes import Experiment
 from typing import Iterable
 import numpy as np
@@ -114,21 +114,6 @@ def create_save_folder(exp_path: PathLike, folder_name: str)-> PathLike:
     print(f" ---> Saving folder already exists: {save_folder}")
     return save_folder
 
-def gen_input_data(exp_set: Experiment, img_fold_src: str, channel_seg_list: list, **kwargs)-> list[dict]:
-    # img_path_list = img_list_src(exp_set,img_fold_src)
-    channel_seg = channel_seg_list[0]
-    input_data = []
-    for frame in range(exp_set.img_properties.n_frames):
-        input_dict = {}
-        # imgs_path = [img for img in img_path_list if f"_f{frame+1:04d}" in img and channel_seg in img]
-        imgs_path = img_list_src(exp_set,img_fold_src)
-        input_dict['imgs_path'] = imgs_path
-        input_dict['frame'] = frame
-        input_dict['channel_seg_list'] = channel_seg_list
-        input_dict.update(kwargs)
-        input_data.append(input_dict)
-    return input_data
-
 def delete_old_masks(class_setting_dict: dict, channel_seg: str, mask_files_list: list[PathLike], overwrite: bool=False)-> None:
     """Check if old masks exists, if the case, the delete old masks. Only
     if overwrite is True and class_setting_dict is not empty and channel_seg is in class_setting_dict"""
@@ -174,3 +159,4 @@ def gen_input_data(exp_set: Experiment, img_sorted_frames: dict[str,list], chann
                                'finterval':exp_set.analysis.interval_sec}}}
                   for frame in range(exp_set.img_properties.n_frames)]
     return input_data
+
