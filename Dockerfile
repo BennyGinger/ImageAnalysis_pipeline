@@ -31,8 +31,8 @@ RUN conda install -y mamba -c conda-forge
 # Create conda environment
 ADD ./environment.yml /media/environment.yml
 ADD ./Dockerfile /media/Dockerfile
-RUN mamba env create --file /media/environment.yml &&\
-    conda clean --all
+RUN mamba env create --file /media/environment.yml \
+    && conda clean --all
 
 RUN conda init bash
 RUN echo "conda activate cp_dock"  >> ~/.bashrc
