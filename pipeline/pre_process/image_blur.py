@@ -17,9 +17,9 @@ def blur_img(exp_obj_lst: list[Experiment], blur_kernel: list[int], blur_sigma: 
     # Get the exp_path and load exp_para
     for exp_obj in exp_obj_lst:
         # Check if exists
-        if exp_obj.process.img_blured and not blur_overwrite:
+        if exp_obj.preprocess.img_blured and not blur_overwrite:
             # Log
-            print(f" --> Images are already blured with {exp_obj.process.img_blured}")
+            print(f" --> Images are already blured with {exp_obj.preprocess.img_blured}")
             continue
         
         # Log
@@ -40,7 +40,7 @@ def blur_img(exp_obj_lst: list[Experiment], blur_kernel: list[int], blur_sigma: 
             executor.map(apply_blur,input_data)
             
         # Save settings
-        exp_obj.process.img_blured = [f"blur_kernel={blur_kernel}",f"blur_sigma={blur_sigma}"]
+        exp_obj.preprocess.img_blured = [f"blur_kernel={blur_kernel}",f"blur_sigma={blur_sigma}"]
         exp_obj.save_as_json()
     return exp_obj_lst
 

@@ -18,7 +18,7 @@ def track_cells(masks: np.ndarray, stitch_threshold: float)-> np.ndarray:
     stitch_threshold = 1 - stitch_threshold
     # basic stitching/tracking from Cellpose
     masks = stitch3D(masks,stitch_threshold)
-    
+    print('  ---> Stitching done')
     # Create mask with all possible cells
     master_mask = create_master_mask(masks)
 
@@ -31,6 +31,8 @@ def create_master_mask(masks: np.ndarray)-> np.ndarray:
     rawmasks_ignorezero = masks.copy().astype(float)
     rawmasks_ignorezero[rawmasks_ignorezero == 0] = np.nan
     master_mask = mode(rawmasks_ignorezero, axis=0, keepdims=False, nan_policy='omit')[0]
+    # Convert back to int
+    master_mask = np.ma.getdata(master_mask)
     return master_mask.astype(int)
 
 def master_mask_stitching(masks: np.ndarray, master_mask: np.ndarray, stitch_threshold: float)-> np.ndarray:

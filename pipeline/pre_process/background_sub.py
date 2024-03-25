@@ -10,8 +10,8 @@ from image_handeling.data_utility import save_tif
 def background_sub(exp_obj_lst: list[Experiment], sigma: float=0.0, size: int=7, overwrite: bool=False)-> list[Experiment]:
     """For each experiment, apply a background substraction on the images and return a list of Settings objects"""
     for exp_obj in exp_obj_lst:
-        if exp_obj.process.background_sub and not overwrite:
-            print(f" --> Background substraction was already applied to the images with {exp_obj.process.background_sub}")
+        if exp_obj.preprocess.background_sub and not overwrite:
+            print(f" --> Background substraction was already applied to the images with {exp_obj.preprocess.background_sub}")
             continue
         print(f" --> Applying background substraction to the images with sigma={sigma} and size={size}")
         
@@ -26,7 +26,7 @@ def background_sub(exp_obj_lst: list[Experiment], sigma: float=0.0, size: int=7,
         with ProcessPoolExecutor() as executor:
             executor.map(apply_bg_sub,input_data)
             
-        exp_obj.process.background_sub = (f"sigma={sigma}",f"size={size}")
+        exp_obj.preprocess.background_sub = (f"sigma={sigma}",f"size={size}")
         exp_obj.save_as_json()
     return exp_obj_lst
 

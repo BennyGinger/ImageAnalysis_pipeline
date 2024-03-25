@@ -2,7 +2,7 @@ settings = {
     "input_folder": '/home/Test_images/nd2/Run2',
     "init":{"active_channel_list": ['GFP','RFP'],
             'full_channel_list':[],
-            "overwrite": True},
+            "overwrite": False},
     
     
     "bg_sub": (True,
@@ -27,7 +27,7 @@ settings = {
             "img_fold_src": "",
             "overwrite": False}),
 
-    "cellpose": (False,
+    "cellpose": (True,
                 {"channel_to_seg":"RFP",
                 "model_type": "cyto3",
                 "diameter": 60.0,
@@ -51,5 +51,5 @@ settings = {
                    "stitch_thres_percent": 0.75,
                    "shape_thres_percent": 0.2,
                    "n_mask":5,
-                   "overwrite":False}),
+                   "overwrite":True}),
 }

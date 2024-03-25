@@ -3,7 +3,7 @@ from dataclasses import dataclass, field, fields
 
 PREPROCESS_KEYS = ["bg_sub","chan_shift","frame_shift","blur"]
 SEGMENTATION_KEYS = ["cellpose","threshold"]
-TRACKING_KEYS = ['iuo_track']
+TRACKING_KEYS = ['iou_track']
 
 @dataclass
 class BaseSettings:
@@ -16,8 +16,7 @@ class BaseSettings:
             if k not in branch_name:
                 continue
             # Initiate branch and unpack settings
-            if v[0]:
-                setattr(self, k, v[1])
+            setattr(self, k, v)
         self.update_overwrite()
     
     def update_overwrite(self, overwrite_all: bool=False)-> None:

@@ -8,26 +8,34 @@ import pandas as pd
 
 @dataclass
 class LoadClass:
-    def from_dict(self, input_dict: dict)->dict:
+    def from_dict(self, input_dict: dict)-> dict:
         fieldSet = {f.name for f in fields(self) if f.init}
         filteredArgDict = {k : v for k, v in input_dict.items() if k in fieldSet}
         return self(**filteredArgDict)
+    
+    def set_attribute(self, attr: str, value: any)-> None:
+        for field in fields(self):
+            if field.name == attr:
+                setattr(self,attr,value)
+                return
 
 @dataclass
-class Process(LoadClass):
+class PreProcess(LoadClass):
     background_sub: list = field(default_factory=list)
     channel_reg: list = field(default_factory=list)
     frame_reg: list = field(default_factory=list)
     img_blured: list = field(default_factory=list)
     
 @dataclass
-class Masks(LoadClass):
+class Segmentation(LoadClass):
     threshold_seg: dict = field(default_factory=dict)
     cellpose_seg: dict = field(default_factory=dict)
+    
+@dataclass
+class Tracking(LoadClass):    
     iou_tracking: dict = field(default_factory=dict)
     manual_tracking: dict = field(default_factory=dict)
     gnn_tracking: dict = field(default_factory=dict)
-
 
 @dataclass
 class ImageProperties(LoadClass):
@@ -57,79 +65,77 @@ class Experiment(LoadClass):
     full_channel_list: list = field(default_factory=list)
     img_properties: ImageProperties = field(default_factory=ImageProperties)
     analysis: Analysis = field(default_factory=Analysis)
-    process: Process = field(default_factory=Process)
-    masks: Masks = field(default_factory=Masks)
+    preprocess: PreProcess = field(default_factory=PreProcess)
+    segmentation: Segmentation = field(default_factory=Segmentation)
+    tracking: Tracking = field(default_factory=Tracking)
 
     def __post_init__(self)-> None:
         if 'REMOVED_EXP.txt' in listdir(self.exp_path):
             self.status = 'Removed'
         
         if 'exp_setting.json' in listdir(self.exp_path):
-            self = init_from_json(join(sep,self.exp_path+sep,'exp_settings.json'))
+            self = init_from_json(join(self.exp_path,'exp_settings.json'))
             self.status = 'processed'
     
     @property
     def raw_imgs_lst(self)-> list:
-        im_folder = join(sep,self.exp_path+sep,'Images')
-        return [join(sep,im_folder+sep,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
+        im_folder = join(self.exp_path,'Images')
+        return [join(im_folder,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
     
     @property
     def registered_imgs_lst(self)-> list:
-        im_folder = join(sep,self.exp_path+sep,'Images_Registered')
-        return [join(sep,im_folder+sep,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
+        im_folder = join(self.exp_path,'Images_Registered')
+        return [join(im_folder,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
     
     @property
     def blured_imgs_lst(self)-> list:
-        im_folder = join(sep,self.exp_path+sep,'Images_Blured')
-        return [join(sep,im_folder+sep,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
+        im_folder = join(self.exp_path,'Images_Blured')
+        return [join(im_folder,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
 
     @property
     def threshold_masks_lst(self)-> list:
-        mask_folder = join(sep,self.exp_path+sep,'Masks_Threshold')
-        return [join(sep,mask_folder+sep,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
+        mask_folder = join(self.exp_path,'Masks_Threshold')
+        return [join(mask_folder,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
     
     @property
     def cellpose_masks_lst(self)-> list:
-        mask_folder = join(sep,self.exp_path+sep,'Masks_Cellpose')
-        return [join(sep,mask_folder+sep,f) for f in sorted(listdir(mask_folder)) if f.endswith(('.tif','.npy'))]
+        mask_folder = join(self.exp_path,'Masks_Cellpose')
+        return [join(mask_folder,f) for f in sorted(listdir(mask_folder)) if f.endswith(('.tif','.npy'))]
     
     @property
     def man_tracked_masks_lst(self)-> list:
-        mask_folder = join(sep,self.exp_path+sep,'Masks_Manual_Track')
-        return [join(sep,mask_folder+sep,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
+        mask_folder = join(self.exp_path,'Masks_Manual_Track')
+        return [join(mask_folder,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
     
     @property
     def gnn_tracked_masks_lst(self)-> list:
-        mask_folder = join(sep,self.exp_path+sep,'Masks_GNN_Track')
-        return [join(sep,mask_folder+sep,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
+        mask_folder = join(self.exp_path,'Masks_GNN_Track')
+        return [join(mask_folder,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
     
     @property
     def iou_tracked_masks_lst(self)-> list:
-        mask_folder = join(sep,self.exp_path+sep,'Masks_IoU_Track')
-        return [join(sep,mask_folder+sep,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
-    
-    @property
-    def time_seq(self)-> list:
-        return [round(i*self.analysis.interval_sec,ndigits=2) for i in range(self.img_properties.n_frames)]
+        mask_folder = join(self.exp_path,'Masks_IoU_Track')
+        return [join(mask_folder,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
     
     def save_df_analysis(self, df_analysis: pd.DataFrame)-> None:
         self.analysis.df_analysis = True
-        df_analysis.to_csv(join(sep,self.exp_path+sep,'df_analysis.csv'),index=False)
+        df_analysis.to_csv(join(self.exp_path,'df_analysis.csv'),index=False)
     
     def load_df_analysis(self, data_overwrite: bool=False)-> pd.DataFrame:
         if self.analysis.df_analysis and not data_overwrite:
-            return pd.read_csv(join(sep,self.exp_path+sep,'df_analysis.csv'))
+            return pd.read_csv(join(self.exp_path,'df_analysis.csv'))
         else:
             return pd.DataFrame()
     
-    def save_as_json(self)-> None: #FIXME: Need to save all the path as relative path, or both. as if work from a dev container, the path will be different
+    def save_as_json(self)-> None:
         main_dict = self.__dict__.copy()
         main_dict['img_properties'] = self.img_properties.__dict__
         main_dict['analysis'] = self.analysis.__dict__
-        main_dict['process'] = self.process.__dict__
-        main_dict['masks'] = self.masks.__dict__
+        main_dict['preprocess'] = self.preprocess.__dict__
+        main_dict['segmentation'] = self.segmentation.__dict__
+        main_dict['tracking'] = self.tracking.__dict__
         
-        with open(join(sep,self.exp_path+sep,'exp_settings.json'),'w') as fp:
+        with open(join(self.exp_path,'exp_settings.json'),'w') as fp:
             json.dump(main_dict,fp,indent=4)
     
     def set_attribute(self, attr: str, value: any)-> None:
@@ -137,41 +143,54 @@ class Experiment(LoadClass):
             if field.name == attr:
                 setattr(self,attr,value)
                 return
-            elif field.name == 'img_properties':
-                for img_field in fields(self.img_properties):
-                    if img_field.name == attr:
-                        setattr(self.img_properties,attr,value)
-                        return
-            elif field.name == 'analysis':
-                for analysis_field in fields(self.analysis):
-                    if analysis_field.name == attr:
-                        setattr(self.analysis,attr,value)
-                        return
-            elif field.name == 'process':
-                for process_field in fields(self.process):
-                    if process_field.name == attr:
-                        setattr(self.process,attr,value)
-                        return
-            elif field.name == 'masks':
-                for masks_field in fields(self.masks):
-                    if masks_field.name == attr:
-                        setattr(self.masks,attr,value)
-                        return
+            # If in nested branch
+            nested_branch = getattr(self,field.name)
+            # Only check if the nested branch is a class
+            if not isinstance(nested_branch,(list,str)):
+                nested_branch.set_attribute(attr,value)
+            
+            # elif field.name == 'img_properties':
+            #     for img_field in fields(self.img_properties):
+            #         if img_field.name == attr:
+            #             setattr(self.img_properties,attr,value)
+            #             return
+            # elif field.name == 'analysis':
+            #     for analysis_field in fields(self.analysis):
+            #         if analysis_field.name == attr:
+            #             setattr(self.analysis,attr,value)
+            #             return
+            # elif field.name == 'preprocess':
+            #     for process_field in fields(self.preprocess):
+            #         if process_field.name == attr:
+            #             setattr(self.preprocess,attr,value)
+            #             return
+            # elif field.name == 'segmentation':
+            #     for seg_field in fields(self.segmentation):
+            #         if seg_field.name == attr:
+            #             setattr(self.segmentation,attr,value)
+            #             return
+            # elif field.name == 'tracking':
+            #     for track_field in fields(self.tracking):
+            #         if track_field.name == attr:
+            #             setattr(self.tracking,attr,value)
+            #             return
     
 def init_from_json(json_path: str)-> Experiment:
     with open(json_path) as fp:
         meta = json.load(fp)
     meta['img_properties'] = ImageProperties.from_dict(ImageProperties,meta['img_properties'])
     meta['analysis'] = Analysis.from_dict(Analysis,meta['analysis'])
-    meta['process'] = Process.from_dict(Process,meta['process'])
-    meta['masks'] = Masks.from_dict(Masks,meta['masks'])
+    meta['preprocess'] = PreProcess.from_dict(PreProcess,meta['preprocess'])
+    meta['segmentation'] = Segmentation.from_dict(Segmentation,meta['segmentation'])
+    meta['tracking'] = Tracking.from_dict(Tracking,meta['tracking'])
     return Experiment.from_dict(Experiment,meta)
     
 def init_from_dict(input_dict: dict)-> Experiment:
     input_dict['img_properties'] = ImageProperties.from_dict(ImageProperties,input_dict)
     input_dict['analysis'] = Analysis.from_dict(Analysis,input_dict)
-    input_dict['process'] = Process.from_dict(Process,input_dict)
-    input_dict['masks'] = Masks.from_dict(Masks,input_dict)
+    input_dict['preprocess'] = PreProcess.from_dict(PreProcess,input_dict)
+    input_dict['segmentation'] = Segmentation.from_dict(Segmentation,input_dict)
+    input_dict['tracking'] = Tracking.from_dict(Tracking,input_dict)
     return Experiment.from_dict(Experiment,input_dict)
 
 
@@ -196,7 +215,7 @@ if __name__ == '__main__':
             'stitch_threshold':0.0,'rescale':None,'progress':None,'model_loaded':False}}}
     iou_tracking = {'BFP':{'mask_fold_src':'Masks_Cellpose','stitch_thres_percent':0.75,
                                         'shape_thres_percent':0.1,'n_mask':10}}
-    masks = Masks(cellpose_seg=cellpose_seg,iou_tracking=iou_tracking)
+    masks = Segmentation(cellpose_seg=cellpose_seg,iou_tracking=iou_tracking)
     
     masks_dict = {}
     for field in fields(masks):

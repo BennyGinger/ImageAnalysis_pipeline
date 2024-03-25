@@ -23,7 +23,11 @@ class Segmentation(BaseModule):
         self.exp_obj_lst = [init_from_json(json_path) for json_path in jsons_path]
             
     def segment_from_settings(self, settings: dict)-> list[Experiment]:
-        sets = Settings(settings).segmentation
+        sets = Settings(settings)
+        if not hasattr(sets,'segmentation'):
+            print("No segmentation settings found")
+            return self.exp_obj_lst
+        sets = sets.segmentation
         
         if hasattr(sets,'cellpose'):
             self.exp_obj_lst = self.cellpose(**sets.cellpose)

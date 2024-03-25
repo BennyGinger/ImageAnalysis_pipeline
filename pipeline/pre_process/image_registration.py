@@ -15,8 +15,8 @@ def correct_channel_shift(exp_obj_lst: list[Experiment], reg_mtd: str, reg_chann
     """Main function to apply the channel shift correction to the images."""
     for exp_obj in exp_obj_lst:
         # Check if the channel shift was already applied
-        if exp_obj.process.channel_reg and not chan_shift_overwrite:
-            print(f" --> Channel shift was already applied on the images with {exp_obj.process.channel_reg}")
+        if exp_obj.preprocess.channel_reg and not chan_shift_overwrite:
+            print(f" --> Channel shift was already applied on the images with {exp_obj.preprocess.channel_reg}")
             continue
         # Or if it's needed
         if len(exp_obj.active_channel_list)==1:
@@ -28,7 +28,7 @@ def correct_channel_shift(exp_obj_lst: list[Experiment], reg_mtd: str, reg_chann
         # Apply the channel shift correction
         apply_chan_shift(exp_obj,stackreg,reg_channel)
         # Save settings
-        exp_obj.process.channel_reg = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}"]
+        exp_obj.preprocess.channel_reg = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}"]
         exp_obj.save_as_json()
     return exp_obj_lst
 
@@ -77,8 +77,8 @@ def correct_frame_shift(exp_obj_lst: list[Experiment], reg_channel: str, reg_mtd
     for exp_obj in exp_obj_lst:
         create_save_folder(exp_obj.exp_path,'Images_Registered')
         # Check if the frame shift was already applied
-        if exp_obj.process.frame_reg and not reg_overwrite:
-            print(f" --> Registration was already applied to the images with {exp_obj.process.frame_reg}")
+        if exp_obj.preprocess.frame_reg and not reg_overwrite:
+            print(f" --> Registration was already applied to the images with {exp_obj.preprocess.frame_reg}")
             continue
         # Or if it's needed
         if exp_obj.img_properties.n_frames==1:
@@ -90,7 +90,7 @@ def correct_frame_shift(exp_obj_lst: list[Experiment], reg_channel: str, reg_mtd
         # Apply the frame shift correction
         apply_frame_shift(stackreg,exp_obj,reg_channel,img_ref)
         # Save settings
-        exp_obj.process.frame_reg = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}",f"img_ref={img_ref}"]
+        exp_obj.preprocess.frame_reg = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}",f"img_ref={img_ref}"]
         exp_obj.save_as_json()
     return exp_obj_lst
 

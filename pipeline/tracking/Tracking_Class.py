@@ -21,8 +21,12 @@ class Tracking(BaseModule):
         self.exp_obj_lst = [init_from_json(json_path) for json_path in jsons_path]
     
     def track_from_settings(self, settings: dict)-> list[Experiment]:
-        sets = Settings(settings).tracking
-        
+        sets = Settings(settings)
+        if not hasattr(sets,'tracking'):
+            print("No tracking settings found")
+            return self.exp_obj_lst
+        sets = sets.tracking
+
         if hasattr(sets,'iou_track'):
             self.exp_obj_lst = self.iou_tracking(**sets.iou_track)
         return self.exp_obj_lst

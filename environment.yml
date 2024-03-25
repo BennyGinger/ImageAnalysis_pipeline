@@ -1,4 +1,4 @@
-name: cp_dock2
+name: cp_dock
 channels:
  - pytorch
  - conda-forge
@@ -23,11 +23,10 @@ dependencies:
    - diplib
    - matplotlib
    - smo
-   - nd2reader
    - seaborn
-   - numpy==1.22.4
+   - numpy
    - natsort
-   - tifffile==2022.5.4
+   - tifffile
    - tqdm
    - numba>=0.53.0
    - llvmlite
@@ -48,7 +47,8 @@ dependencies:
    - wandb
    - rich
    - cellpose[gui]
-   - pandas==1.4.3
+   - pandas
    - nd2
+   - pytest
  
  
