@@ -50,10 +50,8 @@ def img_list_src(exp_set: Experiment, img_fold_src: str)-> list[PathLike]:
     
     if img_fold_src and img_fold_src == 'Images':
         return exp_set.raw_imgs_lst
-    
     if img_fold_src and img_fold_src == 'Images_Registered':
         return exp_set.registered_imgs_lst
-    
     if img_fold_src and img_fold_src == 'Images_Blured':
         return exp_set.blured_imgs_lst
     
@@ -65,36 +63,41 @@ def img_list_src(exp_set: Experiment, img_fold_src: str)-> list[PathLike]:
     else:
         return exp_set.raw_imgs_lst
 
-def mask_list_src(exp_set: Experiment, mask_fold_src: str, call_loca: str)-> list[PathLike]:
-    """If not manually specified, return the latest processed images list"""
+def seg_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> list[PathLike]:
+    """If not manually specified, return the latest processed segmentated masks list"""
     
     if mask_fold_src == 'Masks_Threshold':
-        return exp_set.threshold_masks_lst
-    
+        return exp_set.threshold_masks_lst  
     if mask_fold_src == 'Masks_Cellpose':
         return exp_set.cellpose_masks_lst
     
-    if mask_fold_src == 'Masks_IoU_Track':
-        return exp_set.iou_tracked_masks_lst
+    # If not manually specified, return the latest processed images list
+    if exp_set.segmentation.cellpose_seg:
+        return exp_set.cellpose_masks_lst
+    if exp_set.segmentation.threshold_seg:
+        return exp_set.threshold_masks_lst
+    else:
+        print("No segmentation masks found")
+
+def track_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> list[PathLike]:
+    """If not manually specified, return the latest processed tracked masks list"""
     
+    if mask_fold_src == 'Masks_IoU_Track':
+        return exp_set.iou_tracked_masks_lst 
     if mask_fold_src == 'Masks_Manual_Track':
         return exp_set.man_tracked_masks_lst
-    
     if mask_fold_src == 'Masks_GNN_Track':
         return exp_set.gnn_tracked_masks_lst
     
     # If not manually specified, return the latest processed images list
-    if exp_set.masks.gnn_tracking:
+    if exp_set.tracking.gnn_tracking:
         return exp_set.gnn_tracked_masks_lst
-    elif exp_set.masks.manual_tracking:
+    if exp_set.tracking.manual_tracking:
         return exp_set.man_tracked_masks_lst
-    elif exp_set.masks.iou_tracking:
-        print("I'm here")
+    if exp_set.tracking.iou_tracking:
         return exp_set.iou_tracked_masks_lst
-    elif exp_set.masks.cellpose_seg:
-        return exp_set.cellpose_masks_lst
     else:
-        return exp_set.threshold_masks_lst
+        print("No tracking masks found")
 
 # TODO: Add a check whether the images are in the save folder
 def is_processed(process: dict, channel_seg: str, overwrite: bool)-> bool:

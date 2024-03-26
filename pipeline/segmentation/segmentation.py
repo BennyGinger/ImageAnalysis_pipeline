@@ -48,14 +48,14 @@ def apply_threshold(img_dict: dict)-> float:
 def threshold(exp_obj_lst: list[Experiment], channel_seg: str, overwrite: bool=False, manual_threshold: int=None, img_fold_src: PathLike="")-> list[Experiment]:
     for exp_obj in exp_obj_lst:
         # Check if exist
-        if is_processed(exp_obj.masks.threshold_seg,channel_seg,overwrite):
+        if is_processed(exp_obj.segmentation.threshold_seg,channel_seg,overwrite):
                 # Log
-            print(f" --> Object has already been segmented for the channel {list(exp_obj.masks.threshold_seg.keys())}")
+            print(f" --> Object has already been segmented for the channel {list(exp_obj.segmentation.threshold_seg.keys())}")
             continue
         
         # Initialize input args and save folder
         create_save_folder(exp_obj.exp_path,'Masks_Threshold')
-        delete_old_masks(exp_obj.masks.threshold_seg,channel_seg,exp_obj.threshold_masks_lst,overwrite)
+        delete_old_masks(exp_obj.segmentation.threshold_seg,channel_seg,exp_obj.threshold_masks_lst,overwrite)
         
         # Sort images by frames and channels
         imgs_list = [img for img in img_list_src(exp_obj,img_fold_src) if channel_seg in img]
@@ -74,7 +74,7 @@ def threshold(exp_obj_lst: list[Experiment], channel_seg: str, overwrite: bool=F
         settings_dict = create_threshold_settings(manual_threshold,threshold_value_list)
 
         # Save settings
-        exp_obj.masks.threshold_seg[channel_seg] = settings_dict
+        exp_obj.segmentation.threshold_seg[channel_seg] = settings_dict
         exp_obj.save_as_json()    
     return exp_obj_lst  
 

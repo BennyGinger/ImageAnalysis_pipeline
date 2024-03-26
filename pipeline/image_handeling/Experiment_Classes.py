@@ -39,7 +39,7 @@ class Tracking(LoadClass):
 
 @dataclass
 class ImageProperties(LoadClass):
-    """Get metadata from nd2 or tif file, using ND2Reader or TiffFile and ImageJ"""
+    """Get metadata from nd2 or tif file, using ND2File or TiffFile and ImageJ"""
     img_width: int
     img_length: int
     n_frames: int

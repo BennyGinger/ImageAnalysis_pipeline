@@ -4,7 +4,7 @@ import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
 from os.path import join
 from image_handeling.Experiment_Classes import Experiment
-from image_handeling.data_utility import is_processed, mask_list_src, load_stack, create_save_folder, delete_old_masks
+from image_handeling.data_utility import is_processed, seg_mask_lst_src, load_stack, create_save_folder, delete_old_masks
 from mask_transformation.mask_morph import morph_missing_mask
 from cellpose.utils import stitch3D
 from cellpose.metrics import _intersection_over_union
@@ -19,9 +19,8 @@ def track_cells(masks: np.ndarray, stitch_threshold: float)-> np.ndarray:
     # basic stitching/tracking from Cellpose
     masks = stitch3D(masks,stitch_threshold)
     print('  ---> Stitching done')
-    # Create mask with all possible cells
+    # Create mask with all the most commom masks value
     master_mask = create_master_mask(masks)
-
     return master_mask_stitching(masks, master_mask, stitch_threshold)
 
 def create_master_mask(masks: np.ndarray)-> np.ndarray:
@@ -32,8 +31,7 @@ def create_master_mask(masks: np.ndarray)-> np.ndarray:
     rawmasks_ignorezero[rawmasks_ignorezero == 0] = np.nan
     master_mask = mode(rawmasks_ignorezero, axis=0, keepdims=False, nan_policy='omit')[0]
     # Convert back to int
-    master_mask = np.ma.getdata(master_mask)
-    return master_mask.astype(int)
+    return np.ma.getdata(master_mask).astype(int)
 
 def master_mask_stitching(masks: np.ndarray, master_mask: np.ndarray, stitch_threshold: float)-> np.ndarray:
     # Second round of stitch/tracking by using mastermask to compair with every frame
@@ -98,7 +96,7 @@ def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src
                  iou_track_overwrite: bool=False, n_mask: int=5)-> list[Experiment]:
     
     for exp_set in exp_set_list:
-        if is_processed(exp_set.masks.iou_tracking,channel_seg,iou_track_overwrite):
+        if is_processed(exp_set.tracking.iou_tracking,channel_seg,iou_track_overwrite):
             print(f" --> Cells have already been tracked for the '{channel_seg}' channel")
             continue
         
@@ -107,10 +105,10 @@ def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src
         
         # Create save folder and remove old masks
         create_save_folder(exp_set.exp_path,'Masks_IoU_Track')
-        delete_old_masks(exp_set.masks.iou_tracking,channel_seg,exp_set.iou_tracked_masks_lst,iou_track_overwrite)
+        delete_old_masks(exp_set.tracking.iou_tracking,channel_seg,exp_set.iou_tracked_masks_lst,iou_track_overwrite)
         
         # Load masks
-        mask_src_list = mask_list_src(exp_set,mask_fold_src)
+        mask_src_list = seg_mask_lst_src(exp_set,mask_fold_src)
         mask_stack = load_stack(mask_src_list,[channel_seg],range(exp_set.img_properties.n_frames))
         
         if mask_stack.ndim == 4:
@@ -139,7 +137,7 @@ def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src
             imwrite(mask_path,mask_stack[i,...].astype('uint16'))
         
         # Save settings
-        exp_set.masks.iou_tracking[channel_seg] = {'mask_fold_src':mask_fold_src,'stitch_thres_percent':stitch_thres_percent,
+        exp_set.tracking.iou_tracking[channel_seg] = {'mask_fold_src':mask_fold_src,'stitch_thres_percent':stitch_thres_percent,
                                         'shape_thres_percent':shape_thres_percent,'n_mask':n_mask}
         exp_set.save_as_json()
     return exp_set_list
