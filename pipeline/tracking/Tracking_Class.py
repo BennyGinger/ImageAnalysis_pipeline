@@ -24,11 +24,13 @@ class Tracking(BaseModule):
         sets = Settings(settings)
         if not hasattr(sets,'tracking'):
             print("No tracking settings found")
+            self.save_as_json()
             return self.exp_obj_lst
         sets = sets.tracking
 
         if hasattr(sets,'iou_track'):
             self.exp_obj_lst = self.iou_tracking(**sets.iou_track)
+        self.save_as_json()
         return self.exp_obj_lst
     
     def iou_tracking(self, channel_to_track: str | list[str], img_fold_src: PathLike = "", stitch_thres_percent: float=0.75, shape_thres_percent: float=0.2,

@@ -5,10 +5,11 @@ import pandas as pd
 from collections import Counter
 from skimage.segmentation import expand_labels
 from mask_transformation.mask_morph import morph_missing_mask
-from Experiment_Classes import Experiment
-from loading_data import mask_list_src
+from image_handeling.Experiment_Classes import Experiment
+from image_handeling.data_utility import load_stack, is_processed, create_save_folder, gen_input_data, delete_old_masks
+# TODO: Fabian, please check which of this fct you need
+from image_handeling.data_utility import seg_mask_lst_src, track_mask_lst_src
 from tifffile import imsave
-from loading_data import load_stack, is_processed, create_save_folder, gen_input_data, delete_old_masks
 from concurrent.futures import ProcessPoolExecutor
 
 def load_csv(channel_seg: str, csv_path: str, csv_name: str = None):
@@ -157,6 +158,8 @@ def man_tracking(exp_set_list: list[Experiment], channel_seg: str, track_seg_mas
                 csv_name: str = None, radius: int=5, morph: bool=True, n_mask=2, manual_track_overwrite: bool=False, dilate_value: int = 20):
     
     for exp_set in exp_set_list:
+        # Activate the branch
+        exp_set.masks.is_manual_tracking = True
         # Check if exist
         if is_processed(exp_set.masks.manual_tracking,channel_seg,manual_track_overwrite):
                 # Log

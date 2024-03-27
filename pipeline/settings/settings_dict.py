@@ -15,11 +15,11 @@ settings = {
                     "reg_mtd": "rigid_body",
                     "overwrite": False}),
     
-    "frame_shift": (False,
+    "frame_shift": (True,
                 {"reg_channel": "RFP",
                 "reg_mtd": "rigid_body",
                 "img_ref": "previous",
-                "overwrite": True}),
+                "overwrite": False}),
     
     "blur": (False,
             {"kernel": (15,15),
@@ -41,7 +41,7 @@ settings = {
     
     "threshold": (False,
                 {"channel_to_seg":"RFP",
-                "overwrite": True,
+                "overwrite": False,
                 "manual_threshold": None,
                 "img_fold_src": "",}),
     

@@ -47,6 +47,8 @@ def apply_threshold(img_dict: dict)-> float:
 # # # # # # # # main functions # # # # # # # # # 
 def threshold(exp_obj_lst: list[Experiment], channel_seg: str, overwrite: bool=False, manual_threshold: int=None, img_fold_src: PathLike="")-> list[Experiment]:
     for exp_obj in exp_obj_lst:
+        # Activate the branch
+        exp_obj.segmentation.is_threshold_seg = True
         # Check if exist
         if is_processed(exp_obj.segmentation.threshold_seg,channel_seg,overwrite):
                 # Log

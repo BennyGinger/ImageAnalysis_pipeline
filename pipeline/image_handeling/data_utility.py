@@ -56,9 +56,9 @@ def img_list_src(exp_set: Experiment, img_fold_src: str)-> list[PathLike]:
         return exp_set.blured_imgs_lst
     
     # If not manually specified, return the latest processed images list
-    if exp_set.preprocess.img_blured:
+    if exp_set.preprocess.is_img_blured:
         return exp_set.blured_imgs_lst
-    elif exp_set.preprocess.frame_reg:
+    elif exp_set.preprocess.is_frame_reg:
         return exp_set.registered_imgs_lst
     else:
         return exp_set.raw_imgs_lst
@@ -72,10 +72,10 @@ def seg_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> list[PathLike]:
         return exp_set.cellpose_masks_lst
     
     # If not manually specified, return the latest processed images list
-    if exp_set.segmentation.cellpose_seg:
-        return exp_set.cellpose_masks_lst
-    if exp_set.segmentation.threshold_seg:
+    if exp_set.segmentation.is_threshold_seg:
         return exp_set.threshold_masks_lst
+    if exp_set.segmentation.is_cellpose_seg:
+        return exp_set.cellpose_masks_lst
     else:
         print("No segmentation masks found")
 
@@ -90,7 +90,7 @@ def track_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> list[PathLike]
         return exp_set.gnn_tracked_masks_lst
     
     # If not manually specified, return the latest processed images list
-    if exp_set.tracking.gnn_tracking:
+    if exp_set.tracking.is_gnn_tracking:
         return exp_set.gnn_tracked_masks_lst
     if exp_set.tracking.manual_tracking:
         return exp_set.man_tracked_masks_lst
@@ -99,13 +99,14 @@ def track_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> list[PathLike]
     else:
         print("No tracking masks found")
 
-# TODO: Add a check whether the images are in the save folder
-def is_processed(process: dict, channel_seg: str, overwrite: bool)-> bool:
+def is_processed(process_settings: dict | list, channel_seg: str = None, overwrite: bool = False)-> bool:
     if overwrite:
         return False
-    if not process:
+    if not process_settings:
         return False
-    if channel_seg not in process:
+    if isinstance(process_settings, list):
+        return True
+    if channel_seg not in process_settings:
         return False
     return True
 

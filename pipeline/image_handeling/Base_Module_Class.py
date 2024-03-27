@@ -35,6 +35,10 @@ class BaseModule:
             for folder in self.input_folder:
                 jsons_path.extend(get_json_path(folder))
             return jsons_path
+    
+    def save_as_json(self)-> None:
+        for exp_obj in self.exp_obj_lst:
+            exp_obj.save_as_json()
        
 def get_json_path(folder: str)-> list[str]:
     # Get the path of all the nd2 files in all subsequent folders/subfolders and exp_dict if available

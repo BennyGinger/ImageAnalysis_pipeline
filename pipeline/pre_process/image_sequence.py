@@ -57,6 +57,8 @@ def init_exp_obj(exp_path: PathLike, meta_dict: dict)-> Experiment:
     else:
         meta_dict['exp_path'] = exp_path
         exp_obj = init_from_dict(meta_dict)
+    # Set all the branch to inactive
+    exp_obj.init_to_inactive()
     return exp_obj
 
 def process_img(meta_dict: dict)-> None:

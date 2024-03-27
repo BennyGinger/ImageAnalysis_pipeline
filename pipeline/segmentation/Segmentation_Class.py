@@ -26,6 +26,7 @@ class Segmentation(BaseModule):
         sets = Settings(settings)
         if not hasattr(sets,'segmentation'):
             print("No segmentation settings found")
+            self.save_as_json()
             return self.exp_obj_lst
         sets = sets.segmentation
         
@@ -33,6 +34,8 @@ class Segmentation(BaseModule):
             self.exp_obj_lst = self.cellpose(**sets.cellpose)
         if hasattr(sets,'threshold'):
             self.exp_obj_lst = self.thresholding(**sets.threshold)
+        print(self.exp_obj_lst[0].segmentation.is_threshold_seg)
+        self.save_as_json()
         return self.exp_obj_lst
     
     def cellpose(self, channel_to_seg: str | list[str], model_type: str | PathLike = 'cyto3', diameter: float = 60, flow_threshold: float = 0.4, 

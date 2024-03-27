@@ -18,9 +18,32 @@ class LoadClass:
             if field.name == attr:
                 setattr(self,attr,value)
                 return
+            # If in nested branch
+            nested_branch = getattr(self,field.name)
+            # Only check if the nested branch is a class
+            if isinstance(nested_branch,LoadClass):
+                nested_branch.set_attribute(attr,value)
+                return
+    
+    def init_to_inactive(self)-> None:
+        """On initialization, set all branches to inactive, to be turn on later by settings.
+        This is to avoid conflicts with some processes that were ran but no longer needed."""
+        for branch in fields(self):
+            # If bool directly in branch
+            if isinstance(getattr(self,branch.name),bool):
+                setattr(self,branch.name,False)
+            # If nested branch
+            nested_branch = getattr(self,branch.name)
+            # Only check if the nested branch is a class
+            if isinstance(nested_branch,LoadClass):
+                nested_branch.init_to_inactive()
 
 @dataclass
 class PreProcess(LoadClass):
+    # Flag wheather the branches are active or not
+    is_frame_reg: bool = False
+    is_img_blured: bool = False
+    # Settings of active branches
     background_sub: list = field(default_factory=list)
     channel_reg: list = field(default_factory=list)
     frame_reg: list = field(default_factory=list)
@@ -28,11 +51,20 @@ class PreProcess(LoadClass):
     
 @dataclass
 class Segmentation(LoadClass):
+    # Flag wheather the branches are active or not
+    is_threshold_seg: bool = False
+    is_cellpose_seg: bool = False
+    # Settings of active branches
     threshold_seg: dict = field(default_factory=dict)
     cellpose_seg: dict = field(default_factory=dict)
     
 @dataclass
 class Tracking(LoadClass):    
+    # Flag wheather the branches are active or not
+    is_iou_tracking: bool = False
+    is_manual_tracking: bool = False
+    is_gnn_tracking: bool = False
+    # Settings of active branches
     iou_tracking: dict = field(default_factory=dict)
     manual_tracking: dict = field(default_factory=dict)
     gnn_tracking: dict = field(default_factory=dict)
@@ -60,7 +92,6 @@ class Analysis(LoadClass):
 @dataclass
 class Experiment(LoadClass):
     exp_path: str
-    status: str = 'Not processed'
     active_channel_list: list = field(default_factory=list)
     full_channel_list: list = field(default_factory=list)
     img_properties: ImageProperties = field(default_factory=ImageProperties)
@@ -71,11 +102,11 @@ class Experiment(LoadClass):
 
     def __post_init__(self)-> None:
         if 'REMOVED_EXP.txt' in listdir(self.exp_path):
-            self.status = 'Removed'
+            return
         
         if 'exp_setting.json' in listdir(self.exp_path):
             self = init_from_json(join(self.exp_path,'exp_settings.json'))
-            self.status = 'processed'
+            self.init_to_inactive()
     
     @property
     def raw_imgs_lst(self)-> list:
@@ -138,16 +169,7 @@ class Experiment(LoadClass):
         with open(join(self.exp_path,'exp_settings.json'),'w') as fp:
             json.dump(main_dict,fp,indent=4)
     
-    def set_attribute(self, attr: str, value: any)-> None:
-        for field in fields(self):
-            if field.name == attr:
-                setattr(self,attr,value)
-                return
-            # If in nested branch
-            nested_branch = getattr(self,field.name)
-            # Only check if the nested branch is a class
-            if not isinstance(nested_branch,(list,str)):
-                nested_branch.set_attribute(attr,value)
+    
             
             # elif field.name == 'img_properties':
             #     for img_field in fields(self.img_properties):

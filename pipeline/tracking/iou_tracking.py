@@ -96,10 +96,12 @@ def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src
                  iou_track_overwrite: bool=False, n_mask: int=5)-> list[Experiment]:
     
     for exp_set in exp_set_list:
+        # Activate the branch
+        exp_set.tracking.is_iou_tracking = True
+        # Already processed?
         if is_processed(exp_set.tracking.iou_tracking,channel_seg,iou_track_overwrite):
             print(f" --> Cells have already been tracked for the '{channel_seg}' channel")
             continue
-        
         # Track images
         print(f" --> Tracking cells for the '{channel_seg}' channel")
         

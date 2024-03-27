@@ -26,9 +26,6 @@ class PreProcess(BaseModule):
         super().__post_init__()
         exp_files_lst = self.search_exp_files()
         print('done')
-        ## Set up the full channel list if not provided
-        if not self.full_channel_list:
-            self.full_channel_list = self.active_channel_list
         ## Convert the images to img_seq
         self.exp_obj_lst = self.extract_img_seq(exp_files_lst)
         
@@ -52,10 +49,17 @@ class PreProcess(BaseModule):
         return exp_list
     
     def process_from_settings(self, settings: dict)-> list[Experiment]:
-        sets = Settings(settings).preprocess
+        # Process the images based on the settings
+        sets = Settings(settings)
+        if not hasattr(sets,'preprocess'):
+            print("No preprocess settings found")
+            self.save_as_json()
+            return self.exp_obj_lst
+        # Update the settings
+        sets = sets.preprocess
         if self.overwrite:
             sets.update_overwrite(overwrite_all=True)
-        
+        # Run the different pre-process functions
         if hasattr(sets,'bg_sub'):
             self.exp_obj_lst = self.bg_sub(**sets.bg_sub)
         if hasattr(sets,'chan_shift'):
@@ -64,6 +68,7 @@ class PreProcess(BaseModule):
             self.exp_obj_lst = self.frame_shift(**sets.frame_shift)
         if hasattr(sets,'blur'):
             self.exp_obj_lst = self.blur(**sets.blur)
+        self.save_as_json()
         return self.exp_obj_lst
     
     def bg_sub(self, sigma: float=0, size: int=7, overwrite: bool=False)-> list[Experiment]:
