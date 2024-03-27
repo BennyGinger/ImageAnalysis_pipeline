@@ -1,16 +1,63 @@
 from __future__ import annotations
-from os import getcwd
-import sys
-parent_dir = getcwd()
-sys.path.append(parent_dir)
-
 import numpy as np
 import cv2, itertools
 from mahotas import distance
 from concurrent.futures import ThreadPoolExecutor
 
 
-def fill_gaps(mask_stack: np.ndarray)-> np.ndarray:
+def copy_first_last_mask(mask_stack: np.ndarray, copy_first_to_start: bool=True, copy_last_to_end: bool=True)-> np.ndarray:
+    """Function to copy the first and/or last mask to the start and/or end of the stack.
+    Attributes:
+        mask_stack (np.ndarray): Mask array.
+        copy_first_to_start (bool): Copy the first mask to the start of the stack.
+        copy_last_to_end (bool): Copy the last mask to the end of the stack.
+    Returns:
+        np.ndarray: Mask array with copied masks."""
+    # Check if any copy is needed
+    if not copy_first_to_start and not copy_last_to_end:
+        return mask_stack
+    
+    # Convert array to bool, whether mask is present or not
+    is_masks = np.any(mask_stack,axis=(1,2))
+    
+    # if both end of the stack are not missing, return the original stack
+    if is_masks[0] and is_masks[-1]:
+        return mask_stack
+    
+    if copy_first_to_start and not is_masks[0]:
+        idx = np.where(is_masks)[0][0]
+        mask_stack[:idx,...] = mask_stack[idx]
+    
+    if copy_last_to_end and not is_masks[-1]:
+        idx = np.where(np.invert(is_masks))[0][-1]    
+        mask_stack[:idx,...] = mask_stack[idx]
+    return mask_stack
+    
+def get_masks_to_morph_lst(mask_stack: np.ndarray)-> list[tuple[int,int,int]]:
+    """Function to determine the gaps between masks in a stack.
+    Args:
+        mask_stack (np.ndarray): 3D ndarray containing the mask stack.
+
+    Returns:
+        list[tuple[int,int,int]]: List of tuples containing the last and first mask surrounding the gap, as well as the gap length."""
+
+    # Convert array to bool, whether mask is present or not
+    is_masks = np.any(mask_stack,axis=(1,2))
+    
+    # Find the differences between consecutive elements
+    diff = np.diff(is_masks.astype(int))
+    
+    # Find the indices of the 1s and -1s, and add 1 to them to get the original index
+    gap_starts = np.where(diff == -1)[0] + 1
+    gap_ends = np.where(diff == 1)[0] + 1
+    # If the first mask is missing, remove the first end, as the first starts is missing
+    if not is_masks[0]:
+        gap_ends.pop(0)
+    # Get the gap list
+    gap_lst = list(zip(gap_starts, gap_ends))
+    return [(start, end, end-start) for start, end in gap_lst]
+    
+def fill_gaps(mask_stack: np.ndarray, copy_first_to_start: bool=True, copy_last_to_end: bool=True)-> np.ndarray:
     """
     This function determine how many missing frames (i.e. empty frames, with no masks) there are from a stack.
     It will then fill the gaps using mask_warp().
@@ -21,44 +68,66 @@ def fill_gaps(mask_stack: np.ndarray)-> np.ndarray:
     Returns:
         stack (np.array): Mask array with filled frames.
     """
-    # Find the frames with masks and without for a given obj: bool
-    is_masks = [np.any(i) for i in mask_stack]
-    # Identify masks that suround empty frames
-    masks_loc = []
-    for i in range(len(is_masks)):
-        if (i == 0) or (i == len(is_masks)-1):
-            if is_masks[i]==False:
-                masks_loc.append(0)
-            else:
-                masks_loc.append(1)
-        else:
-            if (is_masks[i]==True) and (is_masks[i-1]==False):
-                masks_loc.append(1) # i.e. first mask after empty
-            elif (is_masks[i]==True) and (is_masks[i+1]==False):
-                masks_loc.append(1) # i.e. last mask before empty
-            elif (is_masks[i]==True) and (is_masks[i-1]==True):
-                masks_loc.append(2) # already filled with masks
-            elif (is_masks[i]==False):
-                masks_loc.append(0)
-
-    # Get the key masks
-    masks_id = [i for i in range(len(masks_loc)) if masks_loc[i] == 1]
-
     # Copy the first and/or last masks to the ends of the stacks if empty
-    mask_stack[:masks_id[0],...] = mask_stack[masks_id[0],...]
-    mask_stack[masks_id[-1]:,...] = mask_stack[masks_id[-1],...]
-
-    # Get the indexes of the masks to morph (i.e. that suround empty frames) and the len of empty gap
-    masks_to_morph = []
-    for i in range(len(masks_id)-1):
-        if any([i in [0] for i in masks_loc[masks_id[i]+1:masks_id[i+1]]]):
-            masks_to_morph.append([masks_id[i],masks_id[i+1],len(masks_loc[masks_id[i]+1:masks_id[i+1]])])
-
+    mask_stack = copy_first_last_mask(mask_stack, copy_first_to_start, copy_last_to_end)
+    # Get the indexes of the masks to morph (i.e. that suround empty frames)
+    masks_to_morph = get_masks_to_morph_lst(mask_stack)
     # Morph and fill stack
-    for i in masks_to_morph:
-        n_masks = mask_warp(mask_stack[i[0]],mask_stack[i[1]],i[2])
-        mask_stack[i[0]+1:i[1],...] = n_masks
+    for id_start,id_end,gap in masks_to_morph:
+        n_masks = mask_warp(mask_stack[id_start-1],mask_stack[id_end],gap)
+        # fill the gaps
+        mask_stack[id_start:id_end,...] = n_masks
     return mask_stack
+
+# def fill_gaps(mask_stack: np.ndarray)-> np.ndarray:
+#     """
+#     This function determine how many missing frames (i.e. empty frames, with no masks) there are from a stack.
+#     It will then fill the gaps using mask_warp().
+
+#     Args:
+#         stack (np.array): Mask array with missing frames. 
+
+#     Returns:
+#         stack (np.array): Mask array with filled frames.
+#     """
+#     # Find the frames with masks and without for a given obj: bool
+#     is_masks = [np.any(i) for i in mask_stack]
+#     # Identify masks that suround empty frames
+#     masks_loc = []
+#     for i in range(len(is_masks)):
+#         if (i == 0) or (i == len(is_masks)-1):
+#             if is_masks[i]==False:
+#                 masks_loc.append(0)
+#             else:
+#                 masks_loc.append(1)
+#         else:
+#             if (is_masks[i]==True) and (is_masks[i-1]==False):
+#                 masks_loc.append(1) # i.e. first mask after empty
+#             elif (is_masks[i]==True) and (is_masks[i+1]==False):
+#                 masks_loc.append(1) # i.e. last mask before empty
+#             elif (is_masks[i]==True) and (is_masks[i-1]==True):
+#                 masks_loc.append(2) # already filled with masks
+#             elif (is_masks[i]==False):
+#                 masks_loc.append(0)
+
+#     # Get the key masks
+#     masks_id = [i for i in range(len(masks_loc)) if masks_loc[i] == 1]
+
+#     # Copy the first and/or last masks to the ends of the stacks if empty
+#     mask_stack[:masks_id[0],...] = mask_stack[masks_id[0],...]
+#     mask_stack[masks_id[-1]:,...] = mask_stack[masks_id[-1],...]
+
+#     # Get the indexes of the masks to morph (i.e. that suround empty frames) and the len of empty gap
+#     masks_to_morph = []
+#     for i in range(len(masks_id)-1):
+#         if any([i in [0] for i in masks_loc[masks_id[i]+1:masks_id[i+1]]]):
+#             masks_to_morph.append([masks_id[i],masks_id[i+1],len(masks_loc[masks_id[i]+1:masks_id[i+1]])])
+
+#     # Morph and fill stack
+#     for i in masks_to_morph:
+#         n_masks = mask_warp(mask_stack[i[0]],mask_stack[i[1]],i[2])
+#         mask_stack[i[0]+1:i[1],...] = n_masks
+#     return mask_stack
 
 def move_mask_to_center(mask: np.ndarray, midpoint_x: int, midpoint_y: int)-> np.ndarray:
     # Get centroid of mask
@@ -223,51 +292,79 @@ def bbox_ND(mask: np.ndarray)-> tuple[np.ndarray, slice]:
     return tuple([mask[s], s])
 
 def apply_morph(input_data: list)-> np.ndarray:
-    mask_stack,obj,n_mask = input_data
+    mask_stack,obj,n_mask,copyfirst,copylast = input_data
     temp = mask_stack.copy()
     temp[temp!=obj] = 0
     framenumber = len(np.unique(np.where(mask_stack == obj)[0]))
+    # If any mask is missing and that the mask appear more than n_mask, fill the gaps
     if framenumber!=mask_stack.shape[0] and framenumber > n_mask:
-        temp = fill_gaps(temp)
+        temp = fill_gaps(temp,copyfirst,copylast)
     return temp
 
 # # # # # # # # main functions # # # # # # # # # 
-def morph_missing_mask(mask_stack: np.ndarray, n_mask: int)-> np.ndarray:
-    print('  ---> Morphing missing masks')
-    input_data = [(mask_stack,obj,n_mask) for obj in list(np.unique(mask_stack))[1:]]
+def morph_missing_mask(mask_stack: np.ndarray, mask_appear: int, copy_first_to_start: bool=True, copy_last_to_end: bool=True) -> np.ndarray:
+    """
+    Fills all missing masks in time sequence if the original mask appears more than a certain threshold.
+    Missing masks added will be the results of the first appearance morphed into the last appearance.
+
+    Args:
+        mask_stack (np.ndarray): The input mask stack.
+        mask_appear (int): The minimum value of appearance of a mask. If below this threshold, the mask track will be deleted.
+        keep_incomplete_track (bool, optional): Whether to keep incomplete tracks. Defaults to False.
+
+    Returns:
+        np.ndarray: The morphed mask stack."""
     
+    # Generate input data
+    print('  ---> Morphing missing masks')
+    input_data = [(mask_stack, 
+                   obj, 
+                   mask_appear,
+                   copy_first_to_start,
+                   copy_last_to_end) 
+                  for obj in list(np.unique(mask_stack))[1:]]
+    # Apply morphing
     with ThreadPoolExecutor() as executor:
-        temp_masks = executor.map(apply_morph,input_data)
+        temp_masks = executor.map(apply_morph, input_data)
         new_stack = np.zeros((mask_stack.shape))
-        for obj,temp in zip(list(np.unique(mask_stack))[1:],temp_masks):
+        # Combine the morphed masks
+        for obj, temp in zip(list(np.unique(mask_stack))[1:], temp_masks):
             new_stack = new_stack + temp
-            if np.any(new_stack>obj):
-                new_stack[new_stack>obj] = new_stack[new_stack>obj]-obj
-    #FIXME this is equal to the trim_mask function from iou_tracking. Would be good to have the trim in a seperate function. Not always run it, when doing the morph
-    # Recheck for incomplete track   
+            # Trim any overlapping mask
+            if np.any(new_stack > obj):
+                new_stack[new_stack > obj] = new_stack[new_stack > obj] - obj
+
+    # Keep incomplete track
+    if not copy_first_to_start or not copy_last_to_end:
+        return new_stack.astype('uint16')
+    
+    # Trim incomplete track
     for obj in list(np.unique(new_stack))[1:]:
-        framenumber = len(np.unique(np.where(new_stack==obj)[0]))
-        if framenumber!=mask_stack.shape[0]:
-            new_stack[new_stack==obj] = 0
+        framenumber = len(np.unique(np.where(new_stack == obj)[0]))
+        if framenumber != mask_stack.shape[0]:
+            new_stack[new_stack == obj] = 0
+
     return new_stack.astype('uint16')
 
-# def morph_missing_mask(mask_stack: np.ndarray, n_mask: int)-> np.ndarray:
-#     print('  ---> Morphing missing masks')
-#     new_stack = np.zeros((mask_stack.shape))
-#     for obj in list(np.unique(mask_stack))[1:]:
-#         temp = mask_stack.copy()
-#         temp[temp!=obj] = 0
-#         framenumber = len(np.unique(np.where(mask_stack == obj)[0]))
-#         if framenumber!=mask_stack.shape[0] and framenumber > n_mask:
-#             temp = fill_gaps(temp)
-#         new_stack = new_stack + temp
-#         if np.any(new_stack>obj):
-#             new_stack[new_stack>obj] = new_stack[new_stack>obj]-obj
+if __name__ == "__main__":
+    from os import listdir
+    import sys
+    sys.path.append('/home/ImageAnalysis_pipeline/pipeline')
+    from image_handeling.data_utility import load_stack
+    from os.path import join
+    from tifffile import imwrite
     
-#     # Recheck for incomplete track
-#     for obj in list(np.unique(new_stack))[1:]:
-#         framenumber = len(np.unique(np.where(new_stack==obj)[0]))
-#         if framenumber!=mask_stack.shape[0]:
-#             new_stack[new_stack==obj] = 0
+    mask_folder = '/home/Test_images/nd2/Run2/c2z25t23v1_nd2_s1/Masks_IoU_Track'
+    mask_lst = [join(mask_folder,img) for img in sorted(listdir(mask_folder))]
+    channel_list = ['RFP']
+    frame_range = range(23)
     
-#     return new_stack.astype('uint16') 
+    mask = load_stack(mask_lst,channel_list,frame_range)
+    mask[mask!=14] = 0
+    mask[:6,:,:] = 0
+    mask[15:19,:,:] = 0
+    
+    imwrite('/home/Test_images/masks/input.tif', mask.astype('uint16'))
+    
+    new_mask = morph_missing_mask(mask,5,True,True)
+    imwrite('/home/Test_images/masks/output.tif', new_mask.astype('uint16'))
