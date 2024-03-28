@@ -25,12 +25,16 @@ def copy_first_last_mask(mask_stack: np.ndarray, copy_first_to_start: bool=True,
         return mask_stack
     
     if copy_first_to_start and not is_masks[0]:
+        # get the index of the first mask
         idx = np.where(is_masks)[0][0]
+        # copy the first mask to the start of the stack
         mask_stack[:idx,...] = mask_stack[idx]
     
     if copy_last_to_end and not is_masks[-1]:
-        idx = np.where(np.invert(is_masks))[0][-1]    
-        mask_stack[:idx,...] = mask_stack[idx]
+        # get the index of the last mask
+        idx = np.where(is_masks)[0][-1]    
+        # copy the last mask to the end of the stack
+        mask_stack[idx+1:,...] = mask_stack[idx]
     return mask_stack
     
 def get_masks_to_morph_lst(mask_stack: np.ndarray)-> list[tuple[int,int,int]]:
@@ -44,12 +48,16 @@ def get_masks_to_morph_lst(mask_stack: np.ndarray)-> list[tuple[int,int,int]]:
     # Convert array to bool, whether mask is present or not
     is_masks = np.any(mask_stack,axis=(1,2))
     
+    # If no gap return empty list
+    if np.all(is_masks):
+        return []
+    
     # Find the differences between consecutive elements
     diff = np.diff(is_masks.astype(int))
     
     # Find the indices of the 1s and -1s, and add 1 to them to get the original index
-    gap_starts = np.where(diff == -1)[0] + 1
-    gap_ends = np.where(diff == 1)[0] + 1
+    gap_starts = list(np.where(diff == -1)[0] + 1)
+    gap_ends = list(np.where(diff == 1)[0] + 1)
     # If the first mask is missing, remove the first end, as the first starts is missing
     if not is_masks[0]:
         gap_ends.pop(0)
@@ -79,57 +87,7 @@ def fill_gaps(mask_stack: np.ndarray, copy_first_to_start: bool=True, copy_last_
         mask_stack[id_start:id_end,...] = n_masks
     return mask_stack
 
-# def fill_gaps(mask_stack: np.ndarray)-> np.ndarray:
-#     """
-#     This function determine how many missing frames (i.e. empty frames, with no masks) there are from a stack.
-#     It will then fill the gaps using mask_warp().
-
-#     Args:
-#         stack (np.array): Mask array with missing frames. 
-
-#     Returns:
-#         stack (np.array): Mask array with filled frames.
-#     """
-#     # Find the frames with masks and without for a given obj: bool
-#     is_masks = [np.any(i) for i in mask_stack]
-#     # Identify masks that suround empty frames
-#     masks_loc = []
-#     for i in range(len(is_masks)):
-#         if (i == 0) or (i == len(is_masks)-1):
-#             if is_masks[i]==False:
-#                 masks_loc.append(0)
-#             else:
-#                 masks_loc.append(1)
-#         else:
-#             if (is_masks[i]==True) and (is_masks[i-1]==False):
-#                 masks_loc.append(1) # i.e. first mask after empty
-#             elif (is_masks[i]==True) and (is_masks[i+1]==False):
-#                 masks_loc.append(1) # i.e. last mask before empty
-#             elif (is_masks[i]==True) and (is_masks[i-1]==True):
-#                 masks_loc.append(2) # already filled with masks
-#             elif (is_masks[i]==False):
-#                 masks_loc.append(0)
-
-#     # Get the key masks
-#     masks_id = [i for i in range(len(masks_loc)) if masks_loc[i] == 1]
-
-#     # Copy the first and/or last masks to the ends of the stacks if empty
-#     mask_stack[:masks_id[0],...] = mask_stack[masks_id[0],...]
-#     mask_stack[masks_id[-1]:,...] = mask_stack[masks_id[-1],...]
-
-#     # Get the indexes of the masks to morph (i.e. that suround empty frames) and the len of empty gap
-#     masks_to_morph = []
-#     for i in range(len(masks_id)-1):
-#         if any([i in [0] for i in masks_loc[masks_id[i]+1:masks_id[i+1]]]):
-#             masks_to_morph.append([masks_id[i],masks_id[i+1],len(masks_loc[masks_id[i]+1:masks_id[i+1]])])
-
-#     # Morph and fill stack
-#     for i in masks_to_morph:
-#         n_masks = mask_warp(mask_stack[i[0]],mask_stack[i[1]],i[2])
-#         mask_stack[i[0]+1:i[1],...] = n_masks
-#     return mask_stack
-
-def move_mask_to_center(mask: np.ndarray, midpoint_x: int, midpoint_y: int)-> np.ndarray:
+def move_mask_to_center(mask: np.ndarray, midpoint_x: int, midpoint_y: int)-> tuple[np.ndarray,tuple[int,int]]:
     # Get centroid of mask
     moment_mask = cv2.moments(mask)
     center_x = int(moment_mask["m10"] / moment_mask["m00"])
@@ -159,40 +117,40 @@ def move_mask_to_center(mask: np.ndarray, midpoint_x: int, midpoint_y: int)-> np
         n_masks[points] = obj_val
     return n_masks,(center_y,center_x)
 
-def mask_warp(mask_start: np.ndarray, mask_end: np.ndarray, ngap: int)-> np.ndarray:
+def mask_warp(mask_start: np.ndarray, mask_end: np.ndarray, ngap: int)-> list[np.ndarray]:
+    
     # Get middle of array
     midpoint_x = int(mask_start.shape[1]/2)
     midpoint_y = int(mask_start.shape[0]/2)
 
-    new_mask_start,center_coord_mask_start = move_mask_to_center(mask_start,midpoint_x,midpoint_y)
-    new_mask_end,center_coord_mask_end = move_mask_to_center(mask_end,midpoint_x,midpoint_y)
-
+    mask_start_centered,center_coord_mask_start = move_mask_to_center(mask_start,midpoint_x,midpoint_y)
+    mask_end_centered,center_coord_mask_end = move_mask_to_center(mask_end,midpoint_x,midpoint_y)
+    
     # Centroids linespace
-    gap_center_x_coord = np.linspace(center_coord_mask_start[1],center_coord_mask_end[1],ngap+2)
-    gap_center_y_coord = np.linspace(center_coord_mask_start[0],center_coord_mask_end[0],ngap+2)
+    gap_center_x_coord = np.linspace(center_coord_mask_start[1],center_coord_mask_end[1],ngap+2).astype(int)
+    gap_center_y_coord = np.linspace(center_coord_mask_start[0],center_coord_mask_end[0],ngap+2).astype(int)
 
-    overlap, crop_slice = bbox_ND(new_mask_start+new_mask_end)
-
+    overlap, crop_slice = bbox_ND(mask_start_centered+mask_end_centered)
+    
     # Crop and get the overlap of both mask
-    new_mask_start_cropped = new_mask_start[crop_slice]
-    new_mask_end_cropped = new_mask_end[crop_slice]
-    overlap[overlap!=np.max(new_mask_start)+np.max(new_mask_end)] = 0
-
+    mask_start_cropped = mask_start_centered[crop_slice]
+    mask_end_cropped = mask_end_centered[crop_slice]
+    overlap[overlap!=np.amax(mask_start_centered)+np.amax(mask_end_centered)] = 0
+    
     # Get the ring (i.e. non-overlap area of each mask)
-    ring_start = get_ring_mask(new_mask_start_cropped,overlap)
-    ring_end = get_ring_mask(new_mask_end_cropped,overlap)
-
+    ring_start = get_ring_mask(mask_start_cropped,overlap)
+    ring_end = get_ring_mask(mask_end_cropped,overlap)
+    
     if np.any(ring_start!=0) or np.any(ring_end!=0):  #check for different shapes, otherwise just copy shape
         # Get the distance transform of the rings with overlap as 0 (ref point)
         # dt = distance_transform_bf(np.logical_not(overlap))
         dmap_start = get_dmap_array(ring_start,overlap)
         dmap_end = get_dmap_array(ring_end,overlap)
-
+        
         # Create the increment for each mask, i.e. the number of step needed to fill the gaps
         # if max == 0, then it means that mask is completly incorporated into the other one and will have no gradient
         inc_points_start = get_increment_points(dmap_start,ngap,is_start=True)
         inc_points_end = get_increment_points(dmap_end,ngap,is_start=False)
-        
         # Fill the gaps
         masks_list = []
         for i in range(ngap):
@@ -202,7 +160,7 @@ def mask_warp(mask_start: np.ndarray, mask_end: np.ndarray, ngap: int)-> np.ndar
             
             # Recreate the full shape
             mask = overlap_mask_start+overlap_mask_end
-            mask[mask!=0] = np.max(new_mask_start)
+            mask[mask!=0] = np.amax(mask_start_centered)
 
             # Resize the mask
             resized_mask = np.zeros((mask_start.shape))
@@ -354,17 +312,31 @@ if __name__ == "__main__":
     from os.path import join
     from tifffile import imwrite
     
-    mask_folder = '/home/Test_images/nd2/Run2/c2z25t23v1_nd2_s1/Masks_IoU_Track'
-    mask_lst = [join(mask_folder,img) for img in sorted(listdir(mask_folder))]
-    channel_list = ['RFP']
-    frame_range = range(23)
+    # mask_folder = '/home/Test_images/nd2/Run2/c2z25t23v1_nd2_s1/Masks_IoU_Track'
+    # mask_lst = [join(mask_folder,img) for img in sorted(listdir(mask_folder))]
+    # channel_list = ['RFP']
+    # frame_range = range(23)
     
-    mask = load_stack(mask_lst,channel_list,frame_range)
-    mask[mask!=14] = 0
-    mask[:6,:,:] = 0
-    mask[15:19,:,:] = 0
+    # mask = load_stack(mask_lst,channel_list,frame_range)
+    # mask[mask!=14] = 0
+    # mask[:3, :, :] = 0
+    # mask[4:5, :, :] = 0
     
+    # imwrite('/home/Test_images/masks/input.tif', mask.astype('uint16'))
+    
+    # new_mask = morph_missing_mask(mask,5,True,True)
+    # imwrite('/home/Test_images/masks/output.tif', new_mask.astype('uint16'))
+    
+    from skimage.draw import disk
+    def mask_stack():
+        img = np.zeros((10, 10, 10), dtype=np.uint8)
+        rr, cc = disk((5, 5), 4)
+        img[:,rr, cc] = 1
+        return img
+    
+    mask = mask_stack()
+    mask[2:4, :, :] = 0
     imwrite('/home/Test_images/masks/input.tif', mask.astype('uint16'))
     
-    new_mask = morph_missing_mask(mask,5,True,True)
+    new_mask = fill_gaps(mask,True,True)
     imwrite('/home/Test_images/masks/output.tif', new_mask.astype('uint16'))
