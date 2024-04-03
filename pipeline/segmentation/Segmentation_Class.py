@@ -34,7 +34,6 @@ class Segmentation(BaseModule):
             self.exp_obj_lst = self.cellpose(**sets.cellpose)
         if hasattr(sets,'threshold'):
             self.exp_obj_lst = self.thresholding(**sets.threshold)
-        print(self.exp_obj_lst[0].segmentation.is_threshold_seg)
         self.save_as_json()
         return self.exp_obj_lst
     

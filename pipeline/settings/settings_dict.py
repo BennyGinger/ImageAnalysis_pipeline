@@ -48,8 +48,10 @@ settings = {
     "iou_track": (True,
                   {"channel_to_track":"RFP",
                    "img_fold_src": "",
-                   "stitch_thres_percent": 0.75,
-                   "shape_thres_percent": 0.2,
-                   "n_mask":5,
+                   "stitch_thres_percent": 0.50,
+                   "shape_thres_percent": 0.90,
+                   "mask_appear":5,
+                   "copy_first_to_start": False, 
+                   "copy_last_to_end": True,
                    "overwrite":True}),
 }

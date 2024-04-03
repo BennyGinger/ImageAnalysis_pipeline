@@ -34,11 +34,11 @@ class Tracking(BaseModule):
         return self.exp_obj_lst
     
     def iou_tracking(self, channel_to_track: str | list[str], img_fold_src: PathLike = "", stitch_thres_percent: float=0.75, shape_thres_percent: float=0.2,
-                 overwrite: bool=False, n_mask: int=5)-> list[Experiment]:
+                 overwrite: bool=False, mask_appear: int=5, copy_first_to_start: bool=True, copy_last_to_end: bool=True)-> list[Experiment]:
         if isinstance(channel_to_track, str):
-            return iou_tracking(self.exp_obj_lst,channel_to_track,img_fold_src,stitch_thres_percent,shape_thres_percent,overwrite,n_mask)
+            return iou_tracking(self.exp_obj_lst,channel_to_track,img_fold_src,stitch_thres_percent,shape_thres_percent,overwrite,mask_appear,copy_first_to_start,copy_last_to_end)
         
         if isinstance(channel_to_track,list):
             for channel in channel_to_track:
-                self.exp_obj_lst = self.iou_tracking(channel,img_fold_src,stitch_thres_percent,shape_thres_percent,overwrite,n_mask)
+                self.exp_obj_lst = self.iou_tracking(channel,img_fold_src,stitch_thres_percent,shape_thres_percent,overwrite,mask_appear,copy_first_to_start,copy_last_to_end)
             return self.exp_obj_lst

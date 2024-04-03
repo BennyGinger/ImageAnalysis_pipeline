@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from collections import Counter
 from skimage.segmentation import expand_labels
-from mask_transformation.mask_morph import morph_missing_mask
+from mask_transformation.complete_track import complete_track
 from image_handeling.Experiment_Classes import Experiment
 from image_handeling.data_utility import load_stack, is_processed, create_save_folder, gen_input_data, delete_old_masks
 # TODO: Fabian, please check which of this fct you need
@@ -146,7 +146,7 @@ def seg_track_manual(img_dict: dict):
 def run_morph(exp_set:Experiment, mask_fold_src:str, channel_seg:str, n_mask:int):
     mask_src_list = mask_list_src(exp_set,mask_fold_src)
     mask_stack = load_stack(mask_src_list,[channel_seg],range(exp_set.img_properties.n_frames))
-    mask_stack = morph_missing_mask(mask_stack, n_mask)
+    mask_stack = complete_track(mask_stack, n_mask)
     
     # Save masks
     # mask_src_list = [file for file in mask_src_list if file.__contains__('_z0001')]

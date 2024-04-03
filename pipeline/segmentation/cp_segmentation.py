@@ -54,11 +54,12 @@ def run_cellpose(img_dict: dict)-> None:
     img = load_stack(img_dict['imgs_path'],img_dict['channels'],[img_dict['frame']],img_dict['as_2D'])
     model: models.CellposeModel = img_dict['model']
     # Save path, take the first img path (it will be the channel_seg) and replace it with mask name
-    mask_path = img_dict['imgs_path'][0].replace('Images','Masks_Cellpose').replace('Registered','').replace('Blured','')
+    mask_path = img_dict['imgs_path'][0].replace('Images','Masks_Cellpose').replace('_Registered','').replace('_Blured','')
     # log
     print(f"  ---> Processing frame {img_dict['frame']}")
     # Run Cellpose
     masks, flows, _ = model.eval(img,**img_dict['cellpose_eval'])
+    
     # Save
     save_mask(img,masks,flows,model.diam_mean,mask_path,img_dict['as_npy'],img_dict['metadata'])
 
