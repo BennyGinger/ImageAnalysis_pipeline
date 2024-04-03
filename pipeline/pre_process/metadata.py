@@ -2,11 +2,16 @@ from __future__ import annotations
 from os import sep, mkdir, PathLike
 from os.path import isdir
 from tifffile import TiffFile
+<<<<<<< HEAD
 # from nd2reader import ND2Reader
 from nd2 import ND2File
 import numpy as np
+=======
+from nd2 import ND2File
+>>>>>>> origin/main2.0_dev
 
 def get_tif_meta(img_path: PathLike) -> dict:
+    tiff_meta = {}
     # Open tif and read meta
     with TiffFile(img_path) as tif:
         imagej_meta = tif.imagej_metadata
@@ -17,26 +22,38 @@ def get_tif_meta(img_path: PathLike) -> dict:
                     imagej_meta[tag.name] = tag.value
                 if tag.name in ['XResolution','YResolution']:
                     imagej_meta[tag.name] = tag.value[0]/tag.value[1]
-    
-    if 'frames' not in imagej_meta: imagej_meta['frames'] = 1
-    
-    if 'channels' not in imagej_meta: imagej_meta['channels'] = 1
-    
-    if 'slices' not in imagej_meta: imagej_meta['slices'] = 1
-    
-    if 'finterval' not in imagej_meta: imagej_meta['finterval'] = 0
-    
-    imagej_meta['n_series'] = 1
-    imagej_meta['file_type'] = '.tif'
-    return imagej_meta
 
-def calculate_um_per_pixel(meta_dict: dict) -> tuple[float,float]: # Calculate the um per pixel output = (x,y)
-    width_micron = round(meta_dict['ImageWidth']*meta_dict['XResolution'],ndigits=3)
-    x_um_per_pix = round(width_micron/meta_dict['ImageWidth'],ndigits=3)
-    height_micron = round(meta_dict['ImageLength']*meta_dict['YResolution'],ndigits=3)
-    y_um_per_pix = round(height_micron/meta_dict['ImageLength'],ndigits=3)
+    if 'frames' not in imagej_meta: imagej_meta['frames'] = 1
+
+    if 'channels' not in imagej_meta: imagej_meta['channels'] = 1
+
+    if 'slices' not in imagej_meta: imagej_meta['slices'] = 1
+
+    if 'finterval' not in imagej_meta: 
+        imagej_meta['finterval'] = None
+    else:
+        imagej_meta['finterval'] = int(imagej_meta['finterval'])
+
+    original_keys = ['ImageWidth','ImageLength','frames','channels','slices','axes','finterval']
+    new_keys = ['img_width','img_length','n_frames','full_n_channels','n_slices','axes','interval_sec']
+
+    # Rename meta
+    for i, key in enumerate(original_keys):
+        tiff_meta[new_keys[i]] = imagej_meta[key]
+
+    # Uniformize meta
+    tiff_meta['n_series'] = 1
+    tiff_meta['um_per_pixel'] = calculate_um_per_pixel(imagej_meta)
+    tiff_meta['file_type'] = '.tif'
+    return tiff_meta
+
+def calculate_um_per_pixel(meta_dict: dict) -> tuple[float,float]:
+    """Calculate the um per pixel from the metadata of a tiff file. Output axes = (x,y)"""
+    x_um_per_pix = round(1/meta_dict['XResolution'],ndigits=3)
+    y_um_per_pix = round(1/meta_dict['YResolution'],ndigits=3)
     return x_um_per_pix,y_um_per_pix
 
+<<<<<<< HEAD
 def get_ND2_metadata(img_path:PathLike)-> dict:
     # Get ND2 img metadata
     nd_obj = ND2File(img_path)
@@ -134,6 +151,42 @@ def uniformize_meta(meta_dict: dict) -> dict:
     
     uni_meta['interval_sec'] = int(round(uni_meta['interval_sec']))
     return uni_meta
+=======
+def get_ND2_meta(img_path: PathLike)-> dict:
+    # Get ND2 img metadata
+    with ND2File(img_path) as nd_obj:
+        nd2meta = {**nd_obj.sizes}
+        # Add missing keys and get axes
+        nd2meta['axes'] = 'PTZCYX'
+        if 'T' not in nd2meta:
+            nd2meta['T'] = 1
+            nd2meta['axes'] = nd2meta['axes'].replace('T','')
+        if 'C' not in nd2meta:
+            nd2meta['C'] = 1
+            nd2meta['axes'] = nd2meta['axes'].replace('C','')  
+        if 'Z' not in nd2meta:
+            nd2meta['Z'] = 1
+            nd2meta['axes'] = nd2meta['axes'].replace('Z','')   
+        if 'P' not in nd2meta:
+            nd2meta['P'] = 1
+            nd2meta['axes'] = nd2meta['axes'].replace('P','')
+
+        # Rename meta
+        original_keys = ['C', 'Z', 'T', 'P', 'X', 'Y']
+        new_keys = ['full_n_channels', 'n_slices', 'n_frames', 'n_series', 'img_width', 'img_length']
+        for i, key in enumerate(original_keys):
+            nd2meta[new_keys[i]] = nd2meta.pop(key)
+
+        # Uniformize meta
+        nd2meta['um_per_pixel'] = nd_obj.metadata.channels[0].volume.axesCalibration[:2]
+        if nd2meta['n_frames']>1:
+            nd2meta['interval_sec'] = nd_obj.experiment[0].parameters.periodMs/1000
+        else:
+            nd2meta['interval_sec'] = None
+        nd2meta['file_type'] = '.nd2'
+        nd_obj.close()
+    return nd2meta
+>>>>>>> origin/main2.0_dev
 
 def create_exp_folder(meta_dict: dict) -> dict:
     meta_dict['exp_path_list'] = []
@@ -185,7 +238,7 @@ def get_metadata(img_path: PathLike, active_channel_list: list=[], full_channel_
         meta_dict = get_tif_meta(img_path)
     else:
         raise ValueError('Image format not supported, please use .nd2 or .tif/.tiff')
-    meta_dict = uniformize_meta(meta_dict)
+    # meta_dict = uniformize_meta(meta_dict)
     
     meta_dict['img_path'] = img_path
     
@@ -196,8 +249,8 @@ def get_metadata(img_path: PathLike, active_channel_list: list=[], full_channel_
     
 # Final output: 
 # {'active_channel_list': ['C1', 'C2'],
-#  'axes': '',
-#  'exp_path_list': ['/home/Test_images/nd2/Run2/c2z25t23v1_nd2_s1'],
+#  'axes': 'TZCYX',
+#  'exp_path_list': ['/home/Test_images/nd2/Run2/c2z25t23v1_nd2_s1'], return a list pf path based on the number of series
 #  'file_type': '.nd2',
 #  'full_channel_list': ['C1', 'C2'],
 #  'full_n_channels': 2,

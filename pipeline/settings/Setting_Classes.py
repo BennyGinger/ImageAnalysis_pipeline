@@ -7,21 +7,23 @@ class PreProcessSettings:
     settings: dict
     bg_sub: dict = field(init=False)
     chan_shift: dict = field(init=False)
-    register: dict = field(init=False)
+    frame_shift: dict = field(init=False)
     blur: dict = field(init=False)
     
     def __post_init__(self)-> None:
         if self.settings['run_bg_sub']:
             self.bg_sub = self.settings['bg_sub']
-        if self.settings['run_chan_shift']:
+        if self.settings['run_channel_reg']:
             self.chan_shift = self.settings['chan_shift']
-        if self.settings['run_register']:
-            self.register = self.settings['register']
+        if self.settings['run_frame_reg']:
+            self.frame_shift = self.settings['frame_shift']
         if self.settings['run_blur']:
             self.blur = self.settings['blur']
         self.update_overwrite()
         
     def update_overwrite(self, overwrite_all: bool=False)-> None:
+        """Update the overwrite of all subsequent methods. For example, if bg_sub has overwrite to True, 
+        then all other preprocesses will also need to get overwritten since they use bg_sub images"""
         active_branches = [f.name for f in fields(self) if hasattr(self,f.name) and f.name != 'settings']
         current_overwrite = [getattr(self,f)['overwrite'] for f in active_branches]
 
@@ -46,6 +48,7 @@ class PreProcessSettings:
         return
     
     def set_new_overwrite(self, active_branches: list[str], new_ow: list[bool])-> None:
+        """Set the overwrite attribute of the active branches from the new overwrite list"""
         for i,branch in enumerate(active_branches):
             temp_dict = getattr(self,branch)
             temp_dict['overwrite'] = new_ow[i]

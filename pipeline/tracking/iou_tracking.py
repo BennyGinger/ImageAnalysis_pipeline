@@ -107,7 +107,7 @@ def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src
         
         # Create save folder and remove old masks
         create_save_folder(exp_set.exp_path,'Masks_IoU_Track')
-        delete_old_masks(exp_set.masks.iou_tracking,channel_seg,exp_set.mask_iou_track_list,iou_track_overwrite)
+        delete_old_masks(exp_set.masks.iou_tracking,channel_seg,exp_set.iou_tracked_masks_lst,iou_track_overwrite)
         
         # Load masks
         mask_src_list = mask_list_src(exp_set,mask_fold_src)

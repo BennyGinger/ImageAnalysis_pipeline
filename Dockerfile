@@ -5,9 +5,6 @@ FROM nvidia/cuda:11.3.1-base-ubuntu20.04
 RUN chsh -s /bin/bash
 SHELL ["/bin/bash", "-c"]
 
-ARG UID
-ARG GID
-
 # Install base utilities
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
@@ -43,12 +40,13 @@ ENV CONDA_DEFAULT_ENV $cp_dock
 RUN conda run --no-capture-output -n cp_dock python -m pip install cellpose[gui]
 
 # Set up user (in linux this allow to modify the files/folders created by the container in the host machine)
+ARG UID
+ARG GID
 RUN addgroup --gid $GID cpdev && \
     adduser --uid $UID --gid $GID --disabled-password --gecos "" cpdev && \
     echo "cpdev ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 USER cpdev
-RUN conda init bash
-RUN echo "conda activate cp_dock"  >> ~/.bashrc
+
 # Cannot clone git repo because of the different user. Only root user can clone the repo.
 # Clone git repository
 # ENV GIT_USER=$GIT_USER

@@ -7,10 +7,10 @@ from .Experiment_Classes import Experiment
 @dataclass
 class BaseModule:
     input_folder: PathLike | list[PathLike]
-    experiment_list: list[Experiment] = field(default_factory=list)
+    exp_obj_lst: list[Experiment] = field(default_factory=list)
     
     def __post_init__(self)-> None:
-        if self.experiment_list:
+        if self.exp_obj_lst:
             print(f"\nLoading the {self.__class__.__name__} Module")
             return
         
@@ -18,9 +18,9 @@ class BaseModule:
         print(f"\nInitializing the {self.__class__.__name__} Module")
     
     def change_attribute(self, attribute: str, value: any)-> list[Experiment]:
-        for exp_set in self.exp_set_list:
-            exp_set.set_attribute(attribute,value)
-            exp_set.save_as_json()
+        for exp_obj in self.exp_obj_lst:
+            exp_obj.set_attribute(attribute,value)
+            exp_obj.save_as_json()
         return self.exp_set_list
     
     #TODO: add methods to change channel names

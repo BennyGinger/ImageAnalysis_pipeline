@@ -38,7 +38,7 @@ def gnn_tracking(exp_set_list: list[Experiment], channel_seg: str, model:str, gn
         files_folder = join(exp_set.exp_path,'gnn_files')
         create_save_folder(files_folder,'track_csv')
         
-        delete_old_masks(exp_set.masks.manual_tracking,channel_seg,exp_set.mask_manual_track_list,gnn_track_overwrite)
+        delete_old_masks(exp_set.masks.manual_tracking,channel_seg,exp_set.man_tracked_masks_lst,gnn_track_overwrite)
         
         model_dict = model_select(model=model)
         input_img = join(exp_set.exp_path, img_fold_src)
