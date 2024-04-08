@@ -186,7 +186,7 @@ def reassign_mask_val(mask_stack: np.ndarray) -> np.ndarray:
 
 
 # # # # # # # # main functions # # # # # # # # # 
-def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src: PathLike,
+def iou_tracking(exp_obj_lst: list[Experiment], channel_seg: str, mask_fold_src: str,
                  stitch_thres_percent: float=0.5, shape_thres_percent: float=0.9,
                  overwrite: bool=False, mask_appear: int=5, copy_first_to_start: bool=True, 
                  copy_last_to_end: bool=True)-> list[Experiment]:
@@ -194,9 +194,9 @@ def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src
     Perform IoU (Intersection over Union) based cell tracking on a list of experiments.
 
     Args:
-        exp_set_list (list[Experiment]): List of Experiment objects to perform tracking on.
+        exp_obj_lst (list[Experiment]): List of Experiment objects to perform tracking on.
         channel_seg (str): Channel name for segmentation.
-        mask_fold_src (PathLike): Source folder path for masks.
+        mask_fold_src (str): Source folder path for masks.
         stitch_thres_percent (float, optional): Stitching threshold percentage. Defaults to 0.5. Higher values will result in more strict tracking (excluding more cells)
         shape_thres_percent (float, optional): Shape threshold percentage. Defaults to 0.9. Lower values will result in tracks with more differences in shape between frames.
         overwrite (bool, optional): Flag to overwrite existing tracking results. Defaults to False.
@@ -208,23 +208,23 @@ def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src
         list[Experiment]: List of Experiment objects with updated tracking information.
     """
     
-    for exp_set in exp_set_list:
+    for exp_obj in exp_obj_lst:
         # Activate the branch
-        exp_set.tracking.is_iou_tracking = True
+        exp_obj.tracking.is_iou_tracking = True
         # Already processed?
-        if is_processed(exp_set.tracking.iou_tracking,channel_seg,overwrite):
+        if is_processed(exp_obj.tracking.iou_tracking,channel_seg,overwrite):
             print(f" --> Cells have already been tracked for the '{channel_seg}' channel")
             continue
         # Track images
         print(f" --> Tracking cells for the '{channel_seg}' channel")
         
         # Create save folder and remove old masks
-        create_save_folder(exp_set.exp_path,'Masks_IoU_Track')
-        delete_old_masks(exp_set.tracking.iou_tracking,channel_seg,exp_set.iou_tracked_masks_lst,overwrite)
+        create_save_folder(exp_obj.exp_path,'Masks_IoU_Track')
+        delete_old_masks(exp_obj.tracking.iou_tracking,channel_seg,exp_obj.iou_tracked_masks_lst,overwrite)
         
         # Load masks
-        mask_src_list = seg_mask_lst_src(exp_set,mask_fold_src)
-        mask_stack = load_stack(mask_src_list,[channel_seg],range(exp_set.img_properties.n_frames))
+        mask_fold_src, mask_src_list = seg_mask_lst_src(exp_obj,mask_fold_src)
+        mask_stack = load_stack(mask_src_list,[channel_seg],range(exp_obj.img_properties.n_frames))
         
         if mask_stack.ndim == 4:
             print('  ---> 4D stack detected, processing max projection instead')
@@ -249,10 +249,10 @@ def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src
             imwrite(mask_path,mask_stack[i,...].astype('uint16'))
         
         # Save settings
-        exp_set.tracking.iou_tracking[channel_seg] = {'mask_fold_src':mask_fold_src,'stitch_thres_percent':stitch_thres_percent,
+        exp_obj.tracking.iou_tracking[channel_seg] = {'mask_fold_src':mask_fold_src,'stitch_thres_percent':stitch_thres_percent,
                                         'shape_thres_percent':shape_thres_percent,'n_mask':mask_appear}
-        exp_set.save_as_json()
-    return exp_set_list
+        exp_obj.save_as_json()
+    return exp_obj_lst
 
 
 

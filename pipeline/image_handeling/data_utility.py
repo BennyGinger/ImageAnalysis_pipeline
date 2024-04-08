@@ -63,24 +63,35 @@ def img_list_src(exp_set: Experiment, img_fold_src: str)-> list[PathLike]:
     else:
         return exp_set.raw_imgs_lst
 
-def seg_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> list[PathLike]:
-    """If not manually specified, return the latest processed segmentated masks list"""
+def seg_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> tuple[str,list[PathLike]]:
+    """If not manually specified, return the latest processed segmentated masks list. 
+    Return the mask folder source to save during tracking.
+    Args:
+        exp_set (Experiment): The experiment settings.
+        mask_fold_src (str): The mask folder source. Can be None or str.
+    Returns:
+        tuple[str,list[PathLike]]: The mask folder source and the list of masks."""
     
     if mask_fold_src == 'Masks_Threshold':
-        return exp_set.threshold_masks_lst  
+        return mask_fold_src, exp_set.threshold_masks_lst  
     if mask_fold_src == 'Masks_Cellpose':
-        return exp_set.cellpose_masks_lst
+        return mask_fold_src, exp_set.cellpose_masks_lst
     
     # If not manually specified, return the latest processed images list
     if exp_set.segmentation.is_threshold_seg:
-        return exp_set.threshold_masks_lst
+        return 'Masks_Threshold', exp_set.threshold_masks_lst
     if exp_set.segmentation.is_cellpose_seg:
-        return exp_set.cellpose_masks_lst
+        return 'Masks_Cellpose', exp_set.cellpose_masks_lst
     else:
         print("No segmentation masks found")
 
 def track_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> list[PathLike]:
-    """If not manually specified, return the latest processed tracked masks list"""
+    """If not manually specified, return the latest processed tracked masks list
+    Args:
+        exp_set (Experiment): The experiment settings.
+        mask_fold_src (str): The mask folder source. Can be None or str.
+    Returns:
+        list[PathLike]: The list of tracked masks."""
     
     if mask_fold_src == 'Masks_IoU_Track':
         return exp_set.iou_tracked_masks_lst 

@@ -38,6 +38,23 @@ class LoadClass:
             if isinstance(nested_branch,LoadClass):
                 nested_branch.init_to_inactive()
 
+    @property
+    def analyzed_channels(self) -> dict:
+        """Property to get the analyzed channels in the class. 
+        Return a dictionary with the name of the branch as key and the list of channels as value."""
+        settings_dict = {}
+        for branch in fields(self):
+            # Check if branch is dict and not empty
+            if isinstance(getattr(self, branch.name), dict) and getattr(self, branch.name):
+                settings_dict[branch.name] = list(getattr(self, branch.name).keys())
+            # If nested branch
+            nested_branch = getattr(self,branch.name)
+            # Check if branch is dict and not empty
+            if isinstance(nested_branch,LoadClass):
+                tmp_dict = nested_branch.analyzed_channels
+                settings_dict.update(tmp_dict)
+        return settings_dict
+
 @dataclass
 class PreProcess(LoadClass):
     # Flag wheather the branches are active or not
@@ -51,7 +68,7 @@ class PreProcess(LoadClass):
     
 @dataclass
 class Segmentation(LoadClass):
-    # Flag wheather the branches are active or not
+    # Flag whether the branches are active or not
     is_threshold_seg: bool = False
     is_cellpose_seg: bool = False
     # Settings of active branches
@@ -82,12 +99,11 @@ class ImageProperties(LoadClass):
     
 @dataclass
 class Analysis(LoadClass):
-    um_per_pixel: float
+    um_per_pixel: tuple[float,float]
     interval_sec: float
     file_type: str
     level_0_tag: str
     level_1_tag: str
-    df_analysis: bool = False
 
 @dataclass
 class Experiment(LoadClass):
@@ -148,12 +164,18 @@ class Experiment(LoadClass):
         mask_folder = join(self.exp_path,'Masks_IoU_Track')
         return [join(mask_folder,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
     
+    @property
+    def is_analysed(self)-> bool:
+        """Check if the experiment has been analysed, by looking for the df_analysis.csv file"""
+        if 'df_analysis.csv' in listdir(self.exp_path):
+            return True
+        return False
+        
     def save_df_analysis(self, df_analysis: pd.DataFrame)-> None:
-        self.analysis.df_analysis = True
         df_analysis.to_csv(join(self.exp_path,'df_analysis.csv'),index=False)
     
     def load_df_analysis(self, data_overwrite: bool=False)-> pd.DataFrame:
-        if self.analysis.df_analysis and not data_overwrite:
+        if self.is_analysed and not data_overwrite:
             return pd.read_csv(join(self.exp_path,'df_analysis.csv'))
         else:
             return pd.DataFrame()
