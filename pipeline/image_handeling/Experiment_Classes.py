@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, fields, field
 import json
-from os import sep, listdir
+from os import PathLike, listdir
 from os.path import join
 import numpy as np
 import pandas as pd
@@ -89,21 +89,21 @@ class Tracking(LoadClass):
 @dataclass
 class ImageProperties(LoadClass):
     """Get metadata from nd2 or tif file, using ND2File or TiffFile and ImageJ"""
-    img_width: int
-    img_length: int
-    n_frames: int
-    full_n_channels: int
-    n_slices: int
-    n_series: int
-    img_path: str
+    img_width: int = None
+    img_length: int = None
+    n_frames: int = None
+    full_n_channels: int = None
+    n_slices: int = None
+    n_series: int = None
+    img_path: str  = None
     
 @dataclass
 class Analysis(LoadClass):
-    um_per_pixel: tuple[float,float]
-    interval_sec: float
-    file_type: str
-    level_0_tag: str
-    level_1_tag: str
+    um_per_pixel: tuple[float,float] = None
+    interval_sec: float = None
+    file_type: str = None
+    level_0_tag: str = None
+    level_1_tag: str = None
 
 @dataclass
 class Experiment(LoadClass):
@@ -116,51 +116,51 @@ class Experiment(LoadClass):
     segmentation: Segmentation = field(default_factory=Segmentation)
     tracking: Tracking = field(default_factory=Tracking)
 
-    def __post_init__(self)-> None:
-        if 'REMOVED_EXP.txt' in listdir(self.exp_path):
-            return
-        
-        if 'exp_setting.json' in listdir(self.exp_path):
-            self = init_from_json(join(self.exp_path,'exp_settings.json'))
-            self.init_to_inactive()
-    
     @property
-    def raw_imgs_lst(self)-> list:
+    def ori_imgs_lst(self)-> list[PathLike]:
+        """Return the list of paths of original images."""
         im_folder = join(self.exp_path,'Images')
         return [join(im_folder,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
     
     @property
-    def registered_imgs_lst(self)-> list:
+    def registered_imgs_lst(self)-> list[PathLike]:
+        """Return the list of paths of registered images."""
         im_folder = join(self.exp_path,'Images_Registered')
         return [join(im_folder,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
     
     @property
-    def blured_imgs_lst(self)-> list:
+    def blured_imgs_lst(self)-> list[PathLike]:
+        """Return the list of paths of blured images."""
         im_folder = join(self.exp_path,'Images_Blured')
         return [join(im_folder,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
 
     @property
-    def threshold_masks_lst(self)-> list:
+    def threshold_masks_lst(self)-> list[PathLike]:
+        """Return the list of mask paths from the threshold segmentation."""
         mask_folder = join(self.exp_path,'Masks_Threshold')
         return [join(mask_folder,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
     
     @property
-    def cellpose_masks_lst(self)-> list:
+    def cellpose_masks_lst(self)-> list[PathLike]:
+        """Return the list of mask paths from the cellpose segmentation."""
         mask_folder = join(self.exp_path,'Masks_Cellpose')
         return [join(mask_folder,f) for f in sorted(listdir(mask_folder)) if f.endswith(('.tif','.npy'))]
     
     @property
-    def man_tracked_masks_lst(self)-> list:
+    def man_tracked_masks_lst(self)-> list[PathLike]:
+        """Return the list of mask paths from the manual tracking."""
         mask_folder = join(self.exp_path,'Masks_Manual_Track')
         return [join(mask_folder,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
     
     @property
-    def gnn_tracked_masks_lst(self)-> list:
+    def gnn_tracked_masks_lst(self)-> list[PathLike]:
+        """Return the list of mask paths from the GNN tracking."""
         mask_folder = join(self.exp_path,'Masks_GNN_Track')
         return [join(mask_folder,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
     
     @property
-    def iou_tracked_masks_lst(self)-> list:
+    def iou_tracked_masks_lst(self)-> list[PathLike]:
+        """Return the list of mask paths from the IoU tracking."""
         mask_folder = join(self.exp_path,'Masks_IoU_Track')
         return [join(mask_folder,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
     
@@ -172,15 +172,18 @@ class Experiment(LoadClass):
         return False
         
     def save_df_analysis(self, df_analysis: pd.DataFrame)-> None:
+        """Save pandas dataframe as a csv file in the experiment folder."""
         df_analysis.to_csv(join(self.exp_path,'df_analysis.csv'),index=False)
     
     def load_df_analysis(self, data_overwrite: bool=False)-> pd.DataFrame:
+        """Load the df_analysis.csv file as a pandas dataframe if it exists. If not return an empty dataframe."""
         if self.is_analysed and not data_overwrite:
             return pd.read_csv(join(self.exp_path,'df_analysis.csv'))
         else:
             return pd.DataFrame()
     
     def save_as_json(self)-> None:
+        """Save the experiment settings as a json file in the experiment folder by replacing each class object by its dict."""
         main_dict = self.__dict__.copy()
         main_dict['img_properties'] = self.img_properties.__dict__
         main_dict['analysis'] = self.analysis.__dict__
@@ -191,35 +194,18 @@ class Experiment(LoadClass):
         with open(join(self.exp_path,'exp_settings.json'),'w') as fp:
             json.dump(main_dict,fp,indent=4)
     
-    
-            
-            # elif field.name == 'img_properties':
-            #     for img_field in fields(self.img_properties):
-            #         if img_field.name == attr:
-            #             setattr(self.img_properties,attr,value)
-            #             return
-            # elif field.name == 'analysis':
-            #     for analysis_field in fields(self.analysis):
-            #         if analysis_field.name == attr:
-            #             setattr(self.analysis,attr,value)
-            #             return
-            # elif field.name == 'preprocess':
-            #     for process_field in fields(self.preprocess):
-            #         if process_field.name == attr:
-            #             setattr(self.preprocess,attr,value)
-            #             return
-            # elif field.name == 'segmentation':
-            #     for seg_field in fields(self.segmentation):
-            #         if seg_field.name == attr:
-            #             setattr(self.segmentation,attr,value)
-            #             return
-            # elif field.name == 'tracking':
-            #     for track_field in fields(self.tracking):
-            #         if track_field.name == attr:
-            #             setattr(self.tracking,attr,value)
-            #             return
-    
+################### Init functions ###################  
 def init_from_json(json_path: str)-> Experiment:
+    """Function that initialize the Experiment class from a json file. All necessary class arguments would be initialized
+    even in nested branches.
+    
+    Args:
+        json_path: str, path to the json file
+    Returns:
+        Experiment: Experiment class initialized
+    Notes:
+        The json file is already structured as the different branches of the Experiment class. 
+        So here each branch settings are replaced by the corresponding initialized class."""
     with open(json_path) as fp:
         meta = json.load(fp)
     meta['img_properties'] = ImageProperties.from_dict(ImageProperties,meta['img_properties'])
@@ -230,6 +216,17 @@ def init_from_json(json_path: str)-> Experiment:
     return Experiment.from_dict(Experiment,meta)
     
 def init_from_dict(input_dict: dict)-> Experiment:
+    """Function that initialize the Experiment class from a dictionary. All necessary class arguments would be initialized
+    even in nested branches.
+    
+    Args:
+        input_dict: dict, dictionary containing the class arguments
+    Returns:
+        Experiment: Experiment class initialized
+    Notes:
+        The dictionary is not structured as the different branches of the Experiment class. Each args are in the main dict.
+        So the main dict is always given as in input for all the branches."""
+    
     input_dict['img_properties'] = ImageProperties.from_dict(ImageProperties,input_dict)
     input_dict['analysis'] = Analysis.from_dict(Analysis,input_dict)
     input_dict['preprocess'] = PreProcess.from_dict(PreProcess,input_dict)

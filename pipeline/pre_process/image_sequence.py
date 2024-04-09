@@ -1,66 +1,14 @@
 from __future__ import annotations
-from os import sep, scandir, PathLike
-from os.path import join, exists, getsize
+from os.path import join, getsize
 import warnings
-from image_handeling.Experiment_Classes import init_from_dict, init_from_json, Experiment
-from image_handeling.data_utility import create_save_folder, save_tif
+from image_handeling.data_utility import save_tif
 from nd2 import ND2File
 from tifffile import imread
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from .metadata import get_metadata
 
 
 ################################## main function ###################################
-def get_image_sequence(img_path: PathLike, active_channel_list: list[str], full_channel_list: list[str]=[], overwrite: bool=False)-> list[Experiment]:
-    """Create an image seq for individual image files (.nd2 or .tif), based on the number of field of view and return a list of Settings objects"""
-    # Get metadata
-    meta_dict = get_metadata(img_path,active_channel_list,full_channel_list)
-    
-    exp_obj_list = []
-    for serie in range(meta_dict['n_series']):
-        exp_path = meta_dict['exp_path_list'][serie]
-        meta_dict['exp_path'] = exp_path
-        print(f"--> Checking exp {exp_path} for image sequence")
-        
-        # If exp has been processed but removed
-        if exists(join(sep,exp_path+sep,'REMOVED_EXP.txt')):
-            print(" --> Exp. has been removed")
-            continue
-        
-        save_folder = create_save_folder(exp_path,'Images')
-        
-        # If img are already processed
-        if any(scandir(save_folder)) and not overwrite:
-            print(f" --> Images have already been converted to image sequence")
-            exp_obj = init_exp_obj(exp_path,meta_dict)
-            exp_obj_list.append(exp_obj)
-            # No need to save the settings as they are already saved
-            continue
-        
-        # If images are not processed, extract imseq and initialize exp_set object
-        print(f" --> Extracting images and converting to image sequence")
-        process_img(meta_dict)
-        
-        exp_obj = init_exp_obj(exp_path,meta_dict)
-        exp_obj.save_as_json()
-        exp_obj_list.append(exp_obj)
-    return exp_obj_list
-
-################################ Satelite functions ################################
-def init_exp_obj(exp_path: PathLike, meta_dict: dict)-> Experiment:
-    """Initialize Experiment object from json file if exists, else from the metadata dict. 
-    Return the Experiment object."""
-    
-    if exists(join(sep,exp_path+sep,'exp_settings.json')):
-        exp_obj = init_from_json(join(sep,exp_path+sep,'exp_settings.json'))
-    else:
-        meta_dict['exp_path'] = exp_path
-        exp_obj = init_from_dict(meta_dict)
-    # Set all the branch to inactive
-    exp_obj.init_to_inactive()
-    return exp_obj
-
 def process_img(meta_dict: dict)-> None:
     """Determine which process fct to use depending on the file type and size of the img"""
     # If image is tiff, then process the array

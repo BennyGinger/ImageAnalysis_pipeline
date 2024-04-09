@@ -39,13 +39,13 @@ def get_tmats_chan(stackreg: StackReg, exp_obj: Experiment, reg_channel: str)-> 
     """Register the first frame of all channels to the ref channel. 
     Output is a dict with the channel (excluding the ref channel) as key and the tmat np.ndarray (2D) as value."""
     # Load ref image
-    img_ref = load_stack(exp_obj.raw_imgs_lst,reg_channel,0,True)
+    img_ref = load_stack(exp_obj.ori_imgs_lst,reg_channel,0,True)
     # Get the list of channel to process
     channel_lst = [chan for chan in exp_obj.active_channel_list if chan!=reg_channel]
     # Get all the tmats
     tmats_dict = {}
     for chan in channel_lst:
-        img = load_stack(exp_obj.raw_imgs_lst,chan,0,True)
+        img = load_stack(exp_obj.ori_imgs_lst,chan,0,True)
         tmats_dict[chan] = stackreg.register(img_ref,img)
     return tmats_dict
 
@@ -55,7 +55,7 @@ def apply_chan_shift(exp_obj: Experiment, stackreg: StackReg, reg_channel: str)-
     tmats_dict = get_tmats_chan(stackreg,exp_obj,reg_channel)
     
     # Sort the images by channel, expcept the reg_channel, as it doesn't need to be processed
-    sorted_channels = {chan: [file for file in exp_obj.raw_imgs_lst if chan in file] 
+    sorted_channels = {chan: [file for file in exp_obj.ori_imgs_lst if chan in file] 
                       for chan in exp_obj.active_channel_list if chan!=reg_channel} 
     
     # Generate input data for parallel processing
@@ -103,13 +103,13 @@ def get_tmats_first(stackreg: StackReg, exp_obj: Experiment, reg_channel: str)->
     """Register all frames of the given channel compared to the first frame.
     Output is a dict with the frame (excluding the first one) as key and the tmat np.ndarray (2D) as value."""
     # Load ref image, that is the first frame
-    img_ref = load_stack(exp_obj.raw_imgs_lst,reg_channel,0,True)
+    img_ref = load_stack(exp_obj.ori_imgs_lst,reg_channel,0,True)
     # Get the frame range, don't need to process the first frame
     frame_range = range(1,exp_obj.img_properties.n_frames) 
     # Get all the tmats
     tmats_dict = {}
     for frame in frame_range:
-        img = load_stack(exp_obj.raw_imgs_lst,reg_channel,frame,True)
+        img = load_stack(exp_obj.ori_imgs_lst,reg_channel,frame,True)
         tmats_dict[frame] = stackreg.register(img_ref,img)
     return tmats_dict
 
@@ -117,13 +117,13 @@ def get_tmats_mean(stackreg: StackReg, exp_obj: Experiment, reg_channel: str)-> 
     """Register all frames of the given channel compared to the mean of all frames.
     Output is a dict with the frame as key and the tmat np.ndarray (2D) as value."""
     # Load ref image, that is the mean of the all frames
-    img_ref = np.mean(load_stack(exp_obj.raw_imgs_lst,reg_channel,range(exp_obj.img_properties.n_frames),True),axis=0)
+    img_ref = np.mean(load_stack(exp_obj.ori_imgs_lst,reg_channel,range(exp_obj.img_properties.n_frames),True),axis=0)
     # Get the frame range, that is all the frames
     frame_range = range(exp_obj.img_properties.n_frames)
     # Get all the tmats
     tmats_dict = {}
     for frame in frame_range:
-        img = load_stack(exp_obj.raw_imgs_lst,reg_channel,frame,True)
+        img = load_stack(exp_obj.ori_imgs_lst,reg_channel,frame,True)
         tmats_dict[frame] = stackreg.register(img_ref,img)
     return tmats_dict
 
@@ -134,11 +134,11 @@ def get_tmats_previous(stackreg: StackReg, exp_obj: Experiment, reg_channel: str
     for frame in range(1,exp_obj.img_properties.n_frames):
         # Load ref image
         if frame==1: # For the second frame, use the first frame as ref
-            img_ref = load_stack(exp_obj.raw_imgs_lst,reg_channel,frame-1,True)
+            img_ref = load_stack(exp_obj.ori_imgs_lst,reg_channel,frame-1,True)
         else: # For the other frames, use the previous transformed image as ref
             img_ref = tr_img 
         # Load image to register
-        img = load_stack(exp_obj.raw_imgs_lst,reg_channel,frame,True)
+        img = load_stack(exp_obj.ori_imgs_lst,reg_channel,frame,True)
         # Register and transform img
         tr_img = stackreg.register_transform(img_ref,img)
         # Save the tmat
@@ -161,7 +161,7 @@ def apply_frame_shift(stackreg: StackReg, exp_obj: Experiment, reg_channel: str,
         tmats_dict = get_tmats_previous(stackreg,exp_obj,reg_channel)
     
     # Sort the images by frame
-    sorted_frames = {frame: [file for file in exp_obj.raw_imgs_lst if f"_f{frame+1:04d}" in file] 
+    sorted_frames = {frame: [file for file in exp_obj.ori_imgs_lst if f"_f{frame+1:04d}" in file] 
                     for frame in range(exp_obj.img_properties.n_frames)}
     # Copy the first frame to the reg_folder, then remove it from the dict, as it doesn't need to be processed
     if img_ref!='mean':

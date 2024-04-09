@@ -24,7 +24,7 @@ def background_sub(exp_obj_lst: list[Experiment], sigma: float=0.0, size: int=7,
                        'smo':smo,
                        'metadata':{'um_per_pixel':exp_obj.analysis.um_per_pixel,
                                    'finterval':exp_obj.analysis.interval_sec}}
-                      for path in exp_obj.raw_imgs_lst]
+                      for path in exp_obj.ori_imgs_lst]
         
         with ProcessPoolExecutor() as executor:
             executor.map(apply_bg_sub,input_data)

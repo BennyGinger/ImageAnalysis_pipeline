@@ -49,7 +49,7 @@ def img_list_src(exp_set: Experiment, img_fold_src: str)-> list[PathLike]:
     """If not manually specified, return the latest processed images list"""
     
     if img_fold_src and img_fold_src == 'Images':
-        return exp_set.raw_imgs_lst
+        return exp_set.ori_imgs_lst
     if img_fold_src and img_fold_src == 'Images_Registered':
         return exp_set.registered_imgs_lst
     if img_fold_src and img_fold_src == 'Images_Blured':
@@ -61,7 +61,7 @@ def img_list_src(exp_set: Experiment, img_fold_src: str)-> list[PathLike]:
     elif exp_set.preprocess.is_frame_reg:
         return exp_set.registered_imgs_lst
     else:
-        return exp_set.raw_imgs_lst
+        return exp_set.ori_imgs_lst
 
 def seg_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> tuple[str,list[PathLike]]:
     """If not manually specified, return the latest processed segmentated masks list. 
