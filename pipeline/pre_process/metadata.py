@@ -52,7 +52,7 @@ def get_ND2_meta(img_path: PathLike)-> dict:
     with ND2File(img_path) as nd_obj:
         nd2meta = {**nd_obj.sizes}
         # Add missing keys and get axes
-        nd2meta['axes'] = 'PTZCYX'
+        nd2meta['axes'] = 'TPZCYX'
         if 'T' not in nd2meta:
             nd2meta['T'] = 1
             nd2meta['axes'] = nd2meta['axes'].replace('T','')

@@ -79,16 +79,16 @@ def get_img_params_lst(meta_dict: dict)-> list[dict]:
                 for chan in meta_dict['active_channel_list']:
                     # img_name_list.append(chan+'_s%02d'%(serie+1)+'_f%04d'%(f+1)+'_z%04d'%(z+1))
                     chan_idx = meta_dict['full_channel_list'].index(chan)
-                    img_params_lst.append({'array_slice':(serie,f,z,chan_idx),
+                    img_params_lst.append({'array_slice':(f,serie,z,chan_idx),
                                           'serie':serie,
                                           'img_name':chan+'_s%02d'%(serie+1)+'_f%04d'%(f+1)+'_z%04d'%(z+1)})
     return img_params_lst
 
 def expand_array_dim(array: np.ndarray, axes: str)-> np.ndarray:
-    """Add missing dimension of the ndarray to have a final PTZCYX array shape. 
+    """Add missing dimension of the ndarray to have a final TPZCYX array shape. 
     P = position (serie), T = time, Z = z-slice, C = channel, Y = height, X = width"""
     # Open tif file
-    ref_axes = 'PTZCYX'
+    ref_axes = 'TPZCYX'
     
     if len(axes)<len(ref_axes):
         missing_axes = [ref_axes.index(ax) for ax in ref_axes if ax not in axes]
