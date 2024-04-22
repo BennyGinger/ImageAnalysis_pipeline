@@ -144,10 +144,8 @@ def expand_array_dim(array: np.ndarray, axes: str)-> np.ndarray:
     if len(axes)<len(ref_axes):
         missing_axes = [ref_axes.index(ax) for ax in ref_axes if ax not in axes]
         # Add missing axes
-        print(array.shape)
         for ax in missing_axes:
             array = np.expand_dims(array,axis=ax)
-        print(array.shape)
     return array
 
 def write_array(input_data: dict)-> None:
