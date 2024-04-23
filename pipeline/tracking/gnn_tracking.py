@@ -23,6 +23,8 @@ def model_select(model):
 
 def gnn_tracking(exp_set_list: list[Experiment], channel_seg: str, model:str, gnn_track_overwrite: bool=False, img_fold_src: str = None, mask_fold_src: str = None, morph: bool=False, n_mask=2, min_cell_size:int = 20, decision_threshold:float = 0.5):
     for exp_set in exp_set_list:
+        # Activate the branch
+        exp_set.masks.is_gnn_tracking = True
         # Check if exist
         if is_processed(exp_set.masks.manual_tracking,channel_seg,gnn_track_overwrite):
                 # Log

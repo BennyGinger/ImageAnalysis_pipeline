@@ -29,15 +29,15 @@ ENV PATH=$CONDA_DIR/bin:$PATH
 RUN conda install -y mamba -c conda-forge
 
 # Create conda environment
-ADD ./environment.yml /root/environment.yml
-RUN mamba env create --file /root/environment.yml &&\
-    conda clean --all
+ADD ./environment.yml /media/environment.yml
+ADD ./Dockerfile /media/Dockerfile
+RUN mamba env create --file /media/environment.yml \
+    && conda clean --all
 
 RUN conda init bash
 RUN echo "conda activate cp_dock"  >> ~/.bashrc
 ENV PATH /opt/conda/envs/cp_dock/bin:$PATH
-ENV CONDA_DEFAULT_ENV $cp_dock
-RUN conda run --no-capture-output -n cp_dock python -m pip install cellpose[gui]
+ENV CONDA_DEFAULT_ENV cp_dock
 
 # Set up user (in linux this allow to modify the files/folders created by the container in the host machine)
 ARG UID
@@ -47,13 +47,5 @@ RUN addgroup --gid $GID cpdev && \
     echo "cpdev ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 USER cpdev
 
-# Cannot clone git repo because of the different user. Only root user can clone the repo.
-# Clone git repository
-# ENV GIT_USER=$GIT_USER
-# RUN git clone -n https://${GIT_USER}:${GIT_TOKEN}@github.com/BennyGinger/ImageAnalysis_pipeline.git ./ImageAnalysis_pipeline
-# WORKDIR /ImageAnalysis_pipeline
-# RUN git fetch --all
-# RUN git checkout ben
-
-# Build with: docker build . --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t cpdev:ben
+# Build with: docker build . --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t cpdev:ben2
 # Run with: docker run -it --gpus all --name cp_ben -h imaginganalysis  -e DISPLAY=${DISPLAY} -v /tmp/.X11-unix:/tmp/.X11-unix -v "${PWD}:/home" cpdev:ben

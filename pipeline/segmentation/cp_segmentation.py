@@ -54,11 +54,12 @@ def run_cellpose(img_dict: dict)-> None:
     img = load_stack(img_dict['imgs_path'],img_dict['channels'],[img_dict['frame']],img_dict['as_2D'])
     model: models.CellposeModel = img_dict['model']
     # Save path, take the first img path (it will be the channel_seg) and replace it with mask name
-    mask_path = img_dict['imgs_path'][0].replace('Images','Masks_Cellpose').replace('Registered','').replace('Blured','')
+    mask_path = img_dict['imgs_path'][0].replace('Images','Masks_Cellpose').replace('_Registered','').replace('_Blured','')
     # log
     print(f"  ---> Processing frame {img_dict['frame']}")
     # Run Cellpose
     masks, flows, _ = model.eval(img,**img_dict['cellpose_eval'])
+    
     # Save
     save_mask(img,masks,flows,model.diam_mean,mask_path,img_dict['as_npy'],img_dict['metadata'])
 
@@ -192,23 +193,22 @@ def cellpose_segmentation(exp_obj_lst: list[Experiment], channel_seg: str, model
                           overwrite: bool=False, img_fold_src: PathLike="", process_as_2D: bool=False,
                           save_as_npy: bool=False, nuclear_marker: str="", **kwargs)-> list[Experiment]:
     """Function to run cellpose segmentation. See https://github.com/MouseLand/cellpose for more details."""
-    
-    
+
     for exp_obj in exp_obj_lst:
-        file_type = '.tif'
-        if save_as_npy:
-            file_type = '.npy'
-        
+        # Activate branch
+        exp_obj.segmentation.is_cellpose_seg = True
+        # Set file type
+        file_type = '.npy' if save_as_npy else '.tif'
         # Check if exist
-        if is_processed(exp_obj.masks.cellpose_seg,channel_seg,overwrite):
-                # Log
+        if is_processed(exp_obj.segmentation.cellpose_seg,channel_seg,overwrite):
+            # Log
             print(f" --> Cells have already been segmented with cellpose as {file_type} for the '{channel_seg}' channel.")
             continue
         
         # Else run cellpose
         print(f" --> Segmenting cells as {file_type} for the '{channel_seg}' channel")
         create_save_folder(exp_obj.exp_path,'Masks_Cellpose')
-        delete_old_masks(exp_obj.masks.cellpose_seg,channel_seg,exp_obj.cellpose_masks_lst,overwrite)
+        delete_old_masks(exp_obj.segmentation.cellpose_seg,channel_seg,exp_obj.cellpose_masks_lst,overwrite)
         
         # Setup model and eval settings
         cellpose_setup = CellposeSetup(exp_obj,channel_seg,nuclear_marker,process_as_2D,save_as_npy)
@@ -220,7 +220,7 @@ def cellpose_segmentation(exp_obj_lst: list[Experiment], channel_seg: str, model
         parallel_executor(run_cellpose,input_data,model_settings['gpu'],cellpose_eval['z_axis'])
         
         # Save settings
-        exp_obj.masks.cellpose_seg[channel_seg] = {'model_settings':model_settings,'cellpose_eval':cellpose_eval}
+        exp_obj.segmentation.cellpose_seg[channel_seg] = {'model_settings':model_settings,'cellpose_eval':cellpose_eval}
         exp_obj.save_as_json()
     return exp_obj_lst
 

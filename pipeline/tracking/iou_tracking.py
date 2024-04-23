@@ -4,51 +4,77 @@ import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
 from os.path import join
 from image_handeling.Experiment_Classes import Experiment
-from image_handeling.data_utility import is_processed, mask_list_src, load_stack, create_save_folder, delete_old_masks, save_tif
-from mask_transformation.mask_morph import morph_missing_mask
+from image_handeling.data_utility import is_processed, seg_mask_lst_src, load_stack, create_save_folder, delete_old_masks
+from mask_transformation.complete_track import complete_track
 from cellpose.utils import stitch3D
 from cellpose.metrics import _intersection_over_union
 from scipy.stats import mode
 import numpy as np
-from tifffile import imsave
+from concurrent.futures import ThreadPoolExecutor
+from tifffile import imwrite
 
+def track_cells(masks: np.ndarray, stitch_threshold: float) -> np.ndarray:
+    """
+    Track cells in a sequence of masks. Using the Cellpose stitch3D function to stitch masks together 
+    and then create a master mask to compare with each frame.
 
-def track_cells(masks: np.ndarray, stitch_threshold: float)-> np.ndarray:
+    Args:
+        masks (np.ndarray): Array of masks representing cells in each frame.
+        stitch_threshold (float): Threshold value for stitching masks together.
+
+    Returns:
+        np.ndarray: Master mask representing the stitched cells.
+
+    """
     print('  ---> Tracking cells...')
-    # Invert stitch_threshold
-    stitch_threshold = 1 - stitch_threshold
     # basic stitching/tracking from Cellpose
-    masks = stitch3D(masks,stitch_threshold)
-    
-    # Create mask with all possible cells
+    masks = stitch3D(masks, stitch_threshold)
+    # Create mask with all the most common masks value
     master_mask = create_master_mask(masks)
-    master_mask = np.ma.getdata(master_mask)
-
     return master_mask_stitching(masks, master_mask, stitch_threshold)
 
-def create_master_mask(masks: np.ndarray)-> np.ndarray:
-    # Create mastermask to have all possible cells on one mask. Doing this by doing 'mode' operation 
-    # to get the value present in most t-frames per pixel. Ignoring backgound by setting zero to nan.
-    # Therefore conversion to float is needed.
+def create_master_mask(masks: np.ndarray) -> np.ndarray:
+    """
+    Create a master mask by performing a 'mode' operation to get the most common value present in most t-frames per pixel. 
+    Ignoring background by setting zero to nan. Therefore conversion to float is needed.
+
+    Args:
+        masks (np.ndarray): Input array of masks.
+
+    Returns:
+        np.ndarray: The master mask with all possible cells on one mask.
+    """
+    print('  ---> Creating master mask')
     rawmasks_ignorezero = masks.copy().astype(float)
     rawmasks_ignorezero[rawmasks_ignorezero == 0] = np.nan
     master_mask = mode(rawmasks_ignorezero, axis=0, keepdims=False, nan_policy='omit')[0]
-    return master_mask.astype(int)
+    # Convert back to int
+    return np.ma.getdata(master_mask).astype(int)
 
-def master_mask_stitching(masks: np.ndarray, master_mask: np.ndarray, stitch_threshold: float)-> np.ndarray:
-    # Second round of stitch/tracking by using mastermask to compair with every frame
-    # slighly changed code from Cellpose 'stitch3D'
-    """ stitch 2D masks into 3D volume with stitch_threshold on IOU """
+def master_mask_stitching(masks: np.ndarray, master_mask: np.ndarray, stitch_threshold: float) -> np.ndarray:
+    """
+    Second round of stitch/tracking by using a mastermask to compare with every frame.
+    Stitch 2D masks into 3D volume with stitch_threshold on IOU.
+    Slightly changed code from Cellpose 'stitch3D'.
+
+    Args:
+    masks (np.ndarray): Array of 2D masks.
+    master_mask (np.ndarray): 2D master mask used for comparison.
+    stitch_threshold (float): Threshold value for stitching.
+
+    Returns:
+    np.ndarray: Stitched masks as a 3D volume.
+    """
     mmax = masks[0].max()
     empty = 0
 
     for i in range(len(masks)):
-        iou = _intersection_over_union(masks[i], master_mask)[1:,1:]
+        iou = _intersection_over_union(masks[i], master_mask)[1:, 1:]
         if not iou.size and empty == 0:
             mmax = masks[i].max()
         elif not iou.size and not empty == 0:
             icount = masks[i].max()
-            istitch = np.arange(mmax+1, mmax + icount+1, 1, int)
+            istitch = np.arange(mmax + 1, mmax + icount + 1, 1, int)
             mmax += icount
             istitch = np.append(np.array(0), istitch)
             masks[i] = istitch[masks[i]]
@@ -56,62 +82,149 @@ def master_mask_stitching(masks: np.ndarray, master_mask: np.ndarray, stitch_thr
             iou[iou < stitch_threshold] = 0.0
             iou[iou < iou.max(axis=0)] = 0.0
             istitch = iou.argmax(axis=1) + 1
-            ino = np.nonzero(iou.max(axis=1)==0.0)[0]
+            ino = np.nonzero(iou.max(axis=1) == 0.0)[0]
             istitch[ino] = 0
             istitch = np.append(np.array(0), istitch)
             masks[i] = istitch[masks[i]]
             empty = 1
     return masks
 
-def check_mask_size(mask_stack: np.ndarray, shape_thres_percent: float)-> np.ndarray:
-    print('  ---> Checking mask size')
-    new_mask = np.zeros((mask_stack.shape))
-    for obj in list(np.unique(mask_stack))[1:]:
-        temp = mask_stack.copy()
-        temp[temp!=obj] = 0
-        t,_,_=np.where(temp!=0)
-        f_lst,size_lst=np.unique(t,return_counts=True)
-        mean_size = np.mean(size_lst)
-        up = mean_size+mean_size*shape_thres_percent # shape_threshold is the max % of up or down allowed
-        down = mean_size-mean_size*shape_thres_percent
-        temp[f_lst[np.where((size_lst<down)|(size_lst>up))]] = 0
-        new_mask += temp
-    return new_mask
+def dice_coefficient(mask1: np.ndarray, mask2: np.ndarray) -> float:
+    """
+    Calculate the dice coefficient between two binary masks.
 
-def reassign_mask_val(mask_stack: np.ndarray)-> np.ndarray:
+    Args:
+    mask1 (np.ndarray): The first binary mask.
+    mask2 (np.ndarray): The second binary mask.
+
+    Returns:
+    float: The dice coefficient between the two masks.
+    """
+    intersection = np.logical_and(mask1, mask2)
+    return 2 * intersection.sum() / (mask1.sum() + mask2.sum())
+
+def calculate_dice_coef(mask: np.ndarray, shape_thres_percent: float) -> np.ndarray:
+    """
+    Calculates the Dice coefficient for each mask in the input array and removes masks below the threshold.
+
+    Args:
+    mask (np.ndarray): Input array of masks.
+    shape_thres_percent (float): Threshold percentage for mask similarity.
+
+    Returns:
+    np.ndarray: Array of masks after removing masks below the threshold.
+    """
+    # Convert to boolean
+    mask_val = np.amax(mask)
+    mask = mask.astype(bool)
+    # Create a median mask as a ref
+    med_mask = np.median(mask, axis=0)
+    # Check mask similarity
+    for i in range(mask.shape[0]):
+        # Calculate dc
+        dc = dice_coefficient(med_mask, mask[i])
+        # Remove mask if below threshold
+        if dc < shape_thres_percent:
+            mask[i] = 0
+    mask = mask.astype('uint16')
+    mask[mask != 0] = mask_val
+    return mask
+
+def check_mask_similarity(mask: np.ndarray, shape_thres_percent: float = 0.9) -> np.ndarray:
+    """
+    Check the similarity of a mask by calculating the dice coefficient for each object in the mask.
+
+    Args:
+        mask (np.ndarray): The input mask with 3 dimensions.
+        shape_thres_percent (float, optional): The threshold percentage for shape similarity. Defaults to 0.9.
+
+    Returns:
+        np.ndarray: The new mask with similarity scores over 0.9 for each object.
+
+    Raises:
+        TypeError: If the input mask does not contain 3 dimensions.
+    """
+    print('  ---> Checking mask similarity')
+    # Check that mask contains 3 dimensions
+    if mask.ndim != 3:
+        raise TypeError(f"Input mask must contain 3 dimensions, {mask.ndim} dim were given")
+
+    # Go through all mask_obj
+    new_mask = np.zeros(shape=mask.shape)
+
+    def process_mask(obj):
+        # Isolate mask obj
+        temp = mask.copy()
+        temp[temp != obj] = 0
+        # Calculate dice coef
+        temp = calculate_dice_coef(temp, shape_thres_percent)
+        return temp
+
+    with ThreadPoolExecutor() as executor:
+        obj_list = list(np.unique(mask))[1:]
+        results = executor.map(process_mask, obj_list)
+
+        for result in results:
+            new_mask += result
+
+    return new_mask
+        
+def reassign_mask_val(mask_stack: np.ndarray) -> np.ndarray:
+    """
+    Reassigns the values of the input mask stack to consecutive integers starting from 0.
+    
+    Args:
+        mask_stack (np.ndarray): The input mask stack.
+    
+    Returns:
+        np.ndarray: The mask stack with reassigned values.
+    """
     print('  ---> Reassigning masks value')
     for n, val in enumerate(list(np.unique(mask_stack))):
         mask_stack[mask_stack == val] = n
     return mask_stack
 
-def trim_mask(mask_stack: np.ndarray, numb_frames: int)-> np.ndarray:
-    print('  ---> Trimming masks')
-    for obj in list(np.unique(mask_stack))[1:]:
-        if len(set(np.where(mask_stack==obj)[0])) != numb_frames:
-            mask_stack[mask_stack==obj] = 0
-    return mask_stack
-
 
 # # # # # # # # main functions # # # # # # # # # 
-def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src: PathLike,
-                 stitch_thres_percent: float=0.75, shape_thres_percent: float=0.2,
-                 iou_track_overwrite: bool=False, n_mask: int=5)-> list[Experiment]:
+def iou_tracking(exp_obj_lst: list[Experiment], channel_seg: str, mask_fold_src: str,
+                 stitch_thres_percent: float=0.5, shape_thres_percent: float=0.9,
+                 overwrite: bool=False, mask_appear: int=5, copy_first_to_start: bool=True, 
+                 copy_last_to_end: bool=True)-> list[Experiment]:
+    """
+    Perform IoU (Intersection over Union) based cell tracking on a list of experiments.
+
+    Args:
+        exp_obj_lst (list[Experiment]): List of Experiment objects to perform tracking on.
+        channel_seg (str): Channel name for segmentation.
+        mask_fold_src (str): Source folder path for masks.
+        stitch_thres_percent (float, optional): Stitching threshold percentage. Defaults to 0.5. Higher values will result in more strict tracking (excluding more cells)
+        shape_thres_percent (float, optional): Shape threshold percentage. Defaults to 0.9. Lower values will result in tracks with more differences in shape between frames.
+        overwrite (bool, optional): Flag to overwrite existing tracking results. Defaults to False.
+        mask_appear (int, optional): Number of times a mask should appear to be considered valid. Defaults to 5.
+        copy_first_to_start (bool, optional): Flag to copy the first mask to the start. Defaults to True.
+        copy_last_to_end (bool, optional): Flag to copy the last mask to the end. Defaults to True.
+
+    Returns:
+        list[Experiment]: List of Experiment objects with updated tracking information.
+    """
     
-    for exp_set in exp_set_list:
-        if is_processed(exp_set.masks.iou_tracking,channel_seg,iou_track_overwrite):
+    for exp_obj in exp_obj_lst:
+        # Activate the branch
+        exp_obj.tracking.is_iou_tracking = True
+        # Already processed?
+        if is_processed(exp_obj.tracking.iou_tracking,channel_seg,overwrite):
             print(f" --> Cells have already been tracked for the '{channel_seg}' channel")
             continue
-        
         # Track images
         print(f" --> Tracking cells for the '{channel_seg}' channel")
         
         # Create save folder and remove old masks
-        create_save_folder(exp_set.exp_path,'Masks_IoU_Track')
-        delete_old_masks(exp_set.masks.iou_tracking,channel_seg,exp_set.iou_tracked_masks_lst,iou_track_overwrite)
+        create_save_folder(exp_obj.exp_path,'Masks_IoU_Track')
+        delete_old_masks(exp_obj.tracking.iou_tracking,channel_seg,exp_obj.iou_tracked_masks_lst,overwrite)
         
         # Load masks
-        mask_src_list = mask_list_src(exp_set,mask_fold_src)
-        mask_stack = load_stack(mask_src_list,[channel_seg],range(exp_set.img_properties.n_frames))
+        mask_fold_src, mask_src_list = seg_mask_lst_src(exp_obj,mask_fold_src)
+        mask_stack = load_stack(mask_src_list,[channel_seg],range(exp_obj.img_properties.n_frames))
         
         if mask_stack.ndim == 4:
             print('  ---> 4D stack detected, processing max projection instead')
@@ -120,29 +233,26 @@ def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src
         # Track masks
         mask_stack = track_cells(mask_stack,stitch_thres_percent)
         
-        # Check shape size for detecting merged cells
-        mask_stack = check_mask_size(mask_stack,shape_thres_percent)
+        # Check shape similarity to avoid false masks
+        mask_stack = check_mask_similarity(mask_stack,shape_thres_percent)
         
-        # Re-assign the new value to the masks and obj
+        # Re-assign the new value to the masks and obj. Previous step may have created dicontinuous masks
         mask_stack = reassign_mask_val(mask_stack)
         
         # Morph missing masks
-        mask_stack = morph_missing_mask(mask_stack,n_mask)
-        
-        # Trim masks
-        mask_stack = trim_mask(mask_stack,exp_set.img_properties.n_frames)
+        mask_stack = complete_track(mask_stack,mask_appear,copy_first_to_start,copy_last_to_end)
         
         # Save masks
         mask_src_list = [file for file in mask_src_list if file.__contains__('_z0001')]
         for i,path in enumerate(mask_src_list):
             mask_path = path.replace('Masks','Masks_IoU_Track').replace('_Cellpose','').replace('_Threshold','')
-            imsave(mask_path,mask_stack[i,...].astype('uint16'))
+            imwrite(mask_path,mask_stack[i,...].astype('uint16'))
         
         # Save settings
-        exp_set.masks.iou_tracking[channel_seg] = {'mask_fold_src':mask_fold_src,'stitch_thres_percent':stitch_thres_percent,
-                                        'shape_thres_percent':shape_thres_percent,'n_mask':n_mask}
-        exp_set.save_as_json()
-    return exp_set_list
+        exp_obj.tracking.iou_tracking[channel_seg] = {'mask_fold_src':mask_fold_src,'stitch_thres_percent':stitch_thres_percent,
+                                        'shape_thres_percent':shape_thres_percent,'n_mask':mask_appear}
+        exp_obj.save_as_json()
+    return exp_obj_lst
 
 
 

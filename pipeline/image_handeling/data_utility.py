@@ -1,6 +1,6 @@
 from __future__ import annotations
 from os import sep, mkdir, remove, PathLike
-from os.path import isdir, join, isfile
+from os.path import isdir, join
 from image_handeling.Experiment_Classes import Experiment
 from typing import Iterable
 import numpy as np
@@ -49,59 +49,75 @@ def img_list_src(exp_set: Experiment, img_fold_src: str)-> list[PathLike]:
     """If not manually specified, return the latest processed images list"""
     
     if img_fold_src and img_fold_src == 'Images':
-        return exp_set.raw_imgs_lst
-    
+        return exp_set.ori_imgs_lst
     if img_fold_src and img_fold_src == 'Images_Registered':
         return exp_set.registered_imgs_lst
-    
     if img_fold_src and img_fold_src == 'Images_Blured':
         return exp_set.blured_imgs_lst
     
     # If not manually specified, return the latest processed images list
-    if exp_set.process.img_blured:
+    if exp_set.preprocess.is_img_blured:
         return exp_set.blured_imgs_lst
-    elif exp_set.process.frame_reg:
+    elif exp_set.preprocess.is_frame_reg:
         return exp_set.registered_imgs_lst
     else:
-        return exp_set.raw_imgs_lst
+        return exp_set.ori_imgs_lst
 
-def mask_list_src(exp_set: Experiment, mask_fold_src: str)-> list[PathLike]:
-    """If not manually specified, return the latest processed images list"""
+def seg_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> tuple[str,list[PathLike]]:
+    """If not manually specified, return the latest processed segmentated masks list. 
+    Return the mask folder source to save during tracking.
+    Args:
+        exp_set (Experiment): The experiment settings.
+        mask_fold_src (str): The mask folder source. Can be None or str.
+    Returns:
+        tuple[str,list[PathLike]]: The mask folder source and the list of masks."""
     
-    if mask_fold_src and mask_fold_src == 'Masks_Threshold' or mask_fold_src == 'threshold_seg':
-        return exp_set.threshold_masks_lst
+    if mask_fold_src == 'Masks_Threshold':
+        return mask_fold_src, exp_set.threshold_masks_lst  
+    if mask_fold_src == 'Masks_Cellpose':
+        return mask_fold_src, exp_set.cellpose_masks_lst
     
-    if mask_fold_src and mask_fold_src == 'Masks_Cellpose' or mask_fold_src == 'cellpose_seg':
-        return exp_set.cellpose_masks_lst
+    # If not manually specified, return the latest processed images list
+    if exp_set.segmentation.is_threshold_seg:
+        return 'Masks_Threshold', exp_set.threshold_masks_lst
+    if exp_set.segmentation.is_cellpose_seg:
+        return 'Masks_Cellpose', exp_set.cellpose_masks_lst
+    else:
+        print("No segmentation masks found")
+
+def track_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> list[PathLike]:
+    """If not manually specified, return the latest processed tracked masks list
+    Args:
+        exp_set (Experiment): The experiment settings.
+        mask_fold_src (str): The mask folder source. Can be None or str.
+    Returns:
+        list[PathLike]: The list of tracked masks."""
     
-    if mask_fold_src and mask_fold_src == 'Masks_IoU_Track' or mask_fold_src == 'iou_tracking':
-        return exp_set.iou_tracked_masks_lst
-    
-    if mask_fold_src and mask_fold_src == 'Masks_Manual_Track' or mask_fold_src == 'man_tracking':
+    if mask_fold_src == 'Masks_IoU_Track':
+        return exp_set.iou_tracked_masks_lst 
+    if mask_fold_src == 'Masks_Manual_Track':
         return exp_set.man_tracked_masks_lst
-    
-    if mask_fold_src and mask_fold_src == 'Masks_GNN_Track' or mask_fold_src == 'gnn_tracking':
+    if mask_fold_src == 'Masks_GNN_Track':
         return exp_set.gnn_tracked_masks_lst
     
     # If not manually specified, return the latest processed images list
-    if exp_set.masks.gnn_tracking:
+    if exp_set.tracking.is_gnn_tracking:
         return exp_set.gnn_tracked_masks_lst
-    elif exp_set.masks.manual_tracking:
+    if exp_set.tracking.manual_tracking:
         return exp_set.man_tracked_masks_lst
-    elif exp_set.masks.iou_tracking:
+    if exp_set.tracking.iou_tracking:
         return exp_set.iou_tracked_masks_lst
-    elif exp_set.masks.cellpose_seg:
-        return exp_set.cellpose_masks_lst
     else:
-        return exp_set.threshold_masks_lst
+        print("No tracking masks found")
 
-# TODO: Add a check whether the images are in the save folder
-def is_processed(process: dict, channel_seg: str, overwrite: bool)-> bool:
+def is_processed(process_settings: dict | list, channel_seg: str = None, overwrite: bool = False)-> bool:
     if overwrite:
         return False
-    if not process:
+    if not process_settings:
         return False
-    if channel_seg not in process:
+    if isinstance(process_settings, list):
+        return True
+    if channel_seg not in process_settings:
         return False
     return True
 
@@ -113,21 +129,6 @@ def create_save_folder(exp_path: PathLike, folder_name: str)-> PathLike:
         return save_folder
     print(f" ---> Saving folder already exists: {save_folder}")
     return save_folder
-
-def gen_input_data(exp_set: Experiment, img_fold_src: str, channel_seg_list: list, **kwargs)-> list[dict]:
-    # img_path_list = img_list_src(exp_set,img_fold_src)
-    channel_seg = channel_seg_list[0]
-    input_data = []
-    for frame in range(exp_set.img_properties.n_frames):
-        input_dict = {}
-        # imgs_path = [img for img in img_path_list if f"_f{frame+1:04d}" in img and channel_seg in img]
-        imgs_path = img_list_src(exp_set,img_fold_src)
-        input_dict['imgs_path'] = imgs_path
-        input_dict['frame'] = frame
-        input_dict['channel_seg_list'] = channel_seg_list
-        input_dict.update(kwargs)
-        input_data.append(input_dict)
-    return input_data
 
 def delete_old_masks(class_setting_dict: dict, channel_seg: str, mask_files_list: list[PathLike], overwrite: bool=False)-> None:
     """Check if old masks exists, if the case, the delete old masks. Only
@@ -174,3 +175,4 @@ def gen_input_data(exp_set: Experiment, img_sorted_frames: dict[str,list], chann
                                'finterval':exp_set.analysis.interval_sec}}}
                   for frame in range(exp_set.img_properties.n_frames)]
     return input_data
+
