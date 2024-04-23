@@ -1,6 +1,6 @@
 from __future__ import annotations
 import numpy as np
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 from .mask_warp import mask_warp
 
 ################## main functions ##################
@@ -27,7 +27,7 @@ def complete_track(mask_stack: np.ndarray, mask_appear: int, copy_first_to_start
                    copy_last_to_end) 
                   for obj in list(np.unique(mask_stack))[1:]]
     # Apply morphing
-    with ThreadPoolExecutor() as executor:
+    with ProcessPoolExecutor() as executor:
         temp_masks = executor.map(apply_filling, input_data)
         new_stack = np.zeros((mask_stack.shape))
         # Combine the morphed masks
@@ -36,6 +36,7 @@ def complete_track(mask_stack: np.ndarray, mask_appear: int, copy_first_to_start
             # Trim any overlapping mask
             if np.any(new_stack > obj):
                 new_stack[new_stack > obj] = new_stack[new_stack > obj] - obj
+                
     return new_stack.astype('uint16')
 
 ################## Helper functions ##################

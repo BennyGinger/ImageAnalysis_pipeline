@@ -150,7 +150,8 @@ def init_exp_obj(exp_path: PathLike, meta_dict: dict = None)-> Experiment:
     if meta_dict:
         meta_dict['exp_path'] = exp_path
         exp_obj = init_from_dict(meta_dict)
-    
+        exp_obj.init_to_inactive()
+        return exp_obj
     if exists(join(sep,exp_path+sep,'exp_settings.json')):
         exp_obj = init_from_json(join(sep,exp_path+sep,'exp_settings.json'))
     else:
