@@ -3,7 +3,7 @@ from dataclasses import dataclass, field, fields
 
 PREPROCESS_KEYS = ["bg_sub","chan_shift","frame_shift","blur"]
 SEGMENTATION_KEYS = ["cellpose","threshold"]
-TRACKING_KEYS = ['iou_track']
+TRACKING_KEYS = ["iou_track", "gnn_track", "man_track"]
 
 @dataclass
 class BaseSettings:
@@ -78,6 +78,8 @@ class SegmentationSettings(BaseSettings):
 class TrackingSettings(BaseSettings):
     settings: dict
     iou_track: dict = field(init=False)
+    gnn_track: dict = field(init=False)
+    man_track: dict = field(init=False)
     
 ################# main Class #################
 @dataclass

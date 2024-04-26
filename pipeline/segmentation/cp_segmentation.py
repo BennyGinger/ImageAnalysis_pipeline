@@ -159,10 +159,12 @@ class CellposeSetup:
     def gen_input_data(self, img_fold_src: str="")-> list[dict]:
         # Get the list of channel to segment and the list of images, sorted by channels
         channels = [self.channel_seg]
-        imgs_list = [img for img in img_list_src(self.exp_obj,img_fold_src) if self.channel_seg in img]
+        _, images = img_list_src(self.exp_obj,img_fold_src)
+        imgs_list = [img for img in images if self.channel_seg in img]
         if self.nuclear_marker:
             channels.append(self.nuclear_marker)
-            imgs_list.extend([img for img in img_list_src(self.exp_obj,img_fold_src) if self.nuclear_marker in img])
+            _, images = img_list_src(self.exp_obj,img_fold_src)
+            imgs_list.extend([img for img in images if self.nuclear_marker in img])
         # Sort images by frames
         sorted_frames = {frame:[img for img in imgs_list if f"_f{frame+1:04d}" in img] 
                          for frame in range(self.exp_obj.img_properties.n_frames)}

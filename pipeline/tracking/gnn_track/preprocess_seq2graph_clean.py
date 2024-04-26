@@ -14,7 +14,7 @@ warnings.filterwarnings("always")
 from pathlib import Path
 import re
 
-from modules.resnet_2d.resnet import set_model_architecture, MLP #src_metric_learning.modules.resnet_2d.resnet
+from tracking.gnn_track.modules.resnet_2d.resnet import set_model_architecture, MLP #src_metric_learning.modules.resnet_2d.resnet
 from skimage.morphology import label
 
 
@@ -197,7 +197,7 @@ class TestDataset(Dataset):
                 res2 = (result > 0) * 1.0
                 n_pixels = np.abs(res1 - res2).sum()
                 print(f"per_mask_change={per_mask_change}, per_cell_change={per_cell_change}, number of changed pixels: {n_pixels}")
-                io.imsave(result_path, result.astype(np.uint16), compress=6)
+                io.imsave(result_path, result.astype(np.uint16), compression=1) #BUG #original: compression = 6 is OJPEG, which is not implemented in tiffile in the moment
 
 
 
@@ -293,12 +293,13 @@ class TestDataset(Dataset):
             img, result, im_path, result_path = self[ind_data]
 
             im_name = Path(im_path).stem
-            im_num = re.findall(r'\d+', im_name)[-1]
-            # im_num = im_path.split(".")[-2][-3:]          
-            
+            im_num = re.findall('f\d+', im_name)[0][1:]
+         
+            print(f'Processing Image: {im_path}')
+
             result_name = Path(result_path).stem
-            result_num = re.findall(r'\d+', result_name)[-1]
-            # result_num = result_path.split(".")[-2][-3:]            
+            result_num = re.findall('f\d+', result_name)[0][1:]
+          
             assert im_num == result_num, f"Image number ({im_num}) is not equal to result number ({result_num})"
 
             num_labels = np.unique(result).shape[0] - 1

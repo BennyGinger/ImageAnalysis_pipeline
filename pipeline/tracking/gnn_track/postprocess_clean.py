@@ -7,6 +7,7 @@ from skimage import io
 import warnings
 warnings.filterwarnings("ignore")
 import imageio
+from pathlib import Path
 
 
 class Postprocess(object):
@@ -253,6 +254,7 @@ class Postprocess(object):
 
         # find number of frames for iterations
         frame_nums = np.unique(df.frame_num)
+        frame_nums = np.array(range(frame_nums.shape[0]))
         # find number of cells in each frame and build matrix [num_frames, max_cells]
         max_elements = [df.frame_num.isin([i]).sum() for i in frame_nums]
         all_frames_traject = np.zeros((frame_nums.shape[0], max(max_elements)))
@@ -348,21 +350,22 @@ class Postprocess(object):
         pred = None
         if len(self.results):
             im_path = self.results[idx]
-            pred = io.imread(im_path)
+            pred = io.imread(im_path) #load Image
             if self.is_3d and len(pred.shape) != 3:
                 pred = np.stack(imageio.mimread(im_path))
                 assert len(pred.shape) == 3, f"Expected 3d dimiension! but {pred.shape}"
         return pred
 
     def create_save_dir(self):
-        num_seq = self.dir_result.split('/')[-1][:2]
+        # num_seq = self.dir_result.split('/')[-1][:2]
         save_tra_dir = osp.join(self.dir_result, f"../Masks_GNN_Track") 
         self.save_tra_dir =save_tra_dir
         os.makedirs(self.save_tra_dir, exist_ok=True)
 
     def save_new_pred(self, new_pred, idx):
-        idx_str = "%04d" % idx
-        file_name = f"mask{idx_str}.tif"
+        # idx_str = "%04d" % idx
+        # file_name = f"mask{idx_str}.tif"
+        file_name = osp.basename(self.results[idx])
         full_dir = osp.join(self.save_tra_dir, file_name)
         io.imsave(full_dir, new_pred.astype(np.uint16))
 
@@ -370,6 +373,8 @@ class Postprocess(object):
 
         predID_not_in_currID = [x for x in pred_ids if x not in curr_ids]
         currID_not_in_predID = [x for x in curr_ids if x not in pred_ids]
+        print(f'{predID_not_in_currID}')
+        print(f'{currID_not_in_predID}')
         flag1 = len(predID_not_in_currID) == 1 and predID_not_in_currID[0] == 0
         flag2 = len(currID_not_in_predID) == 0
         if not flag1:
@@ -482,7 +487,9 @@ class Postprocess(object):
                 mask_where = np.logical_and(np.logical_not(mask_val), mask_where)
 
                 frame_ids.append(true_id)
-
+            print(f'{idx=}')
+            print(f'{np.unique(pred_copy)=}')
+            print(f'{frame_ids=}')
             isOK, predID_not_in_currID = self.check_ids_consistent(idx, np.unique(pred_copy), frame_ids)
             if not debug:
                 if not isOK:

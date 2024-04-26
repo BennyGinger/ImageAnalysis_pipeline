@@ -26,7 +26,7 @@ def gen_input_data(exp_obj: Experiment, img_folder_src: PathLike)-> list[PathLik
     masks_dict = exp_obj.analyzed_channels
     masks_dict = trim_masks_list(masks_dict)
     
-    img_path_list = img_list_src(exp_obj,img_folder_src)
+    _, img_path_list = img_list_src(exp_obj,img_folder_src)
     img_path_input = [[file for file in img_path_list if file.__contains__(f"_f{(i+1):04d}")] for i in range(exp_obj.img_properties.n_frames)]
     
     mask_input_list = []

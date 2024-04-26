@@ -46,22 +46,28 @@ def load_stack(img_list: list[PathLike], channel_list: str | Iterable[str], fram
         return np.amax(stack, axis=0)
 
 def img_list_src(exp_set: Experiment, img_fold_src: str)-> list[PathLike]:
-    """If not manually specified, return the latest processed images list"""
+    """If not manually specified, return the latest processed images list
+    Return the image folder source to save during segmentation.
+    Args:
+        exp_set (Experiment): The experiment settings.
+        img_fold_src (str): The image folder source. Can be None or str.
+    Returns:
+        tuple[str,list[PathLike]]: The image folder source and the list of masks."""
     
-    if img_fold_src and img_fold_src == 'Images':
-        return exp_set.ori_imgs_lst
-    if img_fold_src and img_fold_src == 'Images_Registered':
-        return exp_set.registered_imgs_lst
-    if img_fold_src and img_fold_src == 'Images_Blured':
-        return exp_set.blured_imgs_lst
+    if img_fold_src == 'Images':
+        return img_fold_src, exp_set.ori_imgs_lst
+    if img_fold_src == 'Images_Registered':
+        return img_fold_src, exp_set.registered_imgs_lst
+    if img_fold_src == 'Images_Blured':
+        return img_fold_src, exp_set.blured_imgs_lst
     
     # If not manually specified, return the latest processed images list
     if exp_set.preprocess.is_img_blured:
-        return exp_set.blured_imgs_lst
+        return 'Images_Blured', exp_set.blured_imgs_lst
     elif exp_set.preprocess.is_frame_reg:
-        return exp_set.registered_imgs_lst
+        return 'Images_Registered', exp_set.registered_imgs_lst
     else:
-        return exp_set.ori_imgs_lst
+        return 'Images', exp_set.ori_imgs_lst
 
 def seg_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> tuple[str,list[PathLike]]:
     """If not manually specified, return the latest processed segmentated masks list. 

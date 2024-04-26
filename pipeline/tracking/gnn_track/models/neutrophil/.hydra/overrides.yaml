@@ -1,5 +1,4 @@
-- dataset.kwargs.data_dir_img=./CellTracking/nature_method_ctc/neutrophil
-- dataset.kwargs.data_dir_mask=./CellTracking/nature_method_ctc/neutrophil
-- dataset.kwargs.dir_csv=./CellTracking/nature_method_ctc/basic_features/neutrophil
-- dataset.kwargs.subdir_mask=GT/TRA
-- kwargs.num_workers=6
+- datamodule.dataset_params.main_path=./CellTracking/nature_method_ctc/ct_features/neutrophil
+- datamodule.dataset_params.exp_name=2D_SIM
+- datamodule.dataset_params.drop_feat=[]
+- datamodule.dataset_params.jump_frames=3

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from os import PathLike
 from os.path import join, split
 import numpy as np
 import pandas as pd
@@ -6,9 +7,7 @@ from collections import Counter
 from skimage.segmentation import expand_labels
 from mask_transformation.complete_track import complete_track
 from image_handeling.Experiment_Classes import Experiment
-from image_handeling.data_utility import load_stack, is_processed, create_save_folder, gen_input_data, delete_old_masks
-# TODO: Fabian, please check which of this fct you need
-from image_handeling.data_utility import seg_mask_lst_src, track_mask_lst_src
+from image_handeling.data_utility import load_stack, is_processed, create_save_folder, gen_input_data, delete_old_masks, seg_mask_lst_src
 from tifffile import imsave
 from concurrent.futures import ProcessPoolExecutor
 
@@ -27,13 +26,15 @@ def load_csv(channel_seg: str, csv_path: str, csv_name: str = None):
     
     return csv_data
    
-def gen_input_data_masks(exp_set: Experiment, mask_fold_src: str, mask_fold_src2: str, channel_seg_list: list, **kwargs)-> list[dict]:
-    mask_path_list = mask_list_src(exp_set,mask_fold_src)
-    mask_path_list2 = mask_list_src(exp_set,mask_fold_src2)
+def gen_input_data_masks(exp_obj: Experiment, mask_fold_src: str, mask_fold_src2: str, channel_seg_list: list, **kwargs)-> list[dict]:
+    mask_fold_src, mask_list_src = seg_mask_lst_src(exp_obj,mask_fold_src) 
+    mask_path_list = mask_list_src(exp_obj,mask_fold_src)
+    mask_fold_src, mask_list_src = seg_mask_lst_src(exp_obj,mask_fold_src2)     
+    mask_path_list2 = mask_list_src(exp_obj,mask_fold_src2)
 
     channel_seg = channel_seg_list[0]
     input_data = []
-    for frame in range(exp_set.img_properties.n_frames):
+    for frame in range(exp_obj.img_properties.n_frames):
         input_dict = {}
         mask1_path = [mask for mask in mask_path_list if f"_f{frame+1:04d}" in mask and channel_seg in mask]
         input_dict['mask1_path'] = mask1_path
@@ -45,11 +46,11 @@ def gen_input_data_masks(exp_set: Experiment, mask_fold_src: str, mask_fold_src2
         input_data.append(input_dict)
     return input_data   
         
-def uniform_dataset(csv_data: pd.DataFrame, exp_set: Experiment): 
+def uniform_dataset(csv_data: pd.DataFrame, exp_obj: Experiment): 
     #get values needed later in the run from the metadata
-    interval = exp_set.analysis.interval_sec
-    pixel_microns = exp_set.analysis.pixel_microns
-    frames = exp_set.img_properties.n_frames
+    interval = exp_obj.analysis.interval_sec
+    pixel_microns = exp_obj.analysis.um_per_pixel
+    frames = exp_obj.img_properties.n_frames
     
     # find the column keys for x, y and t
     x_head = csv_data.keys()[csv_data.keys().str.contains("x ")][0]
@@ -143,26 +144,41 @@ def seg_track_manual(img_dict: dict):
     savedir = join(split(folder)[0],'Masks_Manual_Track', filename)
     imsave(savedir,tracked_mask)
 
-def run_morph(exp_set:Experiment, mask_fold_src:str, channel_seg:str, n_mask:int):
-    mask_src_list = mask_list_src(exp_set,mask_fold_src)
-    mask_stack = load_stack(mask_src_list,[channel_seg],range(exp_set.img_properties.n_frames))
+def run_morph(exp_obj:Experiment, mask_fold_src:str, channel_seg:str, n_mask:int):
+    mask_fold_src, mask_src_list = seg_mask_lst_src(exp_obj,mask_fold_src)
+    mask_stack = load_stack(mask_src_list,[channel_seg],range(exp_obj.img_properties.n_frames))
     mask_stack = complete_track(mask_stack, n_mask)
     
     # Save masks
-    # mask_src_list = [file for file in mask_src_list if file.__contains__('_z0001')]
     for i,path in enumerate(mask_src_list):
         imsave(path,mask_stack[i,...].astype('uint16'))
 
 # # # # # # # # main functions # # # # # # # # # 
-def man_tracking(exp_set_list: list[Experiment], channel_seg: str, track_seg_mask: bool = False, mask_fold_src: str = None,
-                csv_name: str = None, radius: int=5, morph: bool=True, n_mask=2, manual_track_overwrite: bool=False, dilate_value: int = 20):
-    
-    for exp_set in exp_set_list:
+def man_tracking(exp_obj_lst: list[Experiment], channel_seg: str, track_seg_mask: bool = False, mask_fold_src: PathLike = None,
+                csv_name: str = None, radius: int=5, morph: bool=True, mask_appear=2, dilate_value: int = 20, overwrite: bool=False,):
+    """
+    Perform Manual Tracking based on a csv file resulting of MTrackJ (ImageJ Plugin) on a list of experiments.
+
+    Args:
+        exp_obj_lst (list[Experiment]): List of Experiment objects to perform tracking on.
+        channel_seg (str): Channel name for segmentation.
+        track_seg_mask (bool): possibility to write tracks from csv onto automatically segmented masks. Defaults to False.
+        mask_fold_src (PathLike, optional): Only nececarry if track_seg_mask==True. Source folder path for masks, where the track will be written on.
+        csv_name (str, optional): name of the .csv file with the manualtracking information. If no name is given it takes the first .csv file in the folder.
+        radius (int): Resulting cell radius of the created masks. Defaults to 5.
+        morph (bool): Activate filling gaps. Defaults to True.
+        mask_appear (int, optional): Number of times a mask should appear to be considered valid. Defaults to 5.
+        dilate_value (int, optional): Only nececarry if track_seg_mask==True. Gives the area in which trackpoint is looking for a valide mask from the segmentation. Defaults to 20.
+        overwrite (bool, optional): Flag to overwrite existing tracking results. Defaults to False.
+        
+    Returns:
+        list[Experiment]: List of Experiment objects with updated tracking information.
+    """
+    for exp_obj in exp_obj_lst:
         # Activate the branch
-        exp_set.masks.is_manual_tracking = True
-        # Check if exist
-        if is_processed(exp_set.masks.manual_tracking,channel_seg,manual_track_overwrite):
-                # Log
+        exp_obj.tracking.is_manual_tracking = True
+        # Already processed?
+        if is_processed(exp_obj.tracking.manual_tracking,channel_seg,overwrite):
             print(f" --> Cells have already been tracked for the '{channel_seg}' channel")
             continue
         
@@ -170,32 +186,32 @@ def man_tracking(exp_set_list: list[Experiment], channel_seg: str, track_seg_mas
         print(f" --> Tracking cells for the '{channel_seg}' channel")
         
         # Create save folder and remove old masks
-        create_save_folder(exp_set.exp_path,'Masks_Manual_Track')
-        delete_old_masks(exp_set.masks.manual_tracking,channel_seg,exp_set.mask_manual_track_list,manual_track_overwrite)
+        create_save_folder(exp_obj.exp_path,'Masks_Manual_Track')
+        delete_old_masks(exp_obj.tracking.manual_tracking,channel_seg,exp_obj.man_tracked_masks_lst,overwrite)
         
         #load csv
-        csv_data = load_csv(channel_seg=channel_seg, csv_name=csv_name, csv_path=exp_set.exp_path)
+        csv_data = load_csv(channel_seg=channel_seg, csv_name=csv_name, csv_path=exp_obj.exp_path)
         
-        #uniform the keys of the dataset and reduce the df to the necessary part and also do recalculations for time adn micron
-        csv_data = uniform_dataset(csv_data=csv_data, exp_set=exp_set)
+        #uniform the keys of the dataset and reduce the df to the necessary part and also do recalculations for time and micron
+        csv_data = uniform_dataset(csv_data=csv_data, exp_obj=exp_obj)
         
         #generate List of Data to run them through ParallelProcessing
-        img_data = gen_input_data(exp_set, mask_fold_src, [channel_seg], radius=radius, csv_data=csv_data)
+        img_data = gen_input_data(exp_obj, mask_fold_src, [channel_seg], radius=radius, csv_data=csv_data)
         with ProcessPoolExecutor() as executor:
             executor.map(create_man_mask,img_data)
         if morph:
-            run_morph(exp_set, mask_fold_src='Masks_Manual_Track', channel_seg=channel_seg, n_mask=n_mask)
+            run_morph(exp_obj, mask_fold_src='Masks_Manual_Track', channel_seg=channel_seg, n_mask=mask_appear)
         
-        if track_seg_mask:          
+        if track_seg_mask:         
             # do overwrite from seg mask
-            img_data = gen_input_data_masks(exp_set, mask_fold_src, mask_fold_src2='Masks_Manual_Track', channel_seg_list=[channel_seg], dilate_value=dilate_value)
+            img_data = gen_input_data_masks(exp_obj, mask_fold_src, mask_fold_src2='Masks_Manual_Track', channel_seg_list=[channel_seg], dilate_value=dilate_value)
             # seg_track_manual(img_data)
             with ProcessPoolExecutor() as executor:
                 executor.map(seg_track_manual,img_data)
             
         
         # Save settings
-        exp_set.masks.manual_tracking[channel_seg] = {'mask_fold_src':mask_fold_src,'track_seg_mask':track_seg_mask,
-                                        'csv_name':csv_name,'n_mask':n_mask,'morph':morph,'radius':radius}
-        exp_set.save_as_json()
-    return exp_set_list
+        exp_obj.tracking.manual_tracking[channel_seg] = {'mask_fold_src':mask_fold_src,'track_seg_mask':track_seg_mask,
+                                        'csv_name':csv_name,'mask_appear':mask_appear,'morph':morph,'radius':radius}
+        exp_obj.save_as_json()
+    return exp_obj_lst

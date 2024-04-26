@@ -60,7 +60,8 @@ def threshold(exp_obj_lst: list[Experiment], channel_seg: str, overwrite: bool=F
         delete_old_masks(exp_obj.segmentation.threshold_seg,channel_seg,exp_obj.threshold_masks_lst,overwrite)
         
         # Sort images by frames and channels
-        imgs_list = [img for img in img_list_src(exp_obj,img_fold_src) if channel_seg in img]
+        _, images = img_list_src(exp_obj,img_fold_src)
+        imgs_list = [img for img in images if channel_seg in img]
         sorted_frames = {frame:[img for img in imgs_list if f"_f{frame+1:04d}" in img] for frame in range(exp_obj.img_properties.n_frames)}
         
         # Generate input data

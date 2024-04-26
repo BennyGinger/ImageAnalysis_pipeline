@@ -1,8 +1,8 @@
 hydra:
   run:
-    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: logs/runs/${now:%Y-%m-%d}/${now:%H-%M-%S}
   sweep:
-    dir: multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: logs/multiruns/${now:%Y-%m-%d_%H-%M-%S}
     subdir: ${hydra.job.num}
   launcher:
     _target_: hydra._internal.core_plugins.basic_launcher.BasicLauncher
@@ -107,18 +107,18 @@ hydra:
   overrides:
     hydra: []
     task:
-    - dataset.kwargs.data_dir_img=./CellTracking/nature_method_ctc/neutrophil
-    - dataset.kwargs.data_dir_mask=./CellTracking/nature_method_ctc/neutrophil
-    - dataset.kwargs.dir_csv=./CellTracking/nature_method_ctc/basic_features/neutrophil
-    - dataset.kwargs.subdir_mask=GT/TRA
-    - kwargs.num_workers=6
+    - datamodule.dataset_params.main_path=./CellTracking/nature_method_ctc/ct_features/neutrophil
+    - datamodule.dataset_params.exp_name=2D_SIM
+    - datamodule.dataset_params.drop_feat=[]
+    - datamodule.dataset_params.jump_frames=3
   job:
-    name: run_train_metric_learning
-    override_dirname: dataset.kwargs.data_dir_img=./CellTracking/nature_method_ctc/neutrophil,dataset.kwargs.data_dir_mask=./CellTracking/nature_method_ctc/neutrophil,dataset.kwargs.dir_csv=./CellTracking/nature_method_ctc/basic_features/neutrophil,dataset.kwargs.subdir_mask=GT/TRA,kwargs.num_workers=6
+    name: run
+    override_dirname: datamodule.dataset_params.drop_feat=[],datamodule.dataset_params.exp_name=2D_SIM,datamodule.dataset_params.jump_frames=3,datamodule.dataset_params.main_path=./CellTracking/nature_method_ctc/ct_features/neutrophil
     id: ???
     num: ???
-    config_name: config_2D.yaml
-    env_set: {}
+    config_name: config.yaml
+    env_set:
+      WANDB_START_METHOD: thread
     env_copy: []
     config:
       override_dirname:
@@ -130,7 +130,11 @@ hydra:
     cwd: /home/Fabian/cell-tracker-gnn
   verbose: false
   choices:
-    dataset: dataset_2D.yaml
+    logger: many_loggers.yaml
+    callbacks: default_callbacks.yaml
+    datamodule: datamodule_multiSequence.yaml
+    model: celltrack_model_2d.yaml
+    trainer: default_trainer.yaml
     hydra/job_logging: default
     hydra/hydra_logging: default
     hydra/hydra_help: default

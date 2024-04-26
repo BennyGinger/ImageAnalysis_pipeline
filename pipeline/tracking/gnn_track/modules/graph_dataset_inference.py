@@ -69,6 +69,9 @@ class CellTrackDataset:
         for k, v_list in dirs_path.items():
             for ind, val in enumerate(v_list):
                 self.dirs_path[k][ind] = osp.join(main_path, val)
+                
+                
+        print(self.dirs_path)
         self.modes = ["train", "valid", "test"]
         self.type_file = type_file
         # attributes for graph construction
