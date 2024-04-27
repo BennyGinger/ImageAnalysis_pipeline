@@ -29,7 +29,7 @@ class Postprocess(object):
         self.dir_result = dir_results = path_seg_result
         self.results = []
         if os.path.exists(dir_results):
-            self.results = [os.path.join(dir_results, fname) for fname in sorted(os.listdir(dir_results))
+            self.results = [os.path.join(dir_results, fname) for fname in sorted(os.listdir(dir_results)) #path of segmentation masks in correct order
                             if type_masks in fname]
 
         self.is_3d = is_3d
