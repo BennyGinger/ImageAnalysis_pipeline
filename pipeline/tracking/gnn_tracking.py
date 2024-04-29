@@ -43,7 +43,7 @@ def model_select(model):
 
 def gnn_tracking(exp_obj_lst: list[Experiment], channel_seg: str, model:str, overwrite: bool=False,
                  img_fold_src: str = None, mask_fold_src: str = None, morph: bool=False, mask_appear=2,
-                 min_cell_size:int = 20, decision_threshold:float = 0.5):
+                 min_cell_size:int = 20, decision_threshold:float = 0.5, merge_operation:str='AND'):
     """
     Perform GNN Tracking based cell tracking on a list of experiments.
 

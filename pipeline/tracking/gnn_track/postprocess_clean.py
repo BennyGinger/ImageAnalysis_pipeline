@@ -376,8 +376,6 @@ class Postprocess(object):
 
         predID_not_in_currID = [x for x in pred_ids if x not in curr_ids]
         currID_not_in_predID = [x for x in curr_ids if x not in pred_ids]
-        print(f'{predID_not_in_currID}')
-        print(f'{currID_not_in_predID}')
         flag1 = len(predID_not_in_currID) == 1 and predID_not_in_currID[0] == 0
         flag2 = len(currID_not_in_predID) == 0
         if not flag1:
@@ -448,7 +446,6 @@ class Postprocess(object):
                             print("Problem! The provided center coordinates value is zero, should be labeled with other value")
                             print(df.loc[id, ["seg_label", "frame_num",  "centroid_depth", "centroid_row", "centroid_col", "min_depth_bb",
                                               "min_row_bb", "min_col_bb", "max_depth_bb", "max_row_bb", "max_col_bb"]].astype(int))
-                            print()
                             continue
                 else:
                     cell_center = df.loc[id, ["centroid_row", "centroid_col"]].values.astype(int)
@@ -473,11 +470,9 @@ class Postprocess(object):
                             counts = counts[mask]
                             val = unique_labels[np.argmax(counts)]
                         else:
-                            print(
-                                "Problem! The provided center coordinates value is zero, should be labeled with other value")
+                            print("Problem! The provided center coordinates value is zero, should be labeled with other value")
                             print(df.loc[id, ["seg_label", "frame_num", "centroid_row", "centroid_col",
                                               "min_row_bb", "min_col_bb", "max_row_bb", "max_col_bb"]].astype(int))
-                            print()
                             continue
 
                 assert val != 0, "Problem! The provided center coordinates value is zero, " \

@@ -58,11 +58,11 @@ settings = {
     "gnn_track": (True,
                   {"channel_to_track":"RFP",
                    "img_fold_src": "",
-                   "model":"Fluo-N2DL-HeLa", #neutrophil, neutrophil_old, Fluo-C2DL-Huh7, Fluo-N2DH-SIM+, Fluo-N2DL-HeLa, Fluo-N3DH-SIM+, PhC-C2DH-U373
+                   "model":"Fluo-N2DH-SIM+", #neutrophil, neutrophil_old, Fluo-C2DL-Huh7, Fluo-N2DH-SIM+, Fluo-N2DL-HeLa, Fluo-N3DH-SIM+ (implement from server first!), PhC-C2DH-U373
                    "mask_fold_src": "",
                    "morph":False, # not implemented yet
                    'min_cell_size': 15,
-                   'decision_threshold': 0.5,
+                   'decision_threshold': 0.9,
                    "mask_appear":5, # not implemented yet
                    "overwrite":True}),
     

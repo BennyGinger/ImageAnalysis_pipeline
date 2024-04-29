@@ -357,7 +357,7 @@ def create_csv(input_images, input_seg, input_model, output_csv, min_cell_size, 
         channel=channel,
         type_img="tif",
         type_masks="tif")
-    ds.correct_masks(min_cell_size)
+    # ds.correct_masks(min_cell_size)
     ds.preprocess_features_loop_by_results_w_metric_learning(path_to_write=path_output,
         dict_path=dict_path)
 
