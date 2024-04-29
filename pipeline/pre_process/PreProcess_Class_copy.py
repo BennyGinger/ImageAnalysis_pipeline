@@ -1,16 +1,18 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from os.path import join, exists
-from os import sep, walk, PathLike, scandir
+from os import sep, walk, PathLike
 from re import search
 
-from pre_process.metadata import get_metadata
-from .image_sequence_copy import process_img
-from .image_blur import blur_img
-from .background_sub import background_sub
-from .image_registration import correct_frame_shift, correct_channel_shift
+if __name__ == "__main__": # To be able to run the script as a standalone
+    import sys
+    sys.path.append('/home/ImageAnalysis_pipeline/pipeline')
+    
+from pre_process.image_sequence_copy import create_img_seq
+from pre_process.image_blur import blur_img
+from pre_process.background_sub import background_sub
+from pre_process.image_registration import correct_frame_shift, correct_channel_shift
 from settings.Setting_Classes import Settings
-from image_handeling.data_utility import create_save_folder
 from image_handeling.Experiment_Classes import Experiment, init_from_dict, init_from_json
 from image_handeling.Base_Module_Class import BaseModule
 
@@ -46,10 +48,18 @@ class PreProcess(BaseModule):
             return exp_files
     
     def extract_img_seq(self, img_path_list: list[PathLike])-> list[Experiment]:
-        exp_list = []
+        # Extract the image sequence from the image files, return metadata dict for each exp (i.e. each serie in the image file)
+        metadata_lst = []
         for img_path in img_path_list:
-            exp_list.extend(process_img_file(img_path,self.active_channel_list,self.full_channel_list,self.overwrite))
-        return exp_list
+            metadata_lst.extend(create_img_seq(img_path,self.active_channel_list,self.full_channel_list,self.overwrite))
+        
+        # Initiate the Experiment object
+        exp_objs = [init_exp_obj(meta['exp_path'],meta) for meta in metadata_lst]
+        
+        # Save the settings
+        for exp_obj in exp_objs:
+            exp_obj.save_as_json()
+        return exp_objs
     
     def process_from_settings(self, settings: dict)-> list[Experiment]:
         # Process the images based on the settings
@@ -97,49 +107,6 @@ def get_img_path(folder: PathLike)-> list[PathLike]:
                 imgS_path.append(join(root,f))
     return sorted(imgS_path) 
 
-def process_img_file(img_path: PathLike, active_channel_list: list[str], 
-                     full_channel_list: list[str]=[], overwrite: bool=False)-> list[Experiment]:
-    """Extract metadata from img file and process the images to create an image sequence. If multiple series, then each serie is 
-    processed individually and an Experiment object is created for each serie. 
-    
-    Args:
-        img_path (PathLike): Path to the image file
-        active_channel_list (list[str]): List of active channel names, namly the channels tha need to be processed.
-        full_channel_list (list[str], optional): List of all channel names. Defaults to [].
-        overwrite (bool, optional): Overwrite the images if they have already been processed. Defaults to False.
-        
-    Returns:
-        list[Experiment]: List of Experiment objects"""
-    exp_obj_list = []
-    for serie in range(meta_dict['n_series']):
-        exp_path = meta_dict['exp_path_list'][serie]
-        meta_dict['exp_path'] = exp_path
-        print(f"--> Checking exp {exp_path} for image sequence")
-        
-        # If exp has been processed but removed
-        if exists(join(sep,exp_path+sep,'REMOVED_EXP.txt')):
-            print(" ---> Exp. has been removed")
-            continue
-        
-        save_folder = create_save_folder(exp_path,'Images')
-        
-        # If img are already processed
-        if any(scandir(save_folder)) and not overwrite:
-            print(f" ---> Images have already been converted to image sequence")
-            exp_obj = init_exp_obj(exp_path)
-            exp_obj_list.append(exp_obj)
-            # No need to save the settings as they are already saved
-            continue
-        
-        # If images are not processed, extract imseq and initialize exp_set object
-        print(f" ---> Extracting images and converting to image sequence")
-        process_img(meta_dict)
-        
-        exp_obj = init_exp_obj(exp_path,meta_dict)
-        exp_obj.save_as_json()
-        exp_obj_list.append(exp_obj)
-    return exp_obj_list
-
 def init_exp_obj(exp_path: PathLike, meta_dict: dict = None)-> Experiment:
     """Initialize Experiment object from json file if exists, else from the metadata dict. 
     Return the Experiment object."""
@@ -158,4 +125,9 @@ def init_exp_obj(exp_path: PathLike, meta_dict: dict = None)-> Experiment:
     return exp_obj
 
 
+if __name__ == "__main__":
+    
 
+    img_path = '/home/Test_images/nd2/Run3'
+    obj = PreProcess(img_path,overwrite=True)
+    print(obj.exp_obj_lst)

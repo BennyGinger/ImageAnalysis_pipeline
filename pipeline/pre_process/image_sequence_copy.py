@@ -1,25 +1,59 @@
 from __future__ import annotations
-from os import PathLike
-from os.path import join, getsize
-from preprocess_utils import save_tif, create_save_folder
-from metadata import get_metadata
-
+from os import PathLike, scandir
+from os.path import join, getsize, exists
 from nd2 import ND2File
 from tifffile import imread
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 
+if __name__ == "__main__": # To be able to run the script as a standalone
+    import sys
+    sys.path.append('/home/ImageAnalysis_pipeline/pipeline')
+from image_handeling.data_utility import save_tif, create_save_folder
+from pre_process.metadata import get_metadata
+
+
 
 ################################## main function ###################################
-def process_img(img_path: PathLike, active_channel_list: list[str] = [], full_channel_list: list[str] = [])-> dict:
-    """Determine which process fct to use depending on the file type and size of the img"""
+def create_img_seq(img_path: PathLike, active_channel_list: list[str] = [], full_channel_list: list[str] = [], overwrite: bool = False)-> dict:
     # Get file metadata
     meta_dict = get_metadata(img_path, active_channel_list, full_channel_list)
     
+    # Process each image series
+    meta_list = []
+    for exp_path in meta_dict['exp_path_list']:
+        print(f"--> Checking exp {exp_path} for image sequence")
+        
+        # If exp has been processed but removed
+        if exists(join(exp_path,'REMOVED_EXP.txt')):
+            print(" ---> Exp. has been removed")
+            continue
+        
+        save_folder = create_save_folder(exp_path,'Images')
+        meta = meta_dict.copy()
+        meta['exp_path'] = exp_path
+        
+        # If img are already processed
+        if any(scandir(save_folder)) and not overwrite:
+            print(f" ---> Images have already been converted to image sequence")
+            meta_list.append(meta)
+            continue
+        
+        # If images are not processed, extract imseq and initialize exp_set object
+        print(f" ---> Extracting images and converting to image sequence")
+        process_img(meta_dict)
+        meta_list.append(meta)
+        
+    return meta_list
+
+def process_img(meta_dict: dict)-> None:
+    """Determine which process fct to use depending on the file type and size of the img, create the image sequence
+    and return the metadata dict."""
+    img_path = meta_dict['img_path']
     # If nd2 file is bigger than 20 GB, then process the ND2File obj frame by frame
     if getsize(img_path) > 20e9 and meta_dict['file_type'] == '.nd2':
         process_img_obj(meta_dict)
-        return meta_dict
+        return
     
     # Else get the array (including nd2 and tiff) and process it
     if meta_dict['file_type'] == '.tif':
@@ -29,7 +63,7 @@ def process_img(img_path: PathLike, active_channel_list: list[str] = [], full_ch
             array = nd_obj.asarray()
     # Process the array
     process_img_array(array,meta_dict)
-    return meta_dict
+    return 
     
 def process_img_array(array: np.ndarray, meta_dict: dict)-> None:
     """Get an ndarray of the image stack and extract each image to be saved as tif file.
@@ -128,4 +162,5 @@ if __name__ == "__main__":
     # img_path = '/home/Test_images/tiff/Run2/c2z25t23v1_tif.tif'
     # Test nd2 image
     img_path = '/home/Test_images/nd2/Run4/c4z1t91v1.nd2'
-    process_img(img_path)
+    meta = create_img_seq(img_path, overwrite=True)
+    print(meta)
