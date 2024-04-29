@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+
+[project]
+name = "ImageAnalysis"
+version = "0.1.0"
+description = "Analysis pipelines for fluorescent microscopic images, mainly time sequences, \
+    that is capable of pre-process, segment, track and get data of single cells."
+authors = [
+    {name = "Benoit Thomas Roux", email = "benoit.roux@gmail.com"},
+    {name = "Fabian Gregory Dehne", email = "fabiang.dehne@gmail.com"},
+    {name = "Raphael David FEURSTEIN", email = "raphael.feurstein@stud.semmelweis.hu"}, # TODO: Check the email
+]
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+    # Add other dependencies here
+]
+# [project.scripts] # Create an entry point for the main function
+# ImageAnalysis = "path.to.your.main:main"
