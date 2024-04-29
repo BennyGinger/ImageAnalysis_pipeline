@@ -44,6 +44,8 @@ class Postprocess(object):
         self.edge_index = data.edge_index
 
         self.df_preds = self._load_file(file2)
+        if self.df_preds.frame_num.min() == 1:
+            self.df_preds['frame_num'] = self.df_preds.frame_num -1
         self.output_pred = self._load_file(file3)
         self.find_connected_edges()
 
@@ -265,6 +267,7 @@ class Postprocess(object):
         all_trajectory_dict = {}
         str_track = ''
         df_parents = []
+
         for frame_ind in frame_nums:
             mask_frame_ind = df.frame_num.isin([frame_ind])  # find the places containing frame_ind
 
@@ -487,9 +490,8 @@ class Postprocess(object):
                 mask_where = np.logical_and(np.logical_not(mask_val), mask_where)
 
                 frame_ids.append(true_id)
-            print(f'{idx=}')
-            print(f'{np.unique(pred_copy)=}')
-            print(f'{frame_ids=}')
+                
+            print(f'processing frame: {idx+1}')
             isOK, predID_not_in_currID = self.check_ids_consistent(idx, np.unique(pred_copy), frame_ids)
             if not debug:
                 if not isOK:

@@ -1,0 +1,142 @@
+trainer:
+  _target_: pytorch_lightning.Trainer
+  gpus: 1
+  min_epochs: 1
+  max_epochs: 500
+  weights_summary: top
+  progress_bar_refresh_rate: 100
+  track_grad_norm: false
+  terminate_on_nan: true
+model:
+  _target_: src.models.celltrack_model.CellTrackLitModel
+  one_hot_label: ${one_hot}
+  loss_weights: 65
+  sample: false
+  weight_loss: true
+  directed: true
+  separate_models: ${separate_models}
+  optim_module:
+    target: Adam
+    kwargs:
+      lr: 0.001
+      weight_decay: 1.0e-05
+  lr_sch_module:
+    target: null
+    monitor: val/acc
+    kwargs:
+      verbose: true
+      mode: min
+  model_params:
+    hand_NodeEncoder_dic:
+      input_dim: 13
+      fc_dims:
+      - 64
+      - 16
+    learned_NodeEncoder_dic:
+      input_dim: 128
+      fc_dims:
+      - 64
+      - 16
+    intialize_EdgeEncoder_dic:
+      input_dim: 239
+      fc_dims:
+      - 128
+      - 64
+    message_passing:
+      target: CellTrack_GNN
+      kwargs:
+        in_channels: 32
+        hidden_channels: 32
+        in_edge_channels: 64
+        hidden_edge_channels_conv: 16
+        hidden_edge_channels_linear:
+        - 128
+        - 64
+        dropout: 0.0
+        num_layers: 6
+        num_nodes_features: 3
+    edge_classifier_dic:
+      input_dim: 64
+      fc_dims:
+      - 128
+      - 32
+      - 1
+      dropout_p: 0.2
+      use_batchnorm: false
+datamodule:
+  _target_: src.datamodules.celltrack_datamodule_mulSeq.CellTrackDataModule
+  data_dir: ${data_dir}
+  batch_size: 8
+  num_workers: 0
+  pin_memory: false
+  seed: ${seed}
+  dataset_params:
+    num_frames: 10
+    type_file: csv
+    produce_gt: simple
+    main_path: /home/benhait/Projects/GNN/data/CellTrack/MetricLearning/2D_SIM_MultiSimilarityLoss_80_20/GT_Seg_loop_by_results/Fluo-N2DH-SIM+
+    dirs_path:
+      train:
+      - '01'
+      - '02'
+    one_hot_label: ${one_hot}
+    exp_name: 2D_SIM_with_learned_features_filter_edges_2_sequences_new_split1
+    overlap: 1
+    jump_frames: 1
+    mul_vals:
+    - 2
+    - 2
+    - 2
+    filter_edges: true
+    directed: true
+    edge_feat_embed_dict:
+      p: 1
+      use_normalized_x: true
+      normalized_features: false
+    separate_models: ${separate_models}
+    normalize_all_cols: false
+    same_frame: false
+    next_frame: true
+    self_loop: true
+    normalize: true
+    debug_visualization: false
+    which_preprocess: MinMax
+    drop_feat:
+    - bbox_area
+    - orientation
+    - perimeter
+    - weighted_centroid_row
+    - weighted_centroid_col
+callbacks:
+  model_checkpoint:
+    _target_: pytorch_lightning.callbacks.ModelCheckpoint
+    monitor: val/acc
+    save_top_k: 1
+    save_last: true
+    mode: max
+    verbose: false
+    dirpath: checkpoints/
+    filename: '{epoch:02d}'
+  early_stopping:
+    _target_: pytorch_lightning.callbacks.EarlyStopping
+    monitor: val/acc
+    patience: 50
+    mode: max
+    min_delta: 0
+logger:
+  tensorboard:
+    _target_: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
+    save_dir: tensorboard/
+    name: default
+  csv:
+    _target_: pytorch_lightning.loggers.csv_logs.CSVLogger
+    save_dir: .
+    name: csv/
+seed: 1000
+one_hot: true
+separate_models: true
+work_dir: ${hydra:runtime.cwd}
+data_dir: ${work_dir}/data/
+debug: false
+print_config: true
+disable_warnings: true

@@ -19,6 +19,21 @@ def model_select(model):
     elif model == 'neutrophil':
         model_dict['model_metric'] =  root+'/ImageAnalysis_pipeline/pipeline/tracking/gnn_track/models/neutrophil/all_params.pth'
         model_dict['model_lightning'] =  root+'/ImageAnalysis_pipeline/pipeline/tracking/gnn_track/models/neutrophil/epoch=175.ckpt'
+    elif model == 'Fluo-C2DL-Huh7':
+        model_dict['model_metric'] =  root+'/ImageAnalysis_pipeline/pipeline/tracking/gnn_track/models/Fluo-C2DL-Huh7/all_params.pth'
+        model_dict['model_lightning'] =  root+'/ImageAnalysis_pipeline/pipeline/tracking/gnn_track/models/Fluo-C2DL-Huh7/epoch=136.ckpt'
+    elif model == 'Fluo-N2DH-SIM+':
+        model_dict['model_metric'] =  root+'/ImageAnalysis_pipeline/pipeline/tracking/gnn_track/models/Fluo-N2DH-SIM+/all_params.pth'
+        model_dict['model_lightning'] =  root+'/ImageAnalysis_pipeline/pipeline/tracking/gnn_track/models/Fluo-N2DH-SIM+/epoch=132.ckpt'
+    elif model == 'Fluo-N2DL-HeLa':
+        model_dict['model_metric'] =  root+'/ImageAnalysis_pipeline/pipeline/tracking/gnn_track/models/Fluo-N2DL-HeLa/all_params.pth'
+        model_dict['model_lightning'] =  root+'/ImageAnalysis_pipeline/pipeline/tracking/gnn_track/models/Fluo-N2DL-HeLa/epoch=312.ckpt'
+    elif model == 'Fluo-N3DH-SIM+':
+        model_dict['model_metric'] =  root+'/ImageAnalysis_pipeline/pipeline/tracking/gnn_track/models/Fluo-N3DH-SIM+/all_params.pth'
+        model_dict['model_lightning'] =  root+'/ImageAnalysis_pipeline/pipeline/tracking/gnn_track/models/Fluo-N3DH-SIM+/epoch=42.ckpt'
+    elif model == 'PhC-C2DH-U373':
+        model_dict['model_metric'] =  root+'/ImageAnalysis_pipeline/pipeline/tracking/gnn_track/models/PhC-C2DH-U373/all_params.pth'
+        model_dict['model_lightning'] =  root+'/ImageAnalysis_pipeline/pipeline/tracking/gnn_track/models/PhC-C2DH-U373/epoch=10.ckpt'
     else:
         raise AttributeError(f'{model =} is not a valid modelname.')
     return model_dict
