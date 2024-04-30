@@ -6,11 +6,8 @@ from tifffile import imread
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 
-if __name__ == "__main__": # To be able to run the script as a standalone
-    import sys
-    sys.path.append('/home/ImageAnalysis_pipeline/pipeline')
-from image_handeling.data_utility import save_tif, create_save_folder
-from pre_process.metadata import get_metadata
+from pipeline.image_handeling.data_utility import save_tif, create_save_folder
+from pipeline.pre_process.metadata import get_metadata
 
 
 

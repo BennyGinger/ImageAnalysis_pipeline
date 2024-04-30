@@ -5,8 +5,8 @@ from skimage.morphology import remove_small_objects, remove_small_holes
 import numpy as np
 from tifffile import imsave
 from concurrent.futures import ThreadPoolExecutor
-from image_handeling.Experiment_Classes import Experiment
-from image_handeling.data_utility import is_processed, load_stack, create_save_folder, img_list_src, delete_old_masks, save_tif, gen_input_data
+from pipeline.image_handeling.Experiment_Classes import Experiment
+from pipeline.image_handeling.data_utility import is_processed, load_stack, create_save_folder, img_list_src, delete_old_masks, save_tif, gen_input_data
 
 def determine_threshold(img: np.ndarray, manual_threshold: float=None)-> float:
     # Set the threshold's value. Either as input or automatically if thres==None

@@ -1,7 +1,7 @@
 from __future__ import annotations
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
-from .mask_warp import mask_warp
+from pipeline.mask_transformation.mask_warp import mask_warp
 
 ################## main functions ##################
 def complete_track(mask_stack: np.ndarray, mask_appear: int, copy_first_to_start: bool=True, copy_last_to_end: bool=True) -> np.ndarray:
@@ -36,7 +36,9 @@ def complete_track(mask_stack: np.ndarray, mask_appear: int, copy_first_to_start
             # Trim any overlapping mask
             if np.any(new_stack > obj):
                 new_stack[new_stack > obj] = new_stack[new_stack > obj] - obj
-                
+        # Trim incomplete tracks, as complete tracks can be overwritten by incomplete tracks
+        if copy_first_to_start or copy_last_to_end:
+            new_stack = trim_incomplete_track(new_stack)
     return new_stack.astype('uint16')
 
 ################## Helper functions ##################
@@ -131,6 +133,22 @@ def apply_filling(input_data: list)-> np.ndarray:
         temp = fill_gaps(temp,copyfirst,copylast)
     return temp
 
+def trim_incomplete_track(array: np.ndarray)-> np.ndarray:
+    """Function to trim the incomplete tracks from the mask stack.
+    Args:
+        array (np.ndarray): 3D Mask array in tyx format.
+    Returns:
+        np.ndarray: Mask array with incomplete tracks removed."""
+    # Make a list of unique objects
+    lst_obj = [np.unique(frame) for frame in array]
+    lst_obj = np.concatenate(lst_obj) # Flatten the list
+    # Count the number of occurences of each object
+    obj,cnt = np.unique(lst_obj,return_counts=True)
+    # Create a list of obj to remove
+    obj_to_remove = obj[cnt!=array.shape[0]]
+    for obj in obj_to_remove:
+        array[array==obj] = 0
+    return array
 
 if __name__ == "__main__":
     from os import listdir

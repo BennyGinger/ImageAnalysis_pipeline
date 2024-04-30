@@ -1,7 +1,7 @@
 from __future__ import annotations
 from os import PathLike
-from image_handeling.Experiment_Classes import Experiment
-from image_handeling.data_utility import img_list_src, create_save_folder, save_tif, is_processed
+from pipeline.image_handeling.Experiment_Classes import Experiment
+from pipeline.image_handeling.data_utility import img_list_src, create_save_folder, save_tif, is_processed
 from tifffile import imread
 from cv2 import GaussianBlur
 import numpy as np

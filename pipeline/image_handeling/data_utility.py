@@ -1,7 +1,7 @@
 from __future__ import annotations
 from os import sep, mkdir, remove, PathLike
 from os.path import isdir, join
-from image_handeling.Experiment_Classes import Experiment
+from pipeline.image_handeling.Experiment_Classes import Experiment
 from typing import Iterable
 import numpy as np
 from tifffile import imread, imwrite

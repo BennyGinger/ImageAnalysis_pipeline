@@ -2,11 +2,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from os import PathLike
 from typing import Any
-from image_handeling.Base_Module_Class import BaseModule
-from image_handeling.Experiment_Classes import Experiment, init_from_json
-from .cp_segmentation import cellpose_segmentation
-from .segmentation import threshold
-from settings.Setting_Classes import Settings
+from pipeline.image_handeling.Base_Module_Class import BaseModule
+from pipeline.image_handeling.Experiment_Classes import Experiment, init_from_json
+from pipeline.segmentation.cp_segmentation import cellpose_segmentation
+from pipeline.segmentation.segmentation import threshold
+from pipeline.settings.Setting_Classes import Settings
 
 @dataclass
 class Segmentation(BaseModule):

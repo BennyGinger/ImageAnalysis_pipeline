@@ -6,8 +6,8 @@ from cellpose.io import logger_setup, masks_flows_to_seg
 from os import PathLike
 from os.path import isfile
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from image_handeling.Experiment_Classes import Experiment
-from image_handeling.data_utility import load_stack, is_processed, create_save_folder, delete_old_masks, save_tif, img_list_src, gen_input_data
+from pipeline.image_handeling.Experiment_Classes import Experiment
+from pipeline.image_handeling.data_utility import load_stack, is_processed, create_save_folder, delete_old_masks, save_tif, img_list_src, gen_input_data
 
 #TODO: replace imwrite with save_tif
 MODEL_SETTINGS = {'gpu':core.use_gpu(),

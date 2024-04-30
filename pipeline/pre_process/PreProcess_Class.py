@@ -4,17 +4,13 @@ from os.path import join, exists
 from os import sep, walk, PathLike
 from re import search
 
-if __name__ == "__main__": # To be able to run the script as a standalone
-    import sys
-    sys.path.append('/home/ImageAnalysis_pipeline/pipeline')
-    
-from pre_process.image_sequence import create_img_seq
-from pre_process.image_blur import blur_img
-from pre_process.background_sub import background_sub
-from pre_process.image_registration import correct_frame_shift, correct_channel_shift
-from settings.Setting_Classes import Settings
-from image_handeling.Experiment_Classes import Experiment, init_from_dict, init_from_json
-from image_handeling.Base_Module_Class import BaseModule
+from pipeline.pre_process.image_sequence import create_img_seq
+from pipeline.pre_process.image_blur import blur_img
+from pipeline.pre_process.background_sub import background_sub
+from pipeline.pre_process.image_registration import correct_frame_shift, correct_channel_shift
+from pipeline.settings.Setting_Classes import Settings
+from pipeline.image_handeling.Experiment_Classes import Experiment, init_from_dict, init_from_json
+from pipeline.image_handeling.Base_Module_Class import BaseModule
 
 EXTENTION = ('.nd2','.tif','.tiff')
 

@@ -4,8 +4,8 @@ from tifffile import imread
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from pystackreg import StackReg
-from image_handeling.Experiment_Classes import Experiment
-from image_handeling.data_utility import load_stack, create_save_folder, save_tif, is_processed
+from pipeline.image_handeling.Experiment_Classes import Experiment
+from pipeline.image_handeling.data_utility import load_stack, create_save_folder, save_tif, is_processed
 
 
 ####################################################################################

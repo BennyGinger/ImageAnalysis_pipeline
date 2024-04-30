@@ -1,10 +1,10 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from os import PathLike
-from image_handeling.Base_Module_Class import BaseModule
-from image_handeling.Experiment_Classes import Experiment, init_from_json
-from .iou_tracking import iou_tracking
-from settings.Setting_Classes import Settings
+from pipeline.image_handeling.Base_Module_Class import BaseModule
+from pipeline.image_handeling.Experiment_Classes import Experiment, init_from_json
+from pipeline.tracking.iou_tracking import iou_tracking
+from pipeline.settings.Setting_Classes import Settings
 
 @dataclass
 class Tracking(BaseModule):

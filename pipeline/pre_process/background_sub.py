@@ -1,9 +1,9 @@
 from __future__ import annotations
-from image_handeling.Experiment_Classes import Experiment
+from pipeline.image_handeling.Experiment_Classes import Experiment
 from concurrent.futures import ProcessPoolExecutor
 from tifffile import imread
 from smo import SMO
-from image_handeling.data_utility import save_tif, is_processed
+from pipeline.image_handeling.data_utility import save_tif, is_processed
 
 
 ################################## main function ###################################
