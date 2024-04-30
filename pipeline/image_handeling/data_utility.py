@@ -6,30 +6,41 @@ from typing import Iterable
 import numpy as np
 from tifffile import imread, imwrite
 
-def load_stack(img_list: list[PathLike], channel_list: str | Iterable[str], frame_range: int | Iterable[int], return_2D: bool=False)-> np.ndarray:
+def load_stack(img_paths: list[PathLike], channels: str | Iterable[str], frame_range: int | Iterable[int], return_2D: bool=False)-> np.ndarray:
+    """"Convert images to stack. If return_2D is True, return the max projection of the stack. The output shape is tzxyc,
+    with t, z and c being optional.
+    
+    Args:
+        img_list (list[PathLike]): The list of images path.
+        channel_list (str | Iterable[str]): Name of the channel(s).
+        frame_range (int | Iterable[int]): The frame(s) to load.
+        return_2D (bool, optional): If True, return the max projection of the stack. Defaults to False.
+    Returns:
+        np.ndarray ([[F],[Z],Y,X,[C]]): The stack or the max projection of the stack."""
+    
     # Convert to list if string or int
-    if isinstance(channel_list, str):
-        channel_list = [channel_list]
+    if isinstance(channels, str):
+        channels = [channels]
     
     if isinstance(frame_range, int):
         frame_range = [frame_range]
     
     # Load/Reload stack. Expected shape of images tzxyc
     exp_list = []
-    for chan in channel_list:
+    for chan in channels:
         chan_list = []
         for frame in frame_range:
             f_lst = []
-            for img in img_list:
+            for path in img_paths:
                 # To be able to load either _f3digit.tif or _f4digit.tif
-                ndigit = len(img.split(sep)[-1].split('_')[2][1:])
-                if chan in img and img.__contains__(f'_f%0{ndigit}d'%(frame+1)):
-                    f_lst.append(imread(img))
+                ndigit = len(path.split(sep)[-1].split('_')[2][1:])
+                if chan in path and path.__contains__(f'_f%0{ndigit}d'%(frame+1)):
+                    f_lst.append(imread(path))
             chan_list.append(f_lst)
         exp_list.append(chan_list)
     
     # Process stack
-    if len(channel_list)==1:
+    if len(channels)==1:
         stack = np.squeeze(np.stack(exp_list))
     else:
         stack = np.moveaxis(np.squeeze(np.stack(exp_list)), [0], [-1])
@@ -38,7 +49,7 @@ def load_stack(img_list: list[PathLike], channel_list: str | Iterable[str], fram
     if len(f_lst)==1 or not return_2D:
         return stack
     
-    # if stack is time series, then z is axis 1
+    # For maxIP, if stack is time series, then z is in axis 1
     if len(frame_range)>1:
         return np.amax(stack, axis=1)
     # if not then z is axis 0
