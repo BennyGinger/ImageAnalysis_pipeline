@@ -1,12 +1,10 @@
 from __future__ import annotations
-from os import sep, PathLike
-from dataclasses import fields
+from os import PathLike
 import pandas as pd
 import numpy as np
-from image_handeling.Experiment_Classes import Experiment, LoadClass
-from image_handeling.data_utility import load_stack, img_list_src, mask_list_src
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from skimage.measure import regionprops
+from skimage.measure._regionprops import RegionProperties
 
 
 # def masks_process_dict(masks_class: LoadClass)-> dict:
@@ -141,30 +139,224 @@ from skimage.measure import regionprops
 #         exp_obj.save_as_json()
 #     return exp_obj_lst
 
-def extract_data(img_array: np.ndarray, mask_array: np.ndarray, save_path: PathLike)-> pd.DataFrame:
-    """Extract mean intensities of img with provided mask. Img and mask must have the same shape,
+########################### Main functions ###########################
+def extract_data(img_array: np.ndarray, mask_array: np.ndarray, channels: list[str], save_path: PathLike)-> pd.DataFrame:
+    """Extract img properties (skimage.measure.regionprops) with provided mask. Img and mask must have the same shape,
     except that img can have an optional channel dimension. Frame dimension is also optional. So the
-    shape of img can be ([F],Y,X,[C]) and the shape of mask can be ([F],Y,X). If channel dim is present,
+    shape of img must be ([F],Y,X,[C]) and the shape of mask must be ([F],Y,X). If channel dim is present,
     the mean intensity of each channel will be extracted. Same for frame dim. The extracted data will be
     saved to the provided path. The data will be returned as a pd.DataFrame.
         
     Args:
         img_array ([[F],Y,X,[C]], np.ndarray): The image array to extract the mean intensities from. Frame and channel dim are optional.
         mask_array ([[F],Y,X], np.ndarray): The mask array to extract the mean intensities from. Frame dim is optional.
+        channels (list[str]): List of channel names.
         save_path (PathLike): The path to save the extracted data (as csv) with the name provided.
     Returns:
         pd.DataFrame: The extracted data."""
     
-    # Extract mean_intensity, centroid, slice, area_bbox, solidity
-    if is_time_seq(mask_array):
-        props = [regionprops(mask_array[i],intensity_image=img_array[i]) for i in range(mask_array.shape[0])]
-    
-    pass
-
-def is_time_seq(mask_array: np.ndarray)-> bool:
-    """Check if the mask array is a time sequence. So if the first dimension is the frame dimension.
-    the expected full shape is (F,Y,X)"""
+    # If the mask_array is not a time sequence
     if mask_array.ndim ==2:
-        return False
-    return True
+        prop = regionprops(mask_array, intensity_image=img_array)
+        master_df = regionprops_to_df(prop)
+        master_df['frame'] = 1
+        master_df = unpack_intensity(master_df, channels)
+        master_df.to_csv(save_path, index=False, header=True)
+        return master_df
     
+    # If the mask_array is a time sequence
+    def get_regionprops(frame: int)-> pd.DataFrame:
+        """Nested function to extract the regionprops for each frame in multi-threading."""
+        prop = regionprops(mask_array[frame], intensity_image=img_array[frame])
+        df = regionprops_to_df(prop)
+        df['frame'] = frame+1
+        return unpack_intensity(df,channels)
+    
+    with ThreadPoolExecutor() as executor:
+        lst_df = executor.map(get_regionprops, range(mask_array.shape[0]))
+    
+    # Create the DataFrame and save to csv
+    master_df = pd.concat(lst_df, ignore_index=True)
+    master_df.to_csv(save_path, index=False, header=True)
+    return master_df
+
+########################### Helper functions ###########################
+def unpack_intensity(df: pd.DataFrame, channels: str | list[str])-> pd.DataFrame:
+    """Unpack the intensity values, if necessary, from the regionprops DataFrame and add them as 
+    separate columns. The original output a tuple of intensities (float) for each channel. 
+    This function will simply unpack the tuple and add the intensity values as separate columns 
+    for each channel. If Only one channel is present, then the intensity_mean is a float, not a tuple,
+    and the function will simply rename the column to intensity_mean_{channel}.
+    
+    Args:
+        df (pd.DataFrame): DataFrame containing the regionprops output.
+        channels (list[str]): List of channel names.
+    Returns:
+        pd.DataFrame: DataFrame with the unpacked intensity values as separate columns for each channel."""
+    
+    # If only one channel is present, then the intensity_mean is a float, not a tuple
+    if isinstance(df.intensity_mean[0], float):
+        if len(channels)!=1:
+            raise ValueError("Only one channel is present in the DataFrame. Please provide only 1 channel label.")
+        
+        if isinstance(channels, list):
+            channels = channels[0]
+        
+        df.rename(columns={'intensity_mean': f'intensity_mean_{channels}'}, inplace=True)
+        return df
+    
+    # If multiple channels are present, then the intensity_mean is a tuple of floats
+    if len(channels)!=len(df.intensity_mean[0]):
+        raise ValueError(f"The number of channels do not match the number of intensity values. \
+            Please add {len(df.intensity_mean[0])} channel labels.")
+    
+    data = {channels[i]:[intensity[i] for intensity in df.intensity_mean] for i in range(len(channels))}
+    attr_ind = df.columns.get_loc('intensity_mean')
+    for i, channel in enumerate(channels):
+        if i==0:
+            df.intensity_mean = data[channel]
+            df.rename(columns={'intensity_mean': f"intensity_mean_{channel}"}, inplace=True)
+        else:
+            df.insert(attr_ind+i, f"intensity_mean_{channel}", data[channel])
+    return df
+
+def regionprops_to_df(img_props: RegionProperties)-> pd.DataFrame:
+    """Read content of selected attributes for every item in a list
+    output by skimage.measure.regionprops
+    """
+
+    attributes_list = ['area','centroid','intensity_mean',
+                       'label','perimeter','slice','solidity']
+
+    # Initialise list of lists for parsed data
+    parsed_data = []
+    # Put data from img_props into list of lists
+    for i, img_prop in enumerate(img_props):
+        parsed_data += [[]]
+        for j in range(len(attributes_list)):
+            parsed_data[i] += [getattr(img_prop, attributes_list[j])]
+        
+    # Return as a Pandas DataFrame
+    return pd.DataFrame(parsed_data, columns=attributes_list)
+
+########################### Potential functions ###########################
+
+# def unpack_moments(df: pd.DataFrame, channels: list[str])-> pd.DataFrame:
+#     """Unpack the moments from the regionprops DataFrame and add them as separate columns.
+#     The original output is a list of 2D arrays containing the moments for each channel 
+#     (one dim per channel). This function will unpack the array dimensions, repack it as 
+#     a list of 1D arrays containing the moments for each channel, which will be reinserted as separate columns.
+    
+#     Args:
+#         df (pd.DataFrame): DataFrame containing the regionprops output.
+#         channels (list[str]): List of channel names.
+#     Returns:
+#         pd.DataFrame: DataFrame with the unpacked moments as separate columns for each channel."""
+    
+#     attributes = ['moments_weighted','moments_weighted_central','moments_weighted_normalized','moments_weighted_hu']
+#     for attr in attributes:
+#         data = {channel:[] for channel in channels}
+#         for moment in df[attr]:
+#             for i,channel in enumerate(channels):
+#                 if attr == 'moments_weighted_hu':
+#                     data[channel].append([array[i] for array in moment])
+#                 else:
+#                     data[channel].append([array[:,i] for array in moment])
+        
+#         attr_ind = df.columns.get_loc(attr)
+#         for i, channel in enumerate(channels):
+#             if i==0:
+#                 df[attr] = data[channel]
+#                 df.rename(columns={attr: f'{attr}_{channel}'}, inplace=True)
+#             else:
+#                 df.insert(attr_ind+i, f'{attr}_{channel}', data[channel])
+#     return df
+
+# def unpack_intensity(df: pd.DataFrame, channels: list[str])-> pd.DataFrame:
+#     """Unpack the intensity values from the regionprops DataFrame and add them as separate columns.
+#     The original output a tuple of intensities for each channel. This function will simply unpack
+#     the tuple and add the intensity values as separate columns for each channel.
+    
+#     Args:
+#         df (pd.DataFrame): DataFrame containing the regionprops output.
+#         channels (list[str]): List of channel names.
+#     Returns:
+#         pd.DataFrame: DataFrame with the unpacked intensity values as separate columns for each channel."""
+    
+#     attributes = ['intensity_max','intensity_mean', 'intensity_min']
+#     for attr in attributes:
+#         data = {channels[i]:[intensity[i] for intensity in df[attr]] for i in range(len(channels))}
+#         attr_ind = df.columns.get_loc(attr)
+#         for i, channel in enumerate(channels):
+#             if i==0:
+#                 df[attr] = data[channel]
+#                 df.rename(columns={attr: f'{attr}_{channel}'}, inplace=True)
+#             else:
+#                 df.insert(attr_ind+i, f'{attr}_{channel}', data[channel])
+#     return df
+
+# def unpack_centroids(df: pd.DataFrame, channels: list[str])-> pd.DataFrame:
+#     """Unpack the centroids from the regionprops DataFrame and add them as separate columns.
+#     The original output is a list of 2 arrays, where the first array is the y-coordinates and 
+#     the second array is the x-coordinates of all the channels. This function will convert those
+#     arrays into tuple pairs of (y,x) and add them as separate columns for each channel.
+    
+#     Args:
+#         df (pd.DataFrame): DataFrame containing the regionprops output.
+#         channels (list[str]): List of channel names.
+#     Returns:
+#         pd.DataFrame: DataFrame with the unpacked centroids as separate columns for each channel.""" 
+    
+#     attributes = ['centroid_weighted', 'centroid_weighted_local']
+    
+#     for attr in attributes:
+#         attr_values = [list(zip(*df[attr][i])) for i in range(len(df[attr]))]
+#         data = {channels[i]: [centroid[i] for centroid in attr_values] for i in range(len(channels))}
+#         attr_ind = df.columns.get_loc(attr)
+#         for i, channel in enumerate(channels):
+#             if i==0:
+#                 df[attr] = data[channel]
+#                 df.rename(columns={attr: f'{attr}_{channel}'}, inplace=True)
+#             else:
+#                 df.insert(attr_ind+i, f'{attr}_{channel}', data[channel])
+#     return df
+
+# ##################### Original functions #####################
+# # https://github.com/chigozienri/regionprops_to_df
+# def scalar_attributes_list(im_props):
+#     """
+#     Makes list of all scalar, non-dunder, non-hidden
+#     attributes of skimage.measure.regionprops object
+#     """
+    
+#     attributes_list = []
+    
+#     for attribute in dir(im_props[0]):
+#         if attribute[:1] == '_':
+#             continue
+#         if 'image' in attribute:
+#             continue
+#         attributes_list += [attribute]
+            
+#     return attributes_list
+
+# def regionprops_to_df(im_props):
+#     """
+#     Read content of all attributes for every item in a list
+#     output by skimage.measure.regionprops
+#     """
+
+#     attributes_list = scalar_attributes_list(im_props)
+
+#     # Initialise list of lists for parsed data
+#     parsed_data = []
+
+#     # Put data from im_props into list of lists
+#     for i, _ in enumerate(im_props):
+#         parsed_data += [[]]
+        
+#         for j in range(len(attributes_list)):
+#             parsed_data[i] += [getattr(im_props[i], attributes_list[j])]
+
+#     # Return as a Pandas DataFrame
+#     return pd.DataFrame(parsed_data, columns=attributes_list)
