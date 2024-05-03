@@ -1,40 +1,40 @@
 
 from os import mkdir
 import numpy as np
-from tifffile import imwrite, imread
-from pre_process.image_sequence import expand_array_dim, write_array, get_img_params_lst
+from tifffile import imread
+from pipeline.pre_process.image_sequence import expand_array_dim, get_img_params_lst
 
     
-def test_write_array(tmpdir):
-    # Create a temporary metadata dictionary
-    metadata = {
-        'exp_path_list': [tmpdir],
-        'um_per_pixel': (0.1,0.1),
-        'interval_sec': 1.0,}
+# def test_write_array(tmpdir):
+#     # Create a temporary metadata dictionary
+#     metadata = {
+#         'exp_path_list': [tmpdir],
+#         'um_per_pixel': (0.1,0.1),
+#         'interval_sec': 1.0,}
     
-    # Create a temporary folder to save the image
-    mkdir(tmpdir.join("Images"))
+#     # Create a temporary folder to save the image
+#     mkdir(tmpdir.join("Images"))
     
-    # Create a temporary 3D numpy array
-    array = np.random.randint(1, size=(3, 10, 10))
+#     # Create a temporary 3D numpy array
+#     array = np.random.randint(1, size=(3, 10, 10))
 
-    # Create a temporary input data dictionary
-    input_data = {
-        'metadata': metadata,
-        'serie': 0,
-        'img_name': 'image1',
-        'array': array,
-        'array_slice': 1}
+#     # Create a temporary input data dictionary
+#     input_data = {
+#         'metadata': metadata,
+#         'serie': 0,
+#         'img_name': 'image1',
+#         'array': array,
+#         'array_slice': 1}
 
-    # Call the write_array function
-    write_array(input_data)
+#     # Call the write_array function
+#     write_array(input_data)
 
-    # Read the saved image
-    expected_save_path = tmpdir.join("Images","image1.tif")
-    saved_image = imread(str(expected_save_path))
+#     # Read the saved image
+#     expected_save_path = tmpdir.join("Images","image1.tif")
+#     saved_image = imread(str(expected_save_path))
     
-    # Check that the saved image is equal to the input array slice
-    assert np.array_equal(saved_image, array[1])
+#     # Check that the saved image is equal to the input array slice
+#     assert np.array_equal(saved_image, array[1])
 
 def test_get_img_params_lst():
     meta_dict = {

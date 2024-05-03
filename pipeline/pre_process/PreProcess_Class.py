@@ -4,7 +4,7 @@ from os.path import join, exists
 from os import sep, walk, PathLike
 from re import search
 
-from pipeline.pre_process.image_sequence import create_img_seq
+from pipeline.pre_process.image_sequence import create_img_seq, MetaData_Handler
 from pipeline.pre_process.image_blur import blur_img
 from pipeline.pre_process.background_sub import background_sub
 from pipeline.pre_process.image_registration import correct_frame_shift, correct_channel_shift
@@ -45,12 +45,12 @@ class PreProcess(BaseModule):
     
     def extract_img_seq(self, img_path_list: list[PathLike])-> list[Experiment]:
         # Extract the image sequence from the image files, return metadata dict for each exp (i.e. each serie in the image file)
-        metadata_lst = []
+        metadata_lst: list[MetaData_Handler] = []
         for img_path in img_path_list:
             metadata_lst.extend(create_img_seq(img_path,self.active_channel_list,self.full_channel_list,self.overwrite))
         
         # Initiate the Experiment object
-        exp_objs = [init_exp_obj(meta['exp_path'],meta) for meta in metadata_lst]
+        exp_objs = [init_exp_obj(meta) for meta in metadata_lst]
         
         # Save the settings
         for exp_obj in exp_objs:
@@ -103,19 +103,16 @@ def get_img_path(folder: PathLike)-> list[PathLike]:
                 imgS_path.append(join(root,f))
     return sorted(imgS_path) 
 
-def init_exp_obj(exp_path: PathLike, meta_dict: dict = None)-> Experiment:
+def init_exp_obj(metadata: MetaData_Handler)-> Experiment:
     """Initialize Experiment object from json file if exists, else from the metadata dict. 
     Return the Experiment object."""
     
-    if meta_dict:
-        meta_dict['exp_path'] = exp_path
-        exp_obj = init_from_dict(meta_dict)
-        exp_obj.init_to_inactive()
-        return exp_obj
-    if exists(join(sep,exp_path+sep,'exp_settings.json')):
-        exp_obj = init_from_json(join(sep,exp_path+sep,'exp_settings.json'))
+    meta = metadata.metadata
+    if metadata.is_json:
+        exp_obj = init_from_json(meta)
     else:
-        raise FileNotFoundError("No json file found")
+        exp_obj = init_from_dict(meta)
+        
     # Set all the branch to inactive
     exp_obj.init_to_inactive()
     return exp_obj

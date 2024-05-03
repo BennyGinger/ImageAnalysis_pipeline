@@ -1,24 +1,25 @@
 from __future__ import annotations
+from dataclasses import dataclass
 from os import PathLike, scandir
 from os.path import join, getsize, exists
 from nd2 import ND2File
 from tifffile import imread
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
-
+import json
 from pipeline.image_handeling.data_utility import save_tif, create_save_folder
 from pipeline.pre_process.metadata import get_metadata
 
 
 
 ################################## main function ###################################
-def create_img_seq(img_path: PathLike, active_channel_list: list[str] = [], full_channel_list: list[str] = [], overwrite: bool = False)-> dict:
+def create_img_seq(img_path: PathLike, active_channel_list: list[str] = [], full_channel_list: list[str] = [], overwrite: bool = False)-> list[MetaData_Handler]:
     # Get file metadata
-    meta_dict = get_metadata(img_path, active_channel_list, full_channel_list)
+    metadata = get_metadata(img_path, active_channel_list, full_channel_list)
     
     # Process each image series
-    meta_list = []
-    for exp_path in meta_dict['exp_path_list']:
+    metadatas = []
+    for exp_path in metadata['exp_path_list']:
         print(f"--> Checking exp {exp_path} for image sequence")
         
         # If exp has been processed but removed
@@ -26,22 +27,26 @@ def create_img_seq(img_path: PathLike, active_channel_list: list[str] = [], full
             print(" ---> Exp. has been removed")
             continue
         
+        # Create the save folder
         save_folder = create_save_folder(exp_path,'Images')
-        meta = meta_dict.copy()
-        meta['exp_path'] = exp_path
+        
+        # If exp has already been ran, look for the exp_settings.json file as metadata
+        if exists(join(exp_path,'exp_settings.json')):
+            json_path = join(exp_path,'exp_settings.json')
+            metadatas.append(MetaData_Handler(json_path, is_json=True))
+        else: # If exp has not been ran, create new metadata dict
+            metadata['exp_path'] = exp_path
+            metadatas.append(MetaData_Handler(metadata, is_json=False)) 
         
         # If img are already processed
         if any(scandir(save_folder)) and not overwrite:
             print(f" ---> Images have already been converted to image sequence")
-            meta_list.append(meta)
             continue
         
         # If images are not processed, extract imseq and initialize exp_set object
         print(f" ---> Extracting images and converting to image sequence")
-        process_img(meta_dict)
-        meta_list.append(meta)
-        
-    return meta_list
+        process_img(metadata)
+    return metadatas
 
 def process_img(meta_dict: dict)-> None:
     """Determine which process fct to use depending on the file type and size of the img, create the image sequence
@@ -153,6 +158,10 @@ def get_frame(nd_obj: ND2File, frame:int, serie:int, z_slice:int)-> int:
         if entry['Z Index'] == z_slice and entry['T Index'] == frame and entry['P Index'] == serie:
             return entry['Index']
 
+@dataclass
+class MetaData_Handler:
+    metadata: dict | PathLike
+    is_json: bool = False
 
 if __name__ == "__main__":
     # Test tif image

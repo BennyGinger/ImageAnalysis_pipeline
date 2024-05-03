@@ -1,5 +1,5 @@
 import pytest
-from pre_process.metadata import get_tif_meta, get_ND2_meta, update_channel_names
+from pipeline.pre_process.metadata import get_tif_meta, get_ND2_meta, update_channel_names
 
 LIST_TIF = ['/home/Test_images/tiff/Run1/c1z25t25v1_tif.tif',
             '/home/Test_images/tiff/Run2/c2z25t23v1_tif.tif',

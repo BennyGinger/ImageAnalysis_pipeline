@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from mask_transformation.complete_track import copy_first_last_mask, find_gaps, fill_gaps
+from pipeline.mask_transformation.complete_track import copy_first_last_mask, find_gaps, fill_gaps
 from skimage.draw import rectangle, disk
 
 

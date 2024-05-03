@@ -5,7 +5,7 @@ settings = {
             "overwrite": True},
     
     
-    "bg_sub": (True,
+    "bg_sub": (False,
                 {"sigma": 0.0,
                 "size": 7,
                 "overwrite": False}),
@@ -28,7 +28,7 @@ settings = {
             "overwrite": False}),
 
     "cellpose": (True,
-                {"channel_to_seg":"RFP",
+                {"channel_to_seg":"GFP",
                 "model_type": "cyto3",
                 "diameter": 60.0,
                 "flow_threshold": 0.4,
@@ -45,7 +45,7 @@ settings = {
                 "manual_threshold": None,
                 "img_fold_src": "",}),
     
-    "iou_track": (True,
+    "iou_track": (False,
                   {"channel_to_track":"RFP",
                    "img_fold_src": "",
                    "stitch_thres_percent": 0.50,

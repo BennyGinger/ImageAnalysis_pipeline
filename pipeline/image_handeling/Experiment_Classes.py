@@ -40,8 +40,10 @@ class LoadClass:
 
     @property
     def analyzed_channels(self) -> dict:
-        """Property to get the analyzed channels in the class. 
-        Return a dictionary with the name of the branch as key and the list of channels as value."""
+        """Property to get the analyzed channels in the class, i.e. the masks. 
+        Return a dictionary with the name of the branch as key and the list of channels as value.
+        for example: {'cellpose_seg':['channel1','channel2'],'iou_tracking':['channel3','channel4']},
+        where exp contains segmentation and tracking branches for the different listed channels."""
         settings_dict = {}
         for branch in fields(self):
             # Check if branch is dict and not empty

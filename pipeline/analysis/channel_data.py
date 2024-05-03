@@ -1,5 +1,6 @@
 from __future__ import annotations
 from os import PathLike
+from os.path import exists, join
 import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
@@ -140,7 +141,8 @@ from skimage.measure._regionprops import RegionProperties
 #     return exp_obj_lst
 
 ########################### Main functions ###########################
-def extract_data(img_array: np.ndarray, mask_array: np.ndarray, channels: list[str], save_path: PathLike)-> pd.DataFrame:
+def extract_data(img_array: np.ndarray, mask_array: np.ndarray, channels: list[str], 
+                 save_path: PathLike, overwrite: bool = False)-> pd.DataFrame:
     """Extract img properties (skimage.measure.regionprops) with provided mask. Img and mask must have the same shape,
     except that img can have an optional channel dimension. Frame dimension is also optional. So the
     shape of img must be ([F],Y,X,[C]) and the shape of mask must be ([F],Y,X). If channel dim is present,
@@ -154,6 +156,13 @@ def extract_data(img_array: np.ndarray, mask_array: np.ndarray, channels: list[s
         save_path (PathLike): The path to save the extracted data (as csv) with the name provided.
     Returns:
         pd.DataFrame: The extracted data."""
+    
+    # Check if the data has already been extracted
+    df_name = "regionprops.csv"
+    save_path = join(save_path, df_name)
+    if is_extracted(save_path) and not overwrite:
+        print(f"Data has already been extracted. Loading data from {save_path}")
+        return pd.read_csv(save_path)
     
     # If the mask_array is not a time sequence
     if mask_array.ndim ==2:
@@ -238,6 +247,13 @@ def regionprops_to_df(img_props: RegionProperties)-> pd.DataFrame:
         
     # Return as a Pandas DataFrame
     return pd.DataFrame(parsed_data, columns=attributes_list)
+
+def is_extracted(save_path: PathLike)-> bool:
+    """Check if the data has already been extracted and saved to the provided path."""
+    
+    if exists(save_path):
+        return True
+    return False
 
 ########################### Potential functions ###########################
 
@@ -360,3 +376,23 @@ def regionprops_to_df(img_props: RegionProperties)-> pd.DataFrame:
 
 #     # Return as a Pandas DataFrame
 #     return pd.DataFrame(parsed_data, columns=attributes_list)
+
+# # # # # # # # # Test
+if __name__ == "__main__":
+    import time
+    from tifffile import imread
+    
+    
+    start = time.time()
+    img_path = "/home/Test_images/masks/MAX_Images.tif"
+    stack_path = "/home/Test_images/masks/MAX_Merged.tif"
+    mask_path = "/home/Test_images/masks/Masks_IoU_Track.tif"
+
+    img = imread(img_path)
+    stack = imread(stack_path)
+    stack = np.moveaxis(stack, [1], [-1])
+    mask = imread(mask_path)
+    
+    master_df = extract_data(stack, mask, ['RFP','GFP'], '/home/Test_images/masks')
+    end = time.time()
+    print(f"Processing time: {end-start}")
