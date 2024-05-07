@@ -99,9 +99,9 @@ def create_exp_folder(meta_dict: dict) -> dict:
 
 def update_channel_names(meta_dict: dict, active_channel_list: list=[], full_channel_list: list=[]) -> dict:
     if active_channel_list and len(active_channel_list)>meta_dict['full_n_channels']:
-        print(f"\n---- Warning: The number of active channels given ({len(active_channel_list)})"+
-              f"is greater than the number of channels in the image file ({meta_dict['full_n_channels']})."+
-              "The active channels will renamed and set to the number of channel in the image ----")
+        print(f"\n---- Warning: The number of active channels given ({len(active_channel_list)}) \
+              is greater than the number of channels in the image file ({meta_dict['full_n_channels']}). \
+              The active channels will renamed and set to the number of channel in the image ----")
         meta_dict['active_channel_list'] = meta_dict['full_channel_list'] = [f'C{i+1}' for i in range(meta_dict['full_n_channels'])]
         return meta_dict
     
@@ -111,10 +111,6 @@ def update_channel_names(meta_dict: dict, active_channel_list: list=[], full_cha
         return meta_dict
     
     if not full_channel_list:
-        meta_dict['active_channel_list'] = meta_dict['full_channel_list']  = active_channel_list
-        return meta_dict
-    
-    if active_channel_list and full_channel_list and active_channel_list!=full_channel_list:
         meta_dict['active_channel_list'] = meta_dict['full_channel_list']  = active_channel_list
         return meta_dict
     
@@ -139,7 +135,8 @@ def get_metadata(img_path: PathLike, active_channel_list: list=[], full_channel_
     meta_dict = create_exp_folder(meta_dict)
     
     # Add channel data
-    return update_channel_names(meta_dict,active_channel_list,full_channel_list)
+    meta_dict = update_channel_names(meta_dict,active_channel_list,full_channel_list)
+    return meta_dict
     
 # Final output: 
 # {'active_channel_list': ['C1', 'C2'],
@@ -163,20 +160,21 @@ def get_metadata(img_path: PathLike, active_channel_list: list=[], full_channel_
 if __name__ == '__main__':
     from time import time
     # Test
-    img_path = '/Users/benhome/BioTool/GitHub/cp_dev/c3z1t1v3s1.tif'
-    active_channel_list = ['GFP','RFP','DAPI']
+    img_path = '/home/Test_images/nd2/Run3/c3z1t1v3.nd2'
+    active_channel_list = ['GFP','DAPI']
+    full_channel_list = ['GFP','RFP','DAPI']
     t1 = time()
-    img_meta = get_metadata(img_path,active_channel_list)
+    img_meta = get_metadata(img_path,active_channel_list,full_channel_list)
     t2 = time()
     print(f"Time to get meta: {t2-t1}")
     print(img_meta)
 
-    img_path2 = '/Users/benhome/BioTool/GitHub/cp_dev/c3z1t1v3.nd2'
-    t1 = time()
-    img_meta2 = get_metadata(img_path2,active_channel_list=active_channel_list)
-    t2 = time()
-    print(f"Time to get meta: {t2-t1}")
-    print(img_meta2)
+    # img_path2 = '/Users/benhome/BioTool/GitHub/cp_dev/c3z1t1v3.nd2'
+    # t1 = time()
+    # img_meta2 = get_metadata(img_path2,active_channel_list=active_channel_list)
+    # t2 = time()
+    # print(f"Time to get meta: {t2-t1}")
+    # print(img_meta2)
 
 
 

@@ -30,6 +30,11 @@ class PreProcess(BaseModule):
         ## Convert the images to img_seq
         self.exp_obj_lst = self.extract_img_seq(exp_files)
         
+        # Update the tags
+        for exp_obj in self.exp_obj_lst:
+            exp_obj.analysis.labels = self.get_labels(exp_obj)
+            
+        
     def search_exp_files(self)-> list[PathLike]:
         # look through the folder and collect all image files
         print(f"\n... Searching for {EXTENTION} files in {self.input_folder} ...")
@@ -92,6 +97,13 @@ class PreProcess(BaseModule):
     def blur(self, kernel: tuple[int], sigma: int, img_fold_src: PathLike="", overwrite: bool=False)-> list[Experiment]:
         return blur_img(self.exp_obj_lst,kernel,sigma,img_fold_src,overwrite)
 
+    def get_labels(self, exp_obj: Experiment)-> list[str]:
+        # Get the path of upstream of the input folder, i.e. minus the folder name 
+        parent_path = self.input_folder.rsplit(sep,1)[0]
+        # Remove the parent path from the image path
+        exp_path = exp_obj.exp_path.replace(parent_path,'')
+        # Return all the folders in the path as labels, except the first (empty) and last one (the file name)
+        return exp_path.split(sep)[1:-1]
 
 def get_img_path(folder: PathLike)-> list[PathLike]:
     # Get the path of all the nd2 files in all subsequent folders/subfolders and exp_dict if available

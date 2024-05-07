@@ -4,9 +4,12 @@ from os.path import exists, join
 import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
-from skimage.measure import regionprops
+from skimage.measure import regionprops_table
 from skimage.measure._regionprops import RegionProperties
 
+
+PROPERTIES = ['area','centroid','intensity_mean',
+                       'label','perimeter','slice','solidity']
 
 # def masks_process_dict(masks_class: LoadClass)-> dict:
 #     masks_dict ={}
@@ -142,18 +145,20 @@ from skimage.measure._regionprops import RegionProperties
 
 ########################### Main functions ###########################
 def extract_data(img_array: np.ndarray, mask_array: np.ndarray, channels: list[str], 
-                 save_path: PathLike, overwrite: bool = False)-> pd.DataFrame:
-    """Extract img properties (skimage.measure.regionprops) with provided mask. Img and mask must have the same shape,
-    except that img can have an optional channel dimension. Frame dimension is also optional. So the
-    shape of img must be ([F],Y,X,[C]) and the shape of mask must be ([F],Y,X). If channel dim is present,
-    the mean intensity of each channel will be extracted. Same for frame dim. The extracted data will be
-    saved to the provided path. The data will be returned as a pd.DataFrame.
+                 save_path: PathLike, overwrite: bool = False, save: bool = True)-> pd.DataFrame:
+    """Extract img properties (skimage.measure.regionprops_table) with provided mask. Img and mask must have 
+    the same shape, except that img can have an optional channel dimension. Frame dimension is also optional. 
+    The shape of img must be ([F],Y,X,[C]) and the shape of mask must be ([F],Y,X). If channel dim is present,
+    the mean intensity of each channel will be extracted. Same for frame dim. The extracted data can be
+    saved to the provided path. The data will be returned as a pandas.DataFrame.
         
     Args:
         img_array ([[F],Y,X,[C]], np.ndarray): The image array to extract the mean intensities from. Frame and channel dim are optional.
         mask_array ([[F],Y,X], np.ndarray): The mask array to extract the mean intensities from. Frame dim is optional.
         channels (list[str]): List of channel names.
         save_path (PathLike): The path to save the extracted data (as csv) with the name provided.
+        overwrite (bool, optional): If True, the data will be extracted and overwrite previous extraction. Defaults to False.
+        save (bool, optional): If True, the extracted data will be saved to the provided path. Defaults to True.
     Returns:
         pd.DataFrame: The extracted data."""
     
@@ -164,96 +169,68 @@ def extract_data(img_array: np.ndarray, mask_array: np.ndarray, channels: list[s
         print(f"Data has already been extracted. Loading data from {save_path}")
         return pd.read_csv(save_path)
     
+    # Prepare the renaming of the columns
+    col_rename = {'centroid_0':'centroid_y','centroid_1':'centroid_x'}
+    if img_array.ndim != mask_array.ndim: # If the img_array has a channel dimension
+        col_rename = {**col_rename, **{f'intensity_mean_{i}': f'intensity_mean_{channels[i]}' for i in range(len(channels))}}
+    else:
+        col_rename['intensity_mean'] = f'intensity_mean_{channels[0]}'
+    
     # If the mask_array is not a time sequence
     if mask_array.ndim ==2:
-        prop = regionprops(mask_array, intensity_image=img_array)
-        master_df = regionprops_to_df(prop)
+        prop = regionprops_table(mask_array,intensity_image=img_array,properties=PROPERTIES,separator='_')
+        master_df = pd.DataFrame(prop)
         master_df['frame'] = 1
-        master_df = unpack_intensity(master_df, channels)
-        master_df.to_csv(save_path, index=False, header=True)
+        master_df.rename(columns=col_rename, inplace=True)
+        if save:
+            master_df.to_csv(save_path, index=False)
         return master_df
     
     # If the mask_array is a time sequence
     def get_regionprops(frame: int)-> pd.DataFrame:
         """Nested function to extract the regionprops for each frame in multi-threading."""
-        prop = regionprops(mask_array[frame], intensity_image=img_array[frame])
-        df = regionprops_to_df(prop)
+        prop = regionprops_table(mask_array[frame], intensity_image=img_array[frame],
+                                 properties=PROPERTIES, separator='_')
+        df = pd.DataFrame(prop)
         df['frame'] = frame+1
-        return unpack_intensity(df,channels)
+        return df
     
     with ThreadPoolExecutor() as executor:
         lst_df = executor.map(get_regionprops, range(mask_array.shape[0]))
     
     # Create the DataFrame and save to csv
     master_df = pd.concat(lst_df, ignore_index=True)
-    master_df.to_csv(save_path, index=False, header=True)
+    master_df.rename(columns=col_rename, inplace=True)
+    if save:
+        master_df.to_csv(save_path, index=False)
     return master_df
 
 ########################### Helper functions ###########################
-def unpack_intensity(df: pd.DataFrame, channels: str | list[str])-> pd.DataFrame:
-    """Unpack the intensity values, if necessary, from the regionprops DataFrame and add them as 
-    separate columns. The original output a tuple of intensities (float) for each channel. 
-    This function will simply unpack the tuple and add the intensity values as separate columns 
-    for each channel. If Only one channel is present, then the intensity_mean is a float, not a tuple,
-    and the function will simply rename the column to intensity_mean_{channel}.
-    
-    Args:
-        df (pd.DataFrame): DataFrame containing the regionprops output.
-        channels (list[str]): List of channel names.
-    Returns:
-        pd.DataFrame: DataFrame with the unpacked intensity values as separate columns for each channel."""
-    
-    # If only one channel is present, then the intensity_mean is a float, not a tuple
-    if isinstance(df.intensity_mean[0], float):
-        if len(channels)!=1:
-            raise ValueError("Only one channel is present in the DataFrame. Please provide only 1 channel label.")
-        
-        if isinstance(channels, list):
-            channels = channels[0]
-        
-        df.rename(columns={'intensity_mean': f'intensity_mean_{channels}'}, inplace=True)
-        return df
-    
-    # If multiple channels are present, then the intensity_mean is a tuple of floats
-    if len(channels)!=len(df.intensity_mean[0]):
-        raise ValueError(f"The number of channels do not match the number of intensity values. \
-            Please add {len(df.intensity_mean[0])} channel labels.")
-    
-    data = {channels[i]:[intensity[i] for intensity in df.intensity_mean] for i in range(len(channels))}
-    attr_ind = df.columns.get_loc('intensity_mean')
-    for i, channel in enumerate(channels):
-        if i==0:
-            df.intensity_mean = data[channel]
-            df.rename(columns={'intensity_mean': f"intensity_mean_{channel}"}, inplace=True)
-        else:
-            df.insert(attr_ind+i, f"intensity_mean_{channel}", data[channel])
-    return df
-
-def regionprops_to_df(img_props: RegionProperties)-> pd.DataFrame:
-    """Read content of selected attributes for every item in a list
-    output by skimage.measure.regionprops
-    """
-
-    attributes_list = ['area','centroid','intensity_mean',
-                       'label','perimeter','slice','solidity']
-
-    # Initialise list of lists for parsed data
-    parsed_data = []
-    # Put data from img_props into list of lists
-    for i, img_prop in enumerate(img_props):
-        parsed_data += [[]]
-        for j in range(len(attributes_list)):
-            parsed_data[i] += [getattr(img_prop, attributes_list[j])]
-        
-    # Return as a Pandas DataFrame
-    return pd.DataFrame(parsed_data, columns=attributes_list)
-
 def is_extracted(save_path: PathLike)-> bool:
     """Check if the data has already been extracted and saved to the provided path."""
     
     if exists(save_path):
         return True
     return False
+
+# # # # # # # # # Test
+if __name__ == "__main__":
+    import time
+    from tifffile import imread
+    
+    start = time.time()
+    img_path = "/home/Test_images/masks/MAX_Images.tif"
+    stack_path = "/home/Test_images/masks/MAX_Merged.tif"
+    mask_path = "/home/Test_images/masks/Masks_IoU_Track.tif"
+
+    img = imread(img_path)
+    stack = imread(stack_path)
+    stack = np.moveaxis(stack, [1], [-1])
+    mask = imread(mask_path)
+    
+    master_df = extract_data(stack, mask, ['RFP','GFP'], '/home/Test_images/masks',overwrite=True)
+    end = time.time()
+    print(f"Processing time: {end-start}")
 
 ########################### Potential functions ###########################
 
@@ -377,22 +354,3 @@ def is_extracted(save_path: PathLike)-> bool:
 #     # Return as a Pandas DataFrame
 #     return pd.DataFrame(parsed_data, columns=attributes_list)
 
-# # # # # # # # # Test
-if __name__ == "__main__":
-    import time
-    from tifffile import imread
-    
-    
-    start = time.time()
-    img_path = "/home/Test_images/masks/MAX_Images.tif"
-    stack_path = "/home/Test_images/masks/MAX_Merged.tif"
-    mask_path = "/home/Test_images/masks/Masks_IoU_Track.tif"
-
-    img = imread(img_path)
-    stack = imread(stack_path)
-    stack = np.moveaxis(stack, [1], [-1])
-    mask = imread(mask_path)
-    
-    master_df = extract_data(stack, mask, ['RFP','GFP'], '/home/Test_images/masks')
-    end = time.time()
-    print(f"Processing time: {end-start}")

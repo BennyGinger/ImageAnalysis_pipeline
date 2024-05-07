@@ -25,7 +25,7 @@ def blur_img(exp_obj_lst: list[Experiment], blur_kernel: list[int], blur_sigma: 
             continue
         # Apply blur
         print(f" --> Bluring images using a kernel of {blur_kernel} and sigma of {blur_sigma}")
-        img_list = img_list_src(exp_obj, img_fold_src)
+        fold_src,img_list = img_list_src(exp_obj, img_fold_src)
         input_data = [{'img_path':path,
                      'save_path':path.replace("Images","Images_Blured").replace('_Registered',''),
                      'blur':{'ksize':blur_kernel,
@@ -40,7 +40,7 @@ def blur_img(exp_obj_lst: list[Experiment], blur_kernel: list[int], blur_sigma: 
             executor.map(apply_blur,input_data)
             
         # Save settings
-        exp_obj.preprocess.img_blured = [f"blur_kernel={blur_kernel}",f"blur_sigma={blur_sigma}"]
+        exp_obj.preprocess.img_blured = [f"blur_kernel={blur_kernel}",f"blur_sigma={blur_sigma}",f"fold_src={fold_src}"]
         exp_obj.save_as_json()
     return exp_obj_lst
 

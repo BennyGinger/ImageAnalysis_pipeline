@@ -1,7 +1,7 @@
 settings = {
-    "input_folder": '/home/Test_images/tiff/Run2',
-    "init":{"active_channel_list": ['GFP','RFP'],
-            'full_channel_list':[],
+    "input_folder": '/home/Test_images/nd2/Run2',
+    "init":{"active_channel_list": ['GFP','RFP',],
+            'full_channel_list':["GFP","RFP"],
             "overwrite": True},
     
     
@@ -28,7 +28,7 @@ settings = {
             "overwrite": False}),
 
     "cellpose": (True,
-                {"channel_to_seg":"GFP",
+                {"channel_to_seg":"RFP",
                 "model_type": "cyto3",
                 "diameter": 60.0,
                 "flow_threshold": 0.4,
@@ -45,7 +45,7 @@ settings = {
                 "manual_threshold": None,
                 "img_fold_src": "",}),
     
-    "iou_track": (False,
+    "iou_track": (True,
                   {"channel_to_track":"RFP",
                    "img_fold_src": "",
                    "stitch_thres_percent": 0.50,
@@ -54,4 +54,7 @@ settings = {
                    "copy_first_to_start": False, 
                    "copy_last_to_end": True,
                    "overwrite":True}),
+    "analysis": (True,
+                {"img_fold_src": "",
+                "overwrite": False}),
 }

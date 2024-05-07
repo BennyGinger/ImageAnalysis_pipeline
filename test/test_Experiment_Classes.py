@@ -14,4 +14,4 @@ def test_analyzed_channel(tmpdir):
     expected_output = {'cellpose_seg': ['channel1', 'channel2'], 'iou_tracking': ['channel3', 'channel4']}
 
     # Call the analyzed_channel property and compare the result with the expected output
-    assert experiment.analyzed_channels == expected_output
+    assert experiment.processed_masks == expected_output

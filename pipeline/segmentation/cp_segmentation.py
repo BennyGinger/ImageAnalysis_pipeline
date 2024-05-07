@@ -156,22 +156,24 @@ class CellposeSetup:
                                     f"Please choose one of the following: {BUILD_IN_MODELS}",
                                     "or provide a path to a pretrained model."]))
         
-    def gen_input_data(self, img_fold_src: str="")-> list[dict]:
+    def gen_input_data(self, img_fold_src: str="")-> tuple[list[dict],str]:
         # Get the list of channel to segment and the list of images, sorted by channels
         channels = [self.channel_seg]
-        imgs_list = [img for img in img_list_src(self.exp_obj,img_fold_src) if self.channel_seg in img]
+        fold_src,img_paths = img_list_src(self.exp_obj,img_fold_src)
+        
+        imgs_to_seg = [img for img in img_paths if self.channel_seg in img]
         if self.nuclear_marker:
             channels.append(self.nuclear_marker)
-            imgs_list.extend([img for img in img_list_src(self.exp_obj,img_fold_src) if self.nuclear_marker in img])
+            imgs_to_seg.extend([img for img in img_paths if self.nuclear_marker in img])
         # Sort images by frames
-        sorted_frames = {frame:[img for img in imgs_list if f"_f{frame+1:04d}" in img] 
+        sorted_frames = {frame:[img for img in imgs_to_seg if f"_f{frame+1:04d}" in img] 
                          for frame in range(self.exp_obj.img_properties.n_frames)}
         
         # Generate input data
         input_data = gen_input_data(self.exp_obj,sorted_frames,channels,
                                     model=self.model,cellpose_eval=self.cellpose_eval,
                                     as_2D=self.process_as_2D,as_npy=self.save_as_npy)
-        return input_data
+        return input_data, fold_src
 
 def parallel_executor(func: Callable, input_args: list[dict], gpu: bool, z_axis: int)-> None:
     if gpu and z_axis==None: # If GPU and 2D images: parallelization
@@ -214,13 +216,13 @@ def cellpose_segmentation(exp_obj_lst: list[Experiment], channel_seg: str, model
         cellpose_setup = CellposeSetup(exp_obj,channel_seg,nuclear_marker,process_as_2D,save_as_npy)
         cellpose_eval = cellpose_setup.eval_settings(diameter,flow_threshold,cellprob_threshold,**kwargs)
         model_settings = cellpose_setup.setup_model(model_type)
-        input_data = cellpose_setup.gen_input_data(img_fold_src)
+        input_data,fold_src = cellpose_setup.gen_input_data(img_fold_src)
         
         # Run Cellpose
         parallel_executor(run_cellpose,input_data,model_settings['gpu'],cellpose_eval['z_axis'])
         
         # Save settings
-        exp_obj.segmentation.cellpose_seg[channel_seg] = {'model_settings':model_settings,'cellpose_eval':cellpose_eval}
+        exp_obj.segmentation.cellpose_seg[channel_seg] = {'fold_src':fold_src,'model_settings':model_settings,'cellpose_eval':cellpose_eval}
         exp_obj.save_as_json()
     return exp_obj_lst
 

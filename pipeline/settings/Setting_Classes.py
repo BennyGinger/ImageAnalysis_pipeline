@@ -4,6 +4,7 @@ from dataclasses import dataclass, field, fields
 PREPROCESS_KEYS = ["bg_sub","chan_shift","frame_shift","blur"]
 SEGMENTATION_KEYS = ["cellpose","threshold"]
 TRACKING_KEYS = ['iou_track']
+ANALYSIS_KEYS = ['analysis']
 
 @dataclass
 class BaseSettings:
@@ -79,6 +80,11 @@ class TrackingSettings(BaseSettings):
     settings: dict
     iou_track: dict = field(init=False)
     
+@dataclass
+class AnalysisSettings(BaseSettings):
+    settings: dict
+    analysis: dict = field(init=False)
+    
 ################# main Class #################
 @dataclass
 class Settings:
@@ -86,6 +92,7 @@ class Settings:
     preprocess: PreProcessSettings = field(init=False)
     segmentation: SegmentationSettings = field(init=False)
     tracking: TrackingSettings = field(init=False)
+    analysis: AnalysisSettings = field(init=False)
     overwrite: bool = False
     
     def __post_init__(self)-> None:
@@ -116,5 +123,10 @@ class Settings:
             # If any of the tracking has overwrite then set the overwrite to True for downstream applications
             if any(self.tracking.get_current_overwrite):
                 self.overwrite = True
+        
+        analysis_dict = {k:v[1] for k,v in self.settings.items() if k in ANALYSIS_KEYS and v[0]}
+        if analysis_dict:
+            self.analysis = AnalysisSettings(analysis_dict)
+            
         
     

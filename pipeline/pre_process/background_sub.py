@@ -29,7 +29,7 @@ def background_sub(exp_obj_lst: list[Experiment], sigma: float=0.0, size: int=7,
         with ProcessPoolExecutor() as executor:
             executor.map(apply_bg_sub,input_data)
             
-        exp_obj.preprocess.background_sub = (f"sigma={sigma}",f"size={size}")
+        exp_obj.preprocess.background_sub = (f"sigma={sigma}",f"size={size}","fold_src=Images")
         exp_obj.save_as_json()
     return exp_obj_lst
 

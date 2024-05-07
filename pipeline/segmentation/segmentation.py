@@ -19,14 +19,14 @@ def clean_mask(mask: np.ndarray)-> np.ndarray:
     mask = remove_small_holes(mask.astype(bool),50)
     return remove_small_objects(mask,1000).astype(np.uint16)
 
-def create_threshold_settings(manual_threshold: float | None, threshold_value_list: list)-> dict:
+def create_threshold_settings(manual_threshold: float | None, threshold_value_list: list, fold_src: str)-> dict:
     log_value = "MANUAL"
     threshold_value = manual_threshold
     if not manual_threshold:
         log_value = "AUTOMATIC"
         threshold_value = round(np.mean(threshold_value_list),ndigits=2)
     print(f"\t---> Threshold created with: {log_value} threshold of {threshold_value}")
-    return {'method':log_value,'threshold':threshold_value}
+    return {'method':log_value,'threshold':threshold_value,'fold_src':fold_src}
         
 def apply_threshold(img_dict: dict)-> float:
     
@@ -60,8 +60,9 @@ def threshold(exp_obj_lst: list[Experiment], channel_seg: str, overwrite: bool=F
         delete_old_masks(exp_obj.segmentation.threshold_seg,channel_seg,exp_obj.threshold_masks_lst,overwrite)
         
         # Sort images by frames and channels
-        imgs_list = [img for img in img_list_src(exp_obj,img_fold_src) if channel_seg in img]
-        sorted_frames = {frame:[img for img in imgs_list if f"_f{frame+1:04d}" in img] for frame in range(exp_obj.img_properties.n_frames)}
+        fold_src,img_paths = img_list_src(exp_obj,img_fold_src)
+        imgs_to_seg = [img for img in img_paths if channel_seg in img]
+        sorted_frames = {frame:[img for img in imgs_to_seg if f"_f{frame+1:04d}" in img] for frame in range(exp_obj.img_properties.n_frames)}
         
         # Generate input data
         img_data = gen_input_data(exp_obj,sorted_frames,channel_seg,manual_threshold=manual_threshold)
@@ -73,7 +74,7 @@ def threshold(exp_obj_lst: list[Experiment], channel_seg: str, overwrite: bool=F
             threshold_value_list = [result for result in results]
 
         # log
-        settings_dict = create_threshold_settings(manual_threshold,threshold_value_list)
+        settings_dict = create_threshold_settings(manual_threshold,threshold_value_list,fold_src)
 
         # Save settings
         exp_obj.segmentation.threshold_seg[channel_seg] = settings_dict

@@ -6,9 +6,17 @@ from os.path import join
 import numpy as np
 import pandas as pd
 
+# Constants to translate the branch name to folder source
+ATTRIBUTES_FOLDER = {"cellpose_seg": "Masks_Cellpose",
+                     "threshold_seg": "Masks_Threshold",
+                     "iou_tracking": "Masks_IoU_Track",
+                     "manual_tracking": "Masks_Manual_Track",
+                     "gnn_tracking": "Masks_GNN_Track"}
+
 @dataclass
 class LoadClass:
     def from_dict(self, input_dict: dict)-> dict:
+        """Take a dictionary as input and return a class object with only the fields that are in the dictionary."""
         fieldSet = {f.name for f in fields(self) if f.init}
         filteredArgDict = {k : v for k, v in input_dict.items() if k in fieldSet}
         return self(**filteredArgDict)
@@ -39,23 +47,24 @@ class LoadClass:
                 nested_branch.init_to_inactive()
 
     @property
-    def analyzed_channels(self) -> dict:
-        """Property to get the analyzed channels in the class, i.e. the masks. 
-        Return a dictionary with the name of the branch as key and the list of channels as value.
-        for example: {'cellpose_seg':['channel1','channel2'],'iou_tracking':['channel3','channel4']},
-        where exp contains segmentation and tracking branches for the different listed channels."""
-        settings_dict = {}
+    def processed_masks(self) -> dict[str,dict]:
+        """Property to get all the processed masks in the experiment. Return a dict of the mask folder names
+        as keys and nested dict as value containing a list of channel names and the folder location of the 
+        mask files. Example: {'cellpose_seg': {'channels' : ['GFP','RFP'], 'fold_loc': 'Masks_Cellpose'}.
+        Only run this property in the subclass Segmentation and Tracking of the Experiment class.
+        """
+        masks_fold = {}
         for branch in fields(self):
-            # Check if branch is dict and not empty
-            if isinstance(getattr(self, branch.name), dict) and getattr(self, branch.name):
-                settings_dict[branch.name] = list(getattr(self, branch.name).keys())
-            # If nested branch
-            nested_branch = getattr(self,branch.name)
-            # Check if branch is dict and not empty
-            if isinstance(nested_branch,LoadClass):
-                tmp_dict = nested_branch.analyzed_channels
-                settings_dict.update(tmp_dict)
-        return settings_dict
+            print(branch.name)
+            # Check if branch is active
+            if isinstance(getattr(self, branch.name), bool) and getattr(self, branch.name):
+                # If active, get the branch name (remove the 'is_' prefix)
+                branch_name = branch.name.split('_')[1]
+                processed_channels = list(getattr(self, branch_name).keys())
+                masks_fold.update({branch_name: {'channels' : processed_channels, 
+                                            'fold_loc': ATTRIBUTES_FOLDER[branch_name]}})
+        # If no masks found, return an empty dict
+        return masks_fold
 
 @dataclass
 class PreProcess(LoadClass):
@@ -106,6 +115,7 @@ class Analysis(LoadClass):
     file_type: str = None
     level_0_tag: str = None
     level_1_tag: str = None
+    labels: list[str] = None
 
 @dataclass
 class Experiment(LoadClass):

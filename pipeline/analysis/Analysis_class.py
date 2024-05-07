@@ -1,12 +1,18 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from os import PathLike
+from os.path import join
 import numpy as np
+import pandas as pd
 from pipeline.image_handeling.Base_Module_Class import BaseModule
 from pipeline.image_handeling.Experiment_Classes import Experiment, init_from_json
 from pipeline.image_handeling.data_utility import load_stack, img_list_src, seg_mask_lst_src, track_mask_lst_src
 from pipeline.analysis.channel_data import extract_data
 from pipeline.settings.Setting_Classes import Settings
+
+TRACKING_MASKS = ['iou_tracking','manual_tracking','gnn_tracking']
+SEGMENTATION_MASKS = ['cellpose_seg','threshold_seg']
+REFERENCE_MASKS = [] # TODO: Add reference masks
 
 @dataclass
 class Analysis(BaseModule):
@@ -25,36 +31,76 @@ class Analysis(BaseModule):
     def analyze_from_settings(self, settings: dict)-> list[Experiment]:
         pass
     
-    def extract_data(self, img_fold_src: PathLike = "", overwrite: bool=False)-> list[Experiment]:
+    def extract_data(self, img_fold_src: PathLike = "", overwrite: bool=False)-> pd.DataFrame:
         for exp_obj in self.exp_obj_lst:
-            img_files = img_list_src(exp_obj, img_fold_src)
-            frames = exp_obj.img_properties.n_frames
-            channels = exp_obj.active_channel_list
-            img = load_stack(img_files,channels,range(frames),True)
+            img_array = _load_img(exp_obj, img_fold_src)
+            masks_arrays = _load_mask(exp_obj)
+            # If no masks were found, then skip
+            if not masks_arrays:
+                print(f"No masks were found for {exp_obj.exp_path}")
+                continue
             
-            extract_data()
+            dfs = []
+            for mask_name, mask_array in masks_arrays.items():
+                df = extract_data(img_array,mask_array,channels=exp_obj.active_channel_list,
+                                  save_path=exp_obj.exp_path,overwrite=overwrite,save=False)
+                # Add the mask name and time in seconds
+                df['mask_name'] = mask_name
+                df['time_sec'] = df['frame']*exp_obj.analysis.interval_sec
+                # Add the labels
+                for label in exp_obj.analysis.labels:
+                    df[label] = label
+                dfs.append(df)
+            master_df = pd.concat(dfs)
+            
+            # Save the data
+            save_path = join(exp_obj.exp_path,'regionprops.csv')
+            master_df.to_csv(save_path,index=False)
+        
+        # If no data was extracted, then return an empty dataframe
+        if 'master_df' not in locals():
+            return pd.DataFrame()
+        # Otherwise, return the master dataframe
+        return master_df
 
-def _load_img(exp_obj: Experiment, img_fold_src: PathLike,)-> tuple[np.ndarray,np.ndarray]:
+def _load_img(exp_obj: Experiment, img_fold_src: PathLike,)-> np.ndarray:
     _, img_files = img_list_src(exp_obj, img_fold_src)
     frames = exp_obj.img_properties.n_frames
     channels = exp_obj.active_channel_list
     return load_stack(img_files,channels,range(frames),True)
 
-def _list_all_masks(exp_obj: Experiment, mask_fold_src: PathLike,)-> dict:
-    # Get all the masks
-    all_active_masks = exp_obj.analyzed_channels
+def _get_all_masks_files(exp_obj: Experiment)-> dict[str,dict]:
+    # If not a time sequence, then load segmentation masks
+    if exp_obj.img_properties.n_frames == 1:
+        mask_files = exp_obj.segmentation.processed_masks
+        # if empty, then return
+        if not mask_files:
+            return {}
+        # Get mask paths
+        for mask_type in mask_files.keys():
+            mask_files[mask_type]['mask_paths'] = seg_mask_lst_src(exp_obj,mask_type)
+        return mask_files
     
-    # Trim the segmentation masks, if tracking exists for those masks
-    tracking_names = ['iou_tracking','manual_tracking','gnn_tracking']
-    if set(all_active_masks.keys()).intersection(tracking_names):
-        for track_name in tracking_names:
-            track_settings = getattr(exp_obj.tracking, track_name)
-            
-            # If tracking settings are not found, continue, meaning the tracking doesn't exist
-            if not track_settings:
-                continue
-            
-    pass
-
-def _load_mask(exp_obj: Experiment, mask_fold_src: PathLike,)-> np.ndarray:
-    pass
+    # If a time sequence, then load tracking masks
+    mask_files = exp_obj.tracking.processed_masks
+    # if empty, then return
+    if not mask_files:
+        return {}
+    # Get mask paths
+    for mask_type in mask_files.keys():
+        mask_files[mask_type]['mask_paths'] = track_mask_lst_src(exp_obj,mask_type)
+    return mask_files
+    
+def _load_mask(exp_obj: Experiment)-> dict[str,np.ndarray]:
+    # Gather masks from all mask sources
+    mask_files = _get_all_masks_files(exp_obj)
+    # if empty, then no masks were found
+    if not mask_files:
+        return {}
+    # Load masks arrays
+    frames = exp_obj.img_properties.n_frames
+    masks_arrays = {}
+    for mask_type,mask_dict in mask_files.items():
+        masks_arrays.update({f"{mask_type}_{channel}": load_stack(mask_dict['mask_paths'],channel,range(frames),True)
+                 for channel in mask_dict['channels']})
+    return masks_arrays

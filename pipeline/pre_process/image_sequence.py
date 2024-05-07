@@ -167,6 +167,6 @@ if __name__ == "__main__":
     # Test tif image
     # img_path = '/home/Test_images/tiff/Run2/c2z25t23v1_tif.tif'
     # Test nd2 image
-    img_path = '/home/Test_images/nd2/Run4/c4z1t91v1.nd2'
-    meta = create_img_seq(img_path, overwrite=True)
+    img_path = '/home/Test_images/nd2/Run3/c3z1t1v3.nd2'
+    meta = create_img_seq(img_path, overwrite=True,active_channel_list=['GFP','BFP'],full_channel_list=["GFP","RFP","BFP"])
     print(meta)

@@ -184,6 +184,18 @@ def reassign_mask_val(mask_stack: np.ndarray) -> np.ndarray:
         mask_stack[mask_stack == val] = n
     return mask_stack
 
+def is_channel_in_lst(channel: str, img_paths: list[PathLike]) -> bool:
+    """
+    Check if a channel is in the list of image paths.
+
+    Args:
+        channel (str): The channel name.
+        img_paths (list[PathLike]): The list of image paths.
+
+    Returns:
+        bool: True if the channel is in the list, False otherwise.
+    """
+    return any(channel in path for path in img_paths)
 
 # # # # # # # # main functions # # # # # # # # # 
 def iou_tracking(exp_obj_lst: list[Experiment], channel_seg: str, mask_fold_src: str,
@@ -224,11 +236,10 @@ def iou_tracking(exp_obj_lst: list[Experiment], channel_seg: str, mask_fold_src:
         
         # Load masks
         mask_fold_src, mask_src_list = seg_mask_lst_src(exp_obj,mask_fold_src)
-        mask_stack = load_stack(mask_src_list,[channel_seg],range(exp_obj.img_properties.n_frames))
-        
-        if mask_stack.ndim == 4:
-            print('  ---> 4D stack detected, processing max projection instead')
-            mask_stack = np.amax(mask_stack,axis=1)
+        if not is_channel_in_lst(channel_seg,mask_src_list):
+            print(f" --> Channel '{channel_seg}' not found in the mask folder")
+            continue
+        mask_stack = load_stack(mask_src_list,[channel_seg],range(exp_obj.img_properties.n_frames),True)
         
         # Track masks
         mask_stack = track_cells(mask_stack,stitch_thres_percent)
@@ -249,7 +260,7 @@ def iou_tracking(exp_obj_lst: list[Experiment], channel_seg: str, mask_fold_src:
             imwrite(mask_path,mask_stack[i,...].astype('uint16'))
         
         # Save settings
-        exp_obj.tracking.iou_tracking[channel_seg] = {'mask_fold_src':mask_fold_src,'stitch_thres_percent':stitch_thres_percent,
+        exp_obj.tracking.iou_tracking[channel_seg] = {'fold_src':mask_fold_src,'stitch_thres_percent':stitch_thres_percent,
                                         'shape_thres_percent':shape_thres_percent,'n_mask':mask_appear}
         exp_obj.save_as_json()
     return exp_obj_lst

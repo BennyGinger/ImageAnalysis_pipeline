@@ -7,6 +7,7 @@ from pipeline.pre_process.PreProcess_Class import PreProcess
 from pipeline.settings.settings_dict import settings
 from pipeline.segmentation.Segmentation_Class import Segmentation
 from pipeline.tracking.Tracking_Class import Tracking
+from pipeline.analysis.Analysis_class import Analysis
 INPUT_FOLDER = settings['input_folder']
 
 
@@ -16,6 +17,7 @@ if __name__ == "__main__":
     exp_list = PreProcess(INPUT_FOLDER,**settings['init']).process_from_settings(settings)
     exp_list = Segmentation(INPUT_FOLDER,exp_list).segment_from_settings(settings)
     exp_list = Tracking(INPUT_FOLDER,exp_list).track_from_settings(settings)
+    exp_list = Analysis(INPUT_FOLDER,exp_list).extract_data()
     
     t2 = time()
     if t2-t1<60: print(f"Time to process: {round(t2-t1,ndigits=3)} sec\n")
