@@ -6,7 +6,6 @@ from nd2 import ND2File
 from tifffile import imread
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
-import json
 from pipeline.image_handeling.data_utility import save_tif, create_save_folder
 from pipeline.pre_process.metadata import get_metadata
 
@@ -36,7 +35,7 @@ def create_img_seq(img_path: PathLike, active_channel_list: list[str] = [], full
             metadatas.append(MetaData_Handler(json_path, is_json=True))
         else: # If exp has not been ran, create new metadata dict
             metadata['exp_path'] = exp_path
-            metadatas.append(MetaData_Handler(metadata, is_json=False)) 
+            metadatas.append(MetaData_Handler(metadata.copy(), is_json=False)) 
         
         # If img are already processed
         if any(scandir(save_folder)) and not overwrite:

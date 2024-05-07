@@ -3,6 +3,7 @@ from __future__ import annotations
 from multiprocessing import set_start_method
 set_start_method("spawn",force=True)
 from time import time
+import pandas as pd
 from pipeline.pre_process.PreProcess_Class import PreProcess
 from pipeline.settings.settings_dict import settings
 from pipeline.segmentation.Segmentation_Class import Segmentation
@@ -10,6 +11,12 @@ from pipeline.tracking.Tracking_Class import Tracking
 from pipeline.analysis.Analysis_class import Analysis
 INPUT_FOLDER = settings['input_folder']
 
+def run_pipeline(settings: dict)-> pd.DataFrame:
+    exp_list = PreProcess(INPUT_FOLDER,**settings['init']).process_from_settings(settings)
+    exp_list = Segmentation(INPUT_FOLDER,exp_list).segment_from_settings(settings)
+    exp_list = Tracking(INPUT_FOLDER,exp_list).track_from_settings(settings)
+    master_df = Analysis(INPUT_FOLDER,exp_list).analyze_from_settings(settings)
+    return master_df
 
 if __name__ == "__main__":
 

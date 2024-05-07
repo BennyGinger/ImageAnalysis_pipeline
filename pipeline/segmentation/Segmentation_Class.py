@@ -40,7 +40,6 @@ class Segmentation(BaseModule):
     def cellpose(self, channel_to_seg: str | list[str], model_type: str | PathLike = 'cyto3', diameter: float = 60, flow_threshold: float = 0.4, 
                  cellprob_threshold: float = 0, overwrite: bool = False, img_fold_src: str = "", process_as_2D: bool = False, save_as_npy: bool = False,
                  nuclear_marker: str = "",**kwargs: Any)-> list[Experiment]:
-        
         if isinstance(channel_to_seg,str):
             return cellpose_segmentation(self.exp_obj_lst,channel_to_seg,model_type,diameter,flow_threshold,
                                          cellprob_threshold,overwrite,img_fold_src,process_as_2D,save_as_npy,nuclear_marker,**kwargs)

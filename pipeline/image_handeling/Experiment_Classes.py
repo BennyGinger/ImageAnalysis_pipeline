@@ -112,14 +112,13 @@ class Analysis(LoadClass):
     um_per_pixel: tuple[float,float] = None
     interval_sec: float = None
     file_type: str = None
-    level_0_tag: str = None
-    level_1_tag: str = None
     labels: list[str] = None
     analysis_type: dict = field(default_factory=dict)
 
 @dataclass
 class Experiment(LoadClass):
     exp_path: str
+    version: str = None
     active_channel_list: list = field(default_factory=list)
     full_channel_list: list = field(default_factory=list)
     img_properties: ImageProperties = field(default_factory=ImageProperties)

@@ -1,8 +1,9 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from os.path import join, exists
+from os.path import join
 from os import sep, walk, PathLike
 from re import search
+from importlib.metadata import version
 
 from pipeline.pre_process.image_sequence import create_img_seq, MetaData_Handler
 from pipeline.pre_process.image_blur import blur_img
@@ -56,9 +57,10 @@ class PreProcess(BaseModule):
         
         # Initiate the Experiment object
         exp_objs = [init_exp_obj(meta) for meta in metadata_lst]
-        
         # Save the settings
         for exp_obj in exp_objs:
+            # Add the version of the pipeline
+            exp_obj.version = version('ImageAnalysis')
             exp_obj.save_as_json()
         return exp_objs
     

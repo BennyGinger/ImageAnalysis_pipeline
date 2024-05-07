@@ -1,8 +1,8 @@
 settings = {
-    "input_folder": '/home/Test_images/nd2/Run2',
-    "init":{"active_channel_list": ['GFP','RFP',],
-            'full_channel_list':["GFP","RFP"],
-            "overwrite": False},
+    "input_folder": '/home/Test_images/nd2/Run3',
+    "init":{"active_channel_list": ['GFP','RFP','DAPI'],
+            'full_channel_list':["GFP","RFP","DAPI"],
+            "overwrite": True},
     
     
     "bg_sub": (False,
@@ -33,7 +33,7 @@ settings = {
                 "diameter": 60.0,
                 "flow_threshold": 0.4,
                 "cellprob_threshold": 0.0,
-                "overwrite": False,
+                "overwrite": True,
                 "img_fold_src": "",
                 "process_as_2D": True,
                 "save_as_npy": False,
@@ -45,7 +45,7 @@ settings = {
                 "manual_threshold": None,
                 "img_fold_src": "",}),
     
-    "iou_track": (True,
+    "iou_track": (False,
                   {"channel_to_track":"RFP",
                    "img_fold_src": "",
                    "stitch_thres_percent": 0.50,

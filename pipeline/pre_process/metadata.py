@@ -92,9 +92,6 @@ def create_exp_folder(meta_dict: dict) -> dict:
         if not isdir(exp_path):
             mkdir(exp_path)
         meta_dict['exp_path_list'].append(exp_path)
-        # Get tags
-        meta_dict['level_1_tag'] = path_split[-3]
-        meta_dict['level_0_tag'] = path_split[-2]
     return meta_dict
 
 def update_channel_names(meta_dict: dict, active_channel_list: list=[], full_channel_list: list=[]) -> dict:

@@ -221,6 +221,11 @@ def iou_tracking(exp_obj_lst: list[Experiment], channel_seg: str, mask_fold_src:
     """
     
     for exp_obj in exp_obj_lst:
+        # Check if time sequence
+        if exp_obj.img_properties.n_frames == 1:
+            print(f" --> '{exp_obj.exp_path}' is not a time sequence")
+            continue
+        
         # Activate the branch
         exp_obj.tracking.is_iou_tracking = True
         # Already processed?

@@ -24,7 +24,6 @@ def load_stack(img_paths: list[PathLike], channels: str | Iterable[str], frame_r
     
     if isinstance(frame_range, int):
         frame_range = [frame_range]
-    
     # Load/Reload stack. Expected shape of images tzxyc
     exp_list = []
     for chan in channels:
@@ -38,15 +37,14 @@ def load_stack(img_paths: list[PathLike], channels: str | Iterable[str], frame_r
                     f_lst.append(imread(path))
             chan_list.append(f_lst)
         exp_list.append(chan_list)
-    
     # Process stack
     if len(channels)==1:
         stack = np.squeeze(np.stack(exp_list))
     else:
         stack = np.moveaxis(np.squeeze(np.stack(exp_list)), [0], [-1])
-
+    
     # If stack is already 2D or want to load 3D
-    if len(f_lst)==1 or not return_2D:
+    if len(f_lst)==len(frame_range) or not return_2D:
         return stack
     
     # For maxIP, if stack is time series, then z is in axis 1

@@ -1,11 +1,10 @@
 from __future__ import annotations
-from os import PathLike
+from os import PathLike, remove
 from os.path import exists, join
 import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 from skimage.measure import regionprops_table
-from skimage.measure._regionprops import RegionProperties
 
 
 PROPERTIES = ['area','centroid','intensity_mean',
@@ -145,7 +144,7 @@ PROPERTIES = ['area','centroid','intensity_mean',
 
 ########################### Main functions ###########################
 def extract_data(img_array: np.ndarray, mask_array: np.ndarray, channels: list[str], 
-                 save_path: PathLike, overwrite: bool = False, save: bool = True)-> pd.DataFrame:
+                 save_path: PathLike, overwrite: bool = False)-> pd.DataFrame:
     """Extract img properties (skimage.measure.regionprops_table) with provided mask. Img and mask must have 
     the same shape, except that img can have an optional channel dimension. Frame dimension is also optional. 
     The shape of img must be ([F],Y,X,[C]) and the shape of mask must be ([F],Y,X). If channel dim is present,
@@ -158,16 +157,18 @@ def extract_data(img_array: np.ndarray, mask_array: np.ndarray, channels: list[s
         channels (list[str]): List of channel names.
         save_path (PathLike): The path to save the extracted data (as csv) with the name provided.
         overwrite (bool, optional): If True, the data will be extracted and overwrite previous extraction. Defaults to False.
-        save (bool, optional): If True, the extracted data will be saved to the provided path. Defaults to True.
     Returns:
         pd.DataFrame: The extracted data."""
     
     # Check if the data has already been extracted
-    df_name = "regionprops.csv"
-    save_path = join(save_path, df_name)
-    if is_extracted(save_path) and not overwrite:
+    save_path = join(save_path, "regionprops.csv")
+    if exists(save_path) and not overwrite:
         print(f"Data has already been extracted. Loading data from {save_path}")
         return pd.read_csv(save_path)
+    
+    # Remove the previous data if overwrite is True
+    if exists(save_path):
+        remove(save_path)
     
     # Prepare the renaming of the columns
     col_rename = {'centroid_0':'centroid_y','centroid_1':'centroid_x'}
@@ -185,8 +186,7 @@ def extract_data(img_array: np.ndarray, mask_array: np.ndarray, channels: list[s
         master_df = pd.DataFrame(prop)
         master_df['frame'] = 1
         master_df.rename(columns=col_rename, inplace=True)
-        if save:
-            master_df.to_csv(save_path, index=False)
+        master_df.to_csv(save_path, index=False)
         return master_df
     
     # If the mask_array is a time sequence
@@ -204,17 +204,8 @@ def extract_data(img_array: np.ndarray, mask_array: np.ndarray, channels: list[s
     # Create the DataFrame and save to csv
     master_df = pd.concat(lst_df, ignore_index=True)
     master_df.rename(columns=col_rename, inplace=True)
-    if save:
-        master_df.to_csv(save_path, index=False)
+    master_df.to_csv(save_path, index=False)
     return master_df
-
-########################### Helper functions ###########################
-def is_extracted(save_path: PathLike)-> bool:
-    """Check if the data has already been extracted and saved to the provided path."""
-    
-    if exists(save_path):
-        return True
-    return False
 
 # # # # # # # # # Test
 if __name__ == "__main__":
