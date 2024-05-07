@@ -69,10 +69,7 @@ class PreProcess(BaseModule):
             print("No preprocess settings found")
             self.save_as_json()
             return self.exp_obj_lst
-        # Update the settings
         sets = sets.preprocess
-        if self.overwrite:
-            sets.update_overwrite(overwrite_all=True)
         # Run the different pre-process functions
         if hasattr(sets,'bg_sub'):
             self.exp_obj_lst = self.bg_sub(**sets.bg_sub)

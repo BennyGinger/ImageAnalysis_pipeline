@@ -28,18 +28,27 @@ class Analysis(BaseModule):
         jsons_path = self.gather_all_json_path()
         self.exp_obj_lst = [init_from_json(json_path) for json_path in jsons_path]
     
-    def analyze_from_settings(self, settings: dict)-> list[Experiment]:
-        pass
+    def analyze_from_settings(self, settings: dict)-> pd.DataFrame:
+        # Analyze the data based on the settings
+        sets = Settings(settings)
+        if not hasattr(sets,'analysis'):
+            print("No analysis settings found")
+            return pd.DataFrame()
+        sets = sets.analysis
+        if hasattr(sets,'extract_data'):
+            master_df = self.extract_data(**sets.extract_data)
+        self.save_as_json()
+        return master_df
+        
     
     def extract_data(self, img_fold_src: PathLike = "", overwrite: bool=False)-> pd.DataFrame:
         for exp_obj in self.exp_obj_lst:
-            img_array = _load_img(exp_obj, img_fold_src)
+            img_fold_src,img_array = _load_img(exp_obj, img_fold_src)
             masks_arrays = _load_mask(exp_obj)
             # If no masks were found, then skip
             if not masks_arrays:
                 print(f"No masks were found for {exp_obj.exp_path}")
                 continue
-            
             dfs = []
             for mask_name, mask_array in masks_arrays.items():
                 df = extract_data(img_array,mask_array,channels=exp_obj.active_channel_list,
@@ -48,14 +57,15 @@ class Analysis(BaseModule):
                 df['mask_name'] = mask_name
                 df['time_sec'] = df['frame']*exp_obj.analysis.interval_sec
                 # Add the labels
-                for label in exp_obj.analysis.labels:
-                    df[label] = label
+                for i,label in enumerate(exp_obj.analysis.labels):
+                    df[f'tag_level_{i}'] = label
                 dfs.append(df)
             master_df = pd.concat(dfs)
             
             # Save the data
             save_path = join(exp_obj.exp_path,'regionprops.csv')
             master_df.to_csv(save_path,index=False)
+            exp_obj.analysis.analysis_type.update({'extract_data':{'img_fold_src':img_fold_src}})
         
         # If no data was extracted, then return an empty dataframe
         if 'master_df' not in locals():
@@ -63,11 +73,11 @@ class Analysis(BaseModule):
         # Otherwise, return the master dataframe
         return master_df
 
-def _load_img(exp_obj: Experiment, img_fold_src: PathLike,)-> np.ndarray:
-    _, img_files = img_list_src(exp_obj, img_fold_src)
+def _load_img(exp_obj: Experiment, img_fold_src: PathLike,)-> tuple[str,np.ndarray]:
+    fold_src, img_files = img_list_src(exp_obj, img_fold_src)
     frames = exp_obj.img_properties.n_frames
     channels = exp_obj.active_channel_list
-    return load_stack(img_files,channels,range(frames),True)
+    return fold_src,load_stack(img_files,channels,range(frames),True)
 
 def _get_all_masks_files(exp_obj: Experiment)-> dict[str,dict]:
     # If not a time sequence, then load segmentation masks

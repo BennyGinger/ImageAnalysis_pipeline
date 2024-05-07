@@ -4,7 +4,7 @@ from dataclasses import dataclass, field, fields
 PREPROCESS_KEYS = ["bg_sub","chan_shift","frame_shift","blur"]
 SEGMENTATION_KEYS = ["cellpose","threshold"]
 TRACKING_KEYS = ['iou_track']
-ANALYSIS_KEYS = ['analysis']
+ANALYSIS_KEYS = ['extract_data']
 
 @dataclass
 class BaseSettings:
@@ -55,11 +55,12 @@ class BaseSettings:
 
     @property
     def get_active_branches(self)-> list[str]:
-        return [f.name for f in fields(self) if hasattr(self,f.name) and f.name != 'settings']
+        return [branch.name for branch in fields(self) 
+                if hasattr(self,branch.name) and branch.name != 'settings']
     
     @property
     def get_current_overwrite(self)-> list[bool]:
-        return [getattr(self,f)['overwrite'] for f in self.get_active_branches]
+        return [getattr(self,branch)['overwrite'] for branch in self.get_active_branches]
 
 @dataclass
 class PreProcessSettings(BaseSettings):
@@ -83,7 +84,7 @@ class TrackingSettings(BaseSettings):
 @dataclass
 class AnalysisSettings(BaseSettings):
     settings: dict
-    analysis: dict = field(init=False)
+    extract_data: dict = field(init=False)
     
 ################# main Class #################
 @dataclass
@@ -96,10 +97,16 @@ class Settings:
     overwrite: bool = False
     
     def __post_init__(self)-> None:
+        if self.settings['init']["overwrite"]:
+            self.overwrite = True
+        
         # Unpack the settings
         pre_dict = {k:v[1] for k,v in self.settings.items() if k in PREPROCESS_KEYS and v[0]}
         if pre_dict:
             self.preprocess = PreProcessSettings(pre_dict)
+            # If upstream process have overwrite then update the overwrite of the segmentation
+            if self.overwrite:
+                self.preprocess.update_overwrite(overwrite_all=True)
             # If any of the preprocess has overwrite then set the overwrite to True for downstream applications
             if any(self.preprocess.get_current_overwrite):
                 self.overwrite = True
@@ -127,6 +134,9 @@ class Settings:
         analysis_dict = {k:v[1] for k,v in self.settings.items() if k in ANALYSIS_KEYS and v[0]}
         if analysis_dict:
             self.analysis = AnalysisSettings(analysis_dict)
+        # If upstream process have overwrite then update the overwrite of the analysis
+        if self.overwrite:
+            self.analysis.update_overwrite(overwrite_all=True)
             
         
     

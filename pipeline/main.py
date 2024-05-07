@@ -17,7 +17,7 @@ if __name__ == "__main__":
     exp_list = PreProcess(INPUT_FOLDER,**settings['init']).process_from_settings(settings)
     exp_list = Segmentation(INPUT_FOLDER,exp_list).segment_from_settings(settings)
     exp_list = Tracking(INPUT_FOLDER,exp_list).track_from_settings(settings)
-    exp_list = Analysis(INPUT_FOLDER,exp_list).extract_data()
+    master_df = Analysis(INPUT_FOLDER,exp_list).analyze_from_settings(settings)
     
     t2 = time()
     if t2-t1<60: print(f"Time to process: {round(t2-t1,ndigits=3)} sec\n")

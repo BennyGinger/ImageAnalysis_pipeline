@@ -55,11 +55,10 @@ class LoadClass:
         """
         masks_fold = {}
         for branch in fields(self):
-            print(branch.name)
             # Check if branch is active
             if isinstance(getattr(self, branch.name), bool) and getattr(self, branch.name):
                 # If active, get the branch name (remove the 'is_' prefix)
-                branch_name = branch.name.split('_')[1]
+                branch_name = branch.name.split('_',1)[1]
                 processed_channels = list(getattr(self, branch_name).keys())
                 masks_fold.update({branch_name: {'channels' : processed_channels, 
                                             'fold_loc': ATTRIBUTES_FOLDER[branch_name]}})
@@ -116,6 +115,7 @@ class Analysis(LoadClass):
     level_0_tag: str = None
     level_1_tag: str = None
     labels: list[str] = None
+    analysis_type: dict = field(default_factory=dict)
 
 @dataclass
 class Experiment(LoadClass):

@@ -176,6 +176,9 @@ def extract_data(img_array: np.ndarray, mask_array: np.ndarray, channels: list[s
     else:
         col_rename['intensity_mean'] = f'intensity_mean_{channels[0]}'
     
+    # Log
+    print(f"Extracting data from {save_path}")
+    
     # If the mask_array is not a time sequence
     if mask_array.ndim ==2:
         prop = regionprops_table(mask_array,intensity_image=img_array,properties=PROPERTIES,separator='_')

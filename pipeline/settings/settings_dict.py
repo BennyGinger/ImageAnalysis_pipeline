@@ -2,7 +2,7 @@ settings = {
     "input_folder": '/home/Test_images/nd2/Run2',
     "init":{"active_channel_list": ['GFP','RFP',],
             'full_channel_list':["GFP","RFP"],
-            "overwrite": True},
+            "overwrite": False},
     
     
     "bg_sub": (False,
@@ -53,8 +53,9 @@ settings = {
                    "mask_appear":5,
                    "copy_first_to_start": False, 
                    "copy_last_to_end": True,
-                   "overwrite":True}),
-    "analysis": (True,
-                {"img_fold_src": "",
-                "overwrite": False}),
+                   "overwrite":False}),
+    
+    "extract_data": (True,
+                        {"img_fold_src": "",
+                        "overwrite": True}),
 }
