@@ -248,7 +248,6 @@ def iou_tracking(exp_obj_lst: list[Experiment], channel_seg: str, mask_fold_src:
         
         # Track masks
         mask_stack = track_cells(mask_stack,stitch_thres_percent)
-        
         # Check shape similarity to avoid false masks
         mask_stack = check_mask_similarity(mask_stack,shape_thres_percent)
         

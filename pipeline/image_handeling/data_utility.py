@@ -44,7 +44,7 @@ def load_stack(img_paths: list[PathLike], channels: str | Iterable[str], frame_r
         stack = np.moveaxis(np.squeeze(np.stack(exp_list)), [0], [-1])
     
     # If stack is already 2D or want to load 3D
-    if len(f_lst)==len(frame_range) or not return_2D:
+    if len(f_lst)==1 or not return_2D:
         return stack
     
     # For maxIP, if stack is time series, then z is in axis 1

@@ -8,7 +8,7 @@ description = "Analysis pipelines for fluorescent microscopic images, mainly tim
 authors = [
     {name = "Benoit Thomas Roux", email = "benoit.roux@gmail.com"},
     {name = "Fabian Gregory Dehne", email = "fabiang.dehne@gmail.com"},
-    {name = "Raphael David FEURSTEIN", email = "raphael.feurstein@stud.semmelweis.hu"}, # TODO: Check the email
+    {name = "Raphael David FEURSTEIN", email = "raphael.feurstein@gmail.com"},
 ]
 dependencies = [
     "numpy",

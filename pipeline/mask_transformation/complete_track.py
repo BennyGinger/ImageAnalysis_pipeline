@@ -1,7 +1,8 @@
 from __future__ import annotations
 import numpy as np
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from pipeline.mask_transformation.mask_warp import mask_warp
+from functools import partial
 
 ################## main functions ##################
 def complete_track(mask_stack: np.ndarray, mask_appear: int, copy_first_to_start: bool=True, copy_last_to_end: bool=True) -> np.ndarray:
@@ -20,15 +21,12 @@ def complete_track(mask_stack: np.ndarray, mask_appear: int, copy_first_to_start
     
     # Generate input data
     print('  ---> Morphing missing masks')
-    input_data = [(mask_stack, 
-                   obj, 
-                   mask_appear,
-                   copy_first_to_start,
-                   copy_last_to_end) 
-                  for obj in list(np.unique(mask_stack))[1:]]
+    apply_filling_partial = partial(apply_filling, mask_stack=mask_stack, mask_appear=mask_appear, 
+                                    copy_first_to_start=copy_first_to_start, copy_last_to_end=copy_last_to_end)
+    
     # Apply morphing
-    with ProcessPoolExecutor() as executor:
-        temp_masks = executor.map(apply_filling, input_data)
+    with ThreadPoolExecutor() as executor:
+        temp_masks = executor.map(apply_filling_partial, list(np.unique(mask_stack))[1:])
         new_stack = np.zeros((mask_stack.shape))
         # Combine the morphed masks
         for obj, temp in zip(list(np.unique(mask_stack))[1:], temp_masks):
@@ -122,15 +120,15 @@ def fill_gaps(mask_stack: np.ndarray, copy_first_to_start: bool=True, copy_last_
         mask_stack[id_start:id_end,...] = n_masks
     return mask_stack
 
-def apply_filling(input_data: list)-> np.ndarray:
+def apply_filling(obj: int, mask_stack: np.ndarray, mask_appear: int,
+                  copy_first_to_start: bool, copy_last_to_end: bool)-> np.ndarray:
     """Intermediate function to apply the filling of the gaps in the mask stack in parallel."""
-    mask_stack,obj,n_mask,copyfirst,copylast = input_data
     temp = mask_stack.copy()
     temp[temp!=obj] = 0
     framenumber = len(np.unique(np.where(mask_stack == obj)[0]))
     # If any mask is missing and that the mask appear more than n_mask, fill the gaps
-    if framenumber!=mask_stack.shape[0] and framenumber > n_mask:
-        temp = fill_gaps(temp,copyfirst,copylast)
+    if framenumber!=mask_stack.shape[0] and framenumber > mask_appear:
+        temp = fill_gaps(temp,copy_first_to_start,copy_last_to_end)
     return temp
 
 def trim_incomplete_track(array: np.ndarray)-> np.ndarray:
