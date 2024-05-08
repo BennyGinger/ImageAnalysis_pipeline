@@ -265,12 +265,10 @@ class TestDataset(Dataset):
             mask_path = result_path
             mask = result
             im_name = Path(im_path).stem
-            im_num = re.findall(r'\d+', im_name)[-1]
-            # im_num = im_path.split(".")[-2][-3:]      
+            im_num = re.findall('f\d+', im_name)[0][1:]      
             
             mask_name = Path(mask_path).stem
-            mask_num = re.findall(r'\d+', mask_name)[-1]
-            # mask_num = mask_path.split(".")[-2][-3:]
+            mask_num = re.findall('f\d+', mask_name)[0][1:]
 
             assert im_num == mask_num, f"Image number ({im_num}) is not equal to mask number ({mask_num})"
             im_num_int = int(im_num)

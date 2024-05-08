@@ -75,7 +75,10 @@ def get_ND2_meta(img_path: PathLike)-> dict:
         # Uniformize meta
         nd2meta['um_per_pixel'] = nd_obj.metadata.channels[0].volume.axesCalibration[:2]
         if nd2meta['n_frames']>1:
-            nd2meta['interval_sec'] = nd_obj.experiment[0].parameters.periodMs/1000
+            if nd_obj.experiment[0].type == 'TimeLoop': #for normal timelapse experiments
+                nd2meta['interval_sec'] = nd_obj.experiment[0].parameters.periodMs/1000
+            elif nd_obj.experiment[0].type == 'NETimeLoop': #for ND2 Merged Experiments
+                nd2meta['interval_sec'] = nd_obj.experiment[0].parameters.periods[0].periodMs/1000
         else:
             nd2meta['interval_sec'] = None
         nd2meta['file_type'] = '.nd2'
@@ -111,10 +114,6 @@ def update_channel_names(meta_dict: dict, active_channel_list: list=[], full_cha
         return meta_dict
     
     if not full_channel_list:
-        meta_dict['active_channel_list'] = meta_dict['full_channel_list']  = active_channel_list
-        return meta_dict
-    
-    if active_channel_list and full_channel_list and active_channel_list!=full_channel_list:
         meta_dict['active_channel_list'] = meta_dict['full_channel_list']  = active_channel_list
         return meta_dict
     

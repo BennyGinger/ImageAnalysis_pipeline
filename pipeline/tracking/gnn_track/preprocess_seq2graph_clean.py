@@ -63,14 +63,12 @@ class TestDataset(Dataset):
         if im_path is not None:
             flag = False
             im_name = Path(im_path).stem
-            im_num = re.findall(r'\d+', im_name)[-1]
-            # im_num = im_path.split(".")[-2][-3:]            
+            im_num = re.findall('f\d+', im_name)[0][1:]            
 
         if result_path is not None:
             flag = False
             result_name = Path(result_path).stem
-            result_num = re.findall(r'\d+', result_name)[-1]
-            # result_num = result_path.split(".")[-2][-3:]            
+            result_num = re.findall('f\d+', result_name)[0][1:]            
 
         if flag:
             assert im_num == result_num, f"Image number ({im_num}) is not equal to result number ({result_num})"
@@ -234,7 +232,7 @@ class TestDataset(Dataset):
 
             global_min = min(global_min, min_curr)
             global_max = max(global_max, max_curr)
-        print(counter)
+        print(f'{counter=}')
         print(f"global_delta_row: {global_delta_row}")
         print(f"global_delta_col: {global_delta_col}")
         self.min_cell = global_min

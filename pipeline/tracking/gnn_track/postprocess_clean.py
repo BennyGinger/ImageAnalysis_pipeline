@@ -212,8 +212,8 @@ class Postprocess(object):
         self.outputs_hard = final_outputs_hard
         return final_outputs_hard
 
-    def megre_match_edges(self, edge_index, output_pred):
-
+    def merge_match_edges(self, edge_index, output_pred):
+        # [:, ::2] every second
         assert torch.all(edge_index[:, ::2] == edge_index[[1, 0], 1::2]), \
             "The results don't match!"
         edge_index = edge_index[:, ::2]
@@ -241,7 +241,7 @@ class Postprocess(object):
         edge_index, df, outputs = self.edge_index, self.df_preds, self.output_pred
 
         if not self.directed:
-            final_outputs_hard, edge_index = self.megre_match_edges(edge_index.detach().clone(), outputs.detach().clone())
+            final_outputs_hard, edge_index = self.merge_match_edges(edge_index.detach().clone(), outputs.detach().clone())
             self.outputs_hard = final_outputs_hard
             self.edge_index = edge_index
         else:
@@ -449,10 +449,10 @@ class Postprocess(object):
                             continue
                 else:
                     cell_center = df.loc[id, ["centroid_row", "centroid_col"]].values.astype(int)
-                    row_center, col_center = cell_center[0], cell_center[1]
+                    row_center, col_center = cell_center[0], cell_center[1] #centroid positions of the labeled cell
                     if self.center_coord:
-                        n_row_img, n_col_img = pred.shape
-                        row_center += n_row_img // 2
+                        n_row_img, n_col_img = pred.shape #pred: loaded mask
+                        row_center += n_row_img // 2 #BUG stupid thing
                         col_center += n_col_img // 2
 
                     val = pred[row_center, col_center]

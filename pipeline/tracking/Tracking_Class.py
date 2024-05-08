@@ -56,21 +56,22 @@ class Tracking(BaseModule):
             return self.exp_obj_lst
         
     def gnn_tracking(self, channel_to_track: str | list[str], img_fold_src: PathLike ="", model: str='neutrophil', mask_fold_src: PathLike ="", morph: bool=False,
-                     min_cell_size: int=20, decision_threshold: float=0.5, mask_appear: int=2, overwrite: bool=False) -> list[Experiment]:
+                     min_cell_size: int=20, decision_threshold: float=0.5, mask_appear: int=2, manual_correct: bool=False, overwrite: bool=False) -> list[Experiment]:
         if isinstance(channel_to_track, str):
-            return gnn_tracking(self.exp_obj_lst,channel_to_track,model,overwrite,img_fold_src,mask_fold_src,morph,mask_appear,min_cell_size,decision_threshold)
+            return gnn_tracking(self.exp_obj_lst,channel_to_track,model,overwrite,img_fold_src,mask_fold_src,morph,mask_appear,min_cell_size,decision_threshold, manual_correct)
         
         if isinstance(channel_to_track,list):
             for channel in channel_to_track:
-                self.exp_obj_lst = self.gnn_tracking(channel,model,overwrite,img_fold_src,mask_fold_src,morph,mask_appear,min_cell_size,decision_threshold)
+                self.exp_obj_lst = self.gnn_tracking(channel,model,overwrite,img_fold_src,mask_fold_src,morph,mask_appear,min_cell_size,decision_threshold, manual_correct)
             return self.exp_obj_lst
         
     def man_tracking(self, channel_to_track: str | list[str], track_seg_mask: bool = False, mask_fold_src: PathLike = None,
-                     csv_name: str = None, radius: int=5, morph: bool=True, mask_appear=2, dilate_value: int = 20, overwrite: bool=False) -> list[Experiment]:
+                     csv_name: str = None, radius: int=5, copy_first_to_start: bool=True, copy_last_to_end: bool=True, mask_appear=2, 
+                     dilate_value: int = 20, process_as_2D: bool=True, overwrite: bool=False) -> list[Experiment]:
         if isinstance(channel_to_track, str):
-            return man_tracking(self.exp_obj_lst,channel_to_track,track_seg_mask,mask_fold_src,csv_name,radius,morph,mask_appear, dilate_value, overwrite)
+            return man_tracking(self.exp_obj_lst,channel_to_track,track_seg_mask,mask_fold_src,csv_name,radius,copy_first_to_start, copy_last_to_end, mask_appear, dilate_value, process_as_2D, overwrite)
         
         if isinstance(channel_to_track,list):
             for channel in channel_to_track:
-                self.exp_obj_lst = self.man_tracking(channel,track_seg_mask,mask_fold_src,csv_name,radius,morph,mask_appear, dilate_value, overwrite)
+                self.exp_obj_lst = self.man_tracking(channel,track_seg_mask,mask_fold_src,csv_name,radius,copy_first_to_start, copy_last_to_end, mask_appear, dilate_value, process_as_2D, overwrite)
             return self.exp_obj_lst

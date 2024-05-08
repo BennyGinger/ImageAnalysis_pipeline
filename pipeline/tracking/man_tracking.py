@@ -1,5 +1,5 @@
 from __future__ import annotations
-from os import PathLike
+from os import PathLike, sep
 from os.path import join, split
 import numpy as np
 import pandas as pd
@@ -7,9 +7,9 @@ from collections import Counter
 from skimage.segmentation import expand_labels
 from mask_transformation.complete_track import complete_track
 from image_handeling.Experiment_Classes import Experiment
-from image_handeling.data_utility import load_stack, is_processed, create_save_folder, gen_input_data, delete_old_masks, seg_mask_lst_src
+from image_handeling.data_utility import load_stack, is_processed, create_save_folder, delete_old_masks, seg_mask_lst_src, img_list_src, track_mask_lst_src
 from tifffile import imsave
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 
 def load_csv(channel_seg: str, csv_path: str, csv_name: str = None):
     
@@ -21,8 +21,12 @@ def load_csv(channel_seg: str, csv_path: str, csv_name: str = None):
     print(f'Loading data from {csv_name}')
     
     csv_path = join(csv_path, csv_name)
+    
+    try:
+        csv_data = pd.read_csv(csv_path, encoding= 'unicode_escape', sep=None, engine='python')
+    except FileNotFoundError:
+        raise FileNotFoundError(f'{csv_path} not found. Please check naming of the .csv file. Please either give a name of the csv in the input function or name the file according to the channel. I.E.: BF.csv, GFP.csv, ...')
         
-    csv_data = pd.read_csv(csv_path, encoding= 'unicode_escape', sep=None, engine='python')
     
     return csv_data
    
@@ -49,7 +53,7 @@ def gen_input_data_masks(exp_obj: Experiment, mask_fold_src: str, mask_fold_src2
 def uniform_dataset(csv_data: pd.DataFrame, exp_obj: Experiment): 
     #get values needed later in the run from the metadata
     interval = exp_obj.analysis.interval_sec
-    pixel_microns = exp_obj.analysis.um_per_pixel
+    um_per_pixel = exp_obj.analysis.um_per_pixel
     frames = exp_obj.img_properties.n_frames
     
     # find the column keys for x, y and t
@@ -68,9 +72,9 @@ def uniform_dataset(csv_data: pd.DataFrame, exp_obj: Experiment):
     csv_data = csv_data.astype(float)
     
     if 'micron' in x_head:
-        csv_data[x_head] = csv_data[x_head]/pixel_microns #recalculate from microns to pixel
+        csv_data[x_head] = csv_data[x_head]/um_per_pixel[1] #recalculate from microns to pixel
     if 'micron' in y_head:    
-        csv_data[y_head] = csv_data[y_head]/pixel_microns
+        csv_data[y_head] = csv_data[y_head]/um_per_pixel[0]
         
     # get framenumber out of timestamp (if frames > 1)
     if t_head:
@@ -86,35 +90,6 @@ def uniform_dataset(csv_data: pd.DataFrame, exp_obj: Experiment):
     
     return csv_data
 
-def create_man_mask(img_dict: dict):
-    #load image
-
-    img = load_stack(img_dict['imgs_path'],img_dict['channel_seg_list'],[img_dict['frame']])
-    
-    # create emtpy mask based on images or mask size
-    masks_man = np.zeros_like((img), dtype='uint16')
-    #get small dataframe for all cell to be markted in this frame
-    sorted = img_dict['csv_data'][img_dict['csv_data']['frame'] == img_dict['frame']]
-    # mark the positions of the cells
-    for _, row in sorted.iterrows():
-        x = row['x']
-        y = row['y']
-        cell_number = row['TID'] 
-        
-        if masks_man[y, x] == 0: # check if other cell is on exact same position
-            masks_man[y, x] = cell_number
-        else: # move a bit to the side to apply cell position, try and except to stay inside the array, not to move out of bounce. 
-              #There could potentially be another cell, but its higly unlikely cause we are talking about pixel.
-            try: masks_man[y+1, x] = cell_number
-            except: masks_man[y-1, x] = cell_number
-    
-    #dilate the cells to make them visible
-    masks_man = expand_labels(masks_man, distance=img_dict['dilate_value'])
-    folder, filename = split(img_dict['imgs_path'][0])
-    savedir = join(split(folder)[0],'Masks_Manual_Track', filename)
-    
-    # Clean and save
-    imsave(savedir,masks_man)
 
 def get_freq(array, exclude): # function to find most frequent value in array, exclude value: for us 0
     count = Counter(array[array != exclude]).most_common(1)
@@ -144,10 +119,10 @@ def seg_track_manual(img_dict: dict):
     savedir = join(split(folder)[0],'Masks_Manual_Track', filename)
     imsave(savedir,tracked_mask)
 
-def run_morph(exp_obj:Experiment, mask_fold_src:str, channel_seg:str, n_mask:int):
-    mask_fold_src, mask_src_list = seg_mask_lst_src(exp_obj,mask_fold_src)
+def run_morph(exp_obj:Experiment, mask_fold_src:str, channel_seg:str, n_mask:int, copy_first_to_start: bool=True, copy_last_to_end: bool=True, ):
+    mask_src_list = track_mask_lst_src(exp_obj,mask_fold_src)
     mask_stack = load_stack(mask_src_list,[channel_seg],range(exp_obj.img_properties.n_frames))
-    mask_stack = complete_track(mask_stack, n_mask)
+    mask_stack = complete_track(mask_stack, n_mask, copy_first_to_start, copy_last_to_end)
     
     # Save masks
     for i,path in enumerate(mask_src_list):
@@ -155,7 +130,8 @@ def run_morph(exp_obj:Experiment, mask_fold_src:str, channel_seg:str, n_mask:int
 
 # # # # # # # # main functions # # # # # # # # # 
 def man_tracking(exp_obj_lst: list[Experiment], channel_seg: str, track_seg_mask: bool = False, mask_fold_src: PathLike = None,
-                csv_name: str = None, radius: int=5, morph: bool=True, mask_appear=2, dilate_value: int = 20, overwrite: bool=False,):
+                csv_name: str = None, radius: int=5, copy_first_to_start: bool=True, copy_last_to_end: bool=True, mask_appear=2,
+                dilate_value: int = 20, overwrite: bool=False, process_as_2D: bool=True):
     """
     Perform Manual Tracking based on a csv file resulting of MTrackJ (ImageJ Plugin) on a list of experiments.
 
@@ -166,14 +142,17 @@ def man_tracking(exp_obj_lst: list[Experiment], channel_seg: str, track_seg_mask
         mask_fold_src (PathLike, optional): Only nececarry if track_seg_mask==True. Source folder path for masks, where the track will be written on.
         csv_name (str, optional): name of the .csv file with the manualtracking information. If no name is given it takes the first .csv file in the folder.
         radius (int): Resulting cell radius of the created masks. Defaults to 5.
-        morph (bool): Activate filling gaps. Defaults to True.
-        mask_appear (int, optional): Number of times a mask should appear to be considered valid. Defaults to 5.
+        copy_first_to_start (bool, optional): Flag to copy the first mask to the start. Defaults to True.
+        copy_last_to_end (bool, optional): Flag to copy the last mask to the end. Defaults to True.
+        mask_appear (int, optional): Number of times a mask should appear to be considered valid. Defaults to 2.
         dilate_value (int, optional): Only nececarry if track_seg_mask==True. Gives the area in which trackpoint is looking for a valide mask from the segmentation. Defaults to 20.
         overwrite (bool, optional): Flag to overwrite existing tracking results. Defaults to False.
         
     Returns:
         list[Experiment]: List of Experiment objects with updated tracking information.
     """
+    if copy_last_to_end or copy_first_to_start:
+        process_as_2D = True
     for exp_obj in exp_obj_lst:
         # Activate the branch
         exp_obj.tracking.is_manual_tracking = True
@@ -195,23 +174,71 @@ def man_tracking(exp_obj_lst: list[Experiment], channel_seg: str, track_seg_mask
         #uniform the keys of the dataset and reduce the df to the necessary part and also do recalculations for time and micron
         csv_data = uniform_dataset(csv_data=csv_data, exp_obj=exp_obj)
         
-        #generate List of Data to run them through ParallelProcessing
-        img_data = gen_input_data(exp_obj, mask_fold_src, [channel_seg], radius=radius, csv_data=csv_data)
-        with ProcessPoolExecutor() as executor:
-            executor.map(create_man_mask,img_data)
-        if morph:
-            run_morph(exp_obj, mask_fold_src='Masks_Manual_Track', channel_seg=channel_seg, n_mask=mask_appear)
+        #get path of image
+        img_fold_src = None
+        _, img_path_lst = img_list_src(exp_obj,img_fold_src)
+        img = load_stack(img_path_lst,channel_seg,[0])
+        #check if 3D
+        
+        if not exp_obj.img_properties.n_slices == 1:
+            masks_man_o = np.zeros((img.shape[1], img.shape[2]), dtype='uint16')
+        else:
+            masks_man_o = np.zeros_like((img), dtype='uint16')
+    
+        def create_man_mask(frame:int):
+            #load image
+            masks_man = masks_man_o.copy()
+            #create emtpy mask based on images or mask size
+            #get small dataframe for all cell to be markted in this frame
+            sorted = csv_data[csv_data['frame'] == frame]
+            #mark the positions of the cells
+            for _, row in sorted.iterrows():
+                x = row['x']
+                y = row['y']
+                cell_number = row['TID'] 
+                if masks_man[y, x] == 0: # check if other cell is on exact same position
+                    masks_man[y, x] = cell_number
+                else: #move a bit to the side to apply cell position, try and except to stay inside the array, not to move out of bounce. 
+                    #There could potentially be another cell, but its higly unlikely cause we are talking about pixel.
+                    try: masks_man[y+1, x] = cell_number
+                    except: masks_man[y-1, x] = cell_number
+            #dilate the cells to make them visible
+            masks_man = expand_labels(masks_man, distance=dilate_value)
+            series = exp_obj.exp_path.split('_')[-1]
+            if not process_as_2D:
+                for z_slice in range(exp_obj.analysis.n_slices):
+                    filename = channel_seg+'_'+series+'_f%04d'%(frame+1)+'_z%04d'%(z_slice+1)+'.tif'
+                    savedir = join(exp_obj.exp_path,'Masks_Manual_Track', filename)
+                    #save
+                    imsave(savedir,masks_man) 
+            else:
+                filename = channel_seg+'_'+series+'_f%04d'%(frame+1)+'_z0001.tif'
+                savedir = join(exp_obj.exp_path,'Masks_Manual_Track', filename)
+                #save
+                imsave(savedir,masks_man) 
+        
+        frame_list = range(exp_obj.img_properties.n_frames)
+        with ThreadPoolExecutor() as executor:
+            executor.map(create_man_mask,frame_list)
+            
+
+        run_morph(exp_obj, mask_fold_src='Masks_Manual_Track', channel_seg=channel_seg, n_mask=mask_appear, copy_first_to_start=copy_first_to_start, copy_last_to_end=copy_last_to_end)
         
         if track_seg_mask:         
+            if not mask_fold_src:
+                #get path of the last created mask
+                mask_fold_src, _ = seg_mask_lst_src(exp_obj,mask_fold_src)
+                input_seg = join(exp_obj.exp_path, mask_fold_src)
+            
             # do overwrite from seg mask
             img_data = gen_input_data_masks(exp_obj, mask_fold_src, mask_fold_src2='Masks_Manual_Track', channel_seg_list=[channel_seg], dilate_value=dilate_value)
             # seg_track_manual(img_data)
-            with ProcessPoolExecutor() as executor:
+            with ThreadPoolExecutor() as executor:
                 executor.map(seg_track_manual,img_data)
             
         
         # Save settings
         exp_obj.tracking.manual_tracking[channel_seg] = {'mask_fold_src':mask_fold_src,'track_seg_mask':track_seg_mask,
-                                        'csv_name':csv_name,'mask_appear':mask_appear,'morph':morph,'radius':radius}
+                                        'csv_name':csv_name,'mask_appear':mask_appear, 'copy_first_to_start': copy_first_to_start, 'copy_last_to_end': copy_last_to_end,'radius':radius}
         exp_obj.save_as_json()
     return exp_obj_lst

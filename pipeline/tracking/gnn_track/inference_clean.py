@@ -41,7 +41,7 @@ def predict(ckpt_path, path_csv_output, num_seq):
     trained_model.eval()
     trained_model.freeze()
 
-    data_yaml['dataset_params']['num_frames'] = 'all'
+    data_yaml['dataset_params']['num_frames'] = 'all' #TODO try different than all? Maybe in combination with jumpframes?
     data_yaml['dataset_params']['main_path'] = path_output
 
     second_path = num_seq

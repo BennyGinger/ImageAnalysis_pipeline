@@ -31,7 +31,7 @@ class CellTrackDataset:
                  filter_edges=False,
                  save_stats=False,
                  directed=True,
-                 same_frame=True,
+                 same_frame=True, #TODO False?
                  next_frame=True,
                  separate_models=False,
                  one_hot_label=True,
@@ -49,7 +49,7 @@ class CellTrackDataset:
         assert flag_2d or flag_3d, "Please provide experiment name with detailed dimension (e.g. 2D/3D)"
         self.is_3d = flag_3d and (not flag_2d)
         flag_Hela = 'hela' in exp_name.lower()
-        self.filter_edges = filter_edges or flag_Hela
+        self.filter_edges = filter_edges or flag_Hela  #TODO what is Hela or filter_edges?
         # attributes for visualization
         self.debug_visualization = debug_visualization
         # attributes for nodes features
