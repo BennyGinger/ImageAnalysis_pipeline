@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 # ----------------------main Window function ----------------adapted from cellpose
 
-class preprocess_tab(QMainWindow):
+class preprocess_tab(QWidget):
     def __init__(self, image=None):
         super(preprocess_tab, self).__init__()
 

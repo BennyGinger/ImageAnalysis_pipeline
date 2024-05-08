@@ -215,7 +215,7 @@ def iou_tracking(exp_obj_lst: list[Experiment], channel_seg: str, mask_fold_src:
         mask_appear (int, optional): Number of times a mask should appear to be considered valid. Defaults to 5.
         copy_first_to_start (bool, optional): Flag to copy the first mask to the start. Defaults to True.
         copy_last_to_end (bool, optional): Flag to copy the last mask to the end. Defaults to True.
-
+    
     Returns:
         list[Experiment]: List of Experiment objects with updated tracking information.
     """

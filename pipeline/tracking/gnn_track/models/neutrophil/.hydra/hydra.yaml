@@ -107,12 +107,13 @@ hydra:
   overrides:
     hydra: []
     task:
-    - datamodule.dataset_params.main_path=./CellTracking/nature_method_ctc/ct_features/s1_mfap4-mpx_isohypo_2h_WT_Full
+    - datamodule.dataset_params.main_path=./CellTracking/nature_method_ctc/ct_features/neutrophil
     - datamodule.dataset_params.exp_name=2D_SIM
     - datamodule.dataset_params.drop_feat=[]
+    - datamodule.dataset_params.jump_frames=3
   job:
     name: run
-    override_dirname: datamodule.dataset_params.drop_feat=[],datamodule.dataset_params.exp_name=2D_SIM,datamodule.dataset_params.main_path=./CellTracking/nature_method_ctc/ct_features/s1_mfap4-mpx_isohypo_2h_WT_Full
+    override_dirname: datamodule.dataset_params.drop_feat=[],datamodule.dataset_params.exp_name=2D_SIM,datamodule.dataset_params.jump_frames=3,datamodule.dataset_params.main_path=./CellTracking/nature_method_ctc/ct_features/neutrophil
     id: ???
     num: ???
     config_name: config.yaml
@@ -126,7 +127,7 @@ hydra:
         exclude_keys: []
   runtime:
     version: 1.1.0dev5
-    cwd: /home/Fabian/cell_tracker_gnn_lv
+    cwd: /home/Fabian/cell-tracker-gnn
   verbose: false
   choices:
     logger: many_loggers.yaml

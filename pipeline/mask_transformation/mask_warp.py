@@ -96,9 +96,8 @@ def relocate_mask(mask: np.ndarray, location: tuple[int,int])-> tuple[np.ndarray
     points_y,points_x = np.where(mask!=0)
     
     # Check that it stays within borders of array
-    #TODO: I'm not sure why we have shape -1 here
-    new_points_y = relocate_points(points_y,diff_y,mask.shape[0])
-    new_points_x = relocate_points(points_x,diff_x,mask.shape[1])
+    new_points_y = relocate_points(points_y,diff_y,mask.shape[0]-1) #we need -1, because otherwise we try to write points onto index ie.1024 for an array with axis 0-1024. So ID 1023 is the last one to write on.
+    new_points_x = relocate_points(points_x,diff_x,mask.shape[1]-1)
     
     # Move the obj
     n_masks = np.zeros((mask.shape))

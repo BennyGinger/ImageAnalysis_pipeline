@@ -7,6 +7,7 @@ from skimage import io
 import warnings
 warnings.filterwarnings("ignore")
 import imageio
+from pathlib import Path
 
 
 class Postprocess(object):
@@ -28,7 +29,7 @@ class Postprocess(object):
         self.dir_result = dir_results = path_seg_result
         self.results = []
         if os.path.exists(dir_results):
-            self.results = [os.path.join(dir_results, fname) for fname in sorted(os.listdir(dir_results))
+            self.results = [os.path.join(dir_results, fname) for fname in sorted(os.listdir(dir_results)) #path of segmentation masks in correct order
                             if type_masks in fname]
 
         self.is_3d = is_3d
@@ -43,6 +44,8 @@ class Postprocess(object):
         self.edge_index = data.edge_index
 
         self.df_preds = self._load_file(file2)
+        if self.df_preds.frame_num.min() == 1:
+            self.df_preds['frame_num'] = self.df_preds.frame_num -1
         self.output_pred = self._load_file(file3)
         self.find_connected_edges()
 
@@ -209,8 +212,8 @@ class Postprocess(object):
         self.outputs_hard = final_outputs_hard
         return final_outputs_hard
 
-    def megre_match_edges(self, edge_index, output_pred):
-
+    def merge_match_edges(self, edge_index, output_pred):
+        # [:, ::2] every second
         assert torch.all(edge_index[:, ::2] == edge_index[[1, 0], 1::2]), \
             "The results don't match!"
         edge_index = edge_index[:, ::2]
@@ -238,7 +241,7 @@ class Postprocess(object):
         edge_index, df, outputs = self.edge_index, self.df_preds, self.output_pred
 
         if not self.directed:
-            final_outputs_hard, edge_index = self.megre_match_edges(edge_index.detach().clone(), outputs.detach().clone())
+            final_outputs_hard, edge_index = self.merge_match_edges(edge_index.detach().clone(), outputs.detach().clone())
             self.outputs_hard = final_outputs_hard
             self.edge_index = edge_index
         else:
@@ -253,6 +256,7 @@ class Postprocess(object):
 
         # find number of frames for iterations
         frame_nums = np.unique(df.frame_num)
+        frame_nums = np.array(range(frame_nums.shape[0]))
         # find number of cells in each frame and build matrix [num_frames, max_cells]
         max_elements = [df.frame_num.isin([i]).sum() for i in frame_nums]
         all_frames_traject = np.zeros((frame_nums.shape[0], max(max_elements)))
@@ -263,6 +267,7 @@ class Postprocess(object):
         all_trajectory_dict = {}
         str_track = ''
         df_parents = []
+
         for frame_ind in frame_nums:
             mask_frame_ind = df.frame_num.isin([frame_ind])  # find the places containing frame_ind
 
@@ -348,21 +353,22 @@ class Postprocess(object):
         pred = None
         if len(self.results):
             im_path = self.results[idx]
-            pred = io.imread(im_path)
+            pred = io.imread(im_path) #load Image
             if self.is_3d and len(pred.shape) != 3:
                 pred = np.stack(imageio.mimread(im_path))
                 assert len(pred.shape) == 3, f"Expected 3d dimiension! but {pred.shape}"
         return pred
 
     def create_save_dir(self):
-        num_seq = self.dir_result.split('/')[-1][:2]
+        # num_seq = self.dir_result.split('/')[-1][:2]
         save_tra_dir = osp.join(self.dir_result, f"../Masks_GNN_Track") 
         self.save_tra_dir =save_tra_dir
         os.makedirs(self.save_tra_dir, exist_ok=True)
 
     def save_new_pred(self, new_pred, idx):
-        idx_str = "%04d" % idx
-        file_name = f"mask{idx_str}.tif"
+        # idx_str = "%04d" % idx
+        # file_name = f"mask{idx_str}.tif"
+        file_name = osp.basename(self.results[idx])
         full_dir = osp.join(self.save_tra_dir, file_name)
         io.imsave(full_dir, new_pred.astype(np.uint16))
 
@@ -440,14 +446,13 @@ class Postprocess(object):
                             print("Problem! The provided center coordinates value is zero, should be labeled with other value")
                             print(df.loc[id, ["seg_label", "frame_num",  "centroid_depth", "centroid_row", "centroid_col", "min_depth_bb",
                                               "min_row_bb", "min_col_bb", "max_depth_bb", "max_row_bb", "max_col_bb"]].astype(int))
-                            print()
                             continue
                 else:
                     cell_center = df.loc[id, ["centroid_row", "centroid_col"]].values.astype(int)
-                    row_center, col_center = cell_center[0], cell_center[1]
+                    row_center, col_center = cell_center[0], cell_center[1] #centroid positions of the labeled cell
                     if self.center_coord:
-                        n_row_img, n_col_img = pred.shape
-                        row_center += n_row_img // 2
+                        n_row_img, n_col_img = pred.shape #pred: loaded mask
+                        row_center += n_row_img // 2 #BUG stupid thing
                         col_center += n_col_img // 2
 
                     val = pred[row_center, col_center]
@@ -465,11 +470,9 @@ class Postprocess(object):
                             counts = counts[mask]
                             val = unique_labels[np.argmax(counts)]
                         else:
-                            print(
-                                "Problem! The provided center coordinates value is zero, should be labeled with other value")
+                            print("Problem! The provided center coordinates value is zero, should be labeled with other value")
                             print(df.loc[id, ["seg_label", "frame_num", "centroid_row", "centroid_col",
                                               "min_row_bb", "min_col_bb", "max_row_bb", "max_col_bb"]].astype(int))
-                            print()
                             continue
 
                 assert val != 0, "Problem! The provided center coordinates value is zero, " \
@@ -482,7 +485,8 @@ class Postprocess(object):
                 mask_where = np.logical_and(np.logical_not(mask_val), mask_where)
 
                 frame_ids.append(true_id)
-
+                
+            print(f'processing frame: {idx+1}')
             isOK, predID_not_in_currID = self.check_ids_consistent(idx, np.unique(pred_copy), frame_ids)
             if not debug:
                 if not isOK:

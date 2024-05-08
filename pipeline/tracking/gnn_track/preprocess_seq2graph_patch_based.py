@@ -59,14 +59,12 @@ class TestDataset(Dataset):
         if im_path is not None:
             flag = False
             im_name = Path(im_path).stem
-            im_num = re.findall(r'\d+', im_name)[-1]
-            # im_num = im_path.split(".")[-2][-3:]            
+            im_num = re.findall('f\d+', im_name)[0][1:]           
 
         if result_path is not None:
             flag = False
             result_name = Path(result_path).stem
-            result_num = re.findall(r'\d+', result_name)[-1]
-            # result_num = result_path.split(".")[-2][-3:]
+            result_num = re.findall('f\d+', result_name)[0][1:]
 
         if flag:
             assert im_num == result_num, f"Image number ({im_num}) is not equal to result number ({result_num})"
@@ -223,7 +221,7 @@ class TestDataset(Dataset):
                 n_pixels = np.abs(res1 - res2).sum()
                 print(f"per_mask_change={per_mask_change}, per_cell_change={per_cell_change}, number of changed pixels: {n_pixels}")
 
-                io.imsave(result_path, result.astype(np.uint16), compress=6)
+                io.imsave(result_path, result.astype(np.uint16), compression=1) #BUG #original: compression = 6 is OJPEG, which is not implemented in tiffile in the moment
 
         print(f"number of detected changes: {n_changes}")
 
@@ -267,12 +265,10 @@ class TestDataset(Dataset):
             mask_path = result_path
             mask = result
             im_name = Path(im_path).stem
-            im_num = re.findall(r'\d+', im_name)[-1]
-            # im_num = im_path.split(".")[-2][-3:]      
+            im_num = re.findall('f\d+', im_name)[0][1:]      
             
             mask_name = Path(mask_path).stem
-            mask_num = re.findall(r'\d+', mask_name)[-1]
-            # mask_num = mask_path.split(".")[-2][-3:]
+            mask_num = re.findall('f\d+', mask_name)[0][1:]
 
             assert im_num == mask_num, f"Image number ({im_num}) is not equal to mask number ({mask_num})"
             im_num_int = int(im_num)

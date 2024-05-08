@@ -55,7 +55,13 @@ def load_stack(img_paths: list[PathLike], channels: str | Iterable[str], frame_r
         return np.amax(stack, axis=0)
 
 def img_list_src(exp_set: Experiment, img_fold_src: str)-> tuple[str,list[PathLike]]:
-    """If not manually specified, return the latest processed images list"""
+    """If not manually specified, return the latest processed images list
+    Return the image folder source to save during segmentation.
+    Args:
+        exp_set (Experiment): The experiment settings.
+        img_fold_src (str): The image folder source. Can be None or str.
+    Returns:
+        tuple[str,list[PathLike]]: The image folder source and the list of masks."""
     
     if img_fold_src and img_fold_src == 'Images':
         return img_fold_src,exp_set.ori_imgs_lst

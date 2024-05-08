@@ -79,7 +79,7 @@ datamodule:
     num_frames: 10
     type_file: csv
     produce_gt: simple
-    main_path: ./CellTracking/nature_method_ctc/ct_features/s1_mfap4-mpx_isohypo_2h_WT_Full
+    main_path: ./CellTracking/nature_method_ctc/ct_features/neutrophil
     dirs_path:
       train:
       - '01'

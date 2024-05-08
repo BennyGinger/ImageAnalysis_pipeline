@@ -1,0 +1,3 @@
+- datamodule.dataset_params.main_path=./CellTracking/nature_method_ctc/ct_features/s1_mfap4-mpx_isohypo_2h_WT_Full
+- datamodule.dataset_params.exp_name=2D_SIM
+- datamodule.dataset_params.drop_feat=[]

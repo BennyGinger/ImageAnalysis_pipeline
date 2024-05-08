@@ -2,8 +2,8 @@ import os
 import yaml
 import torch
 
-from src.models.celltrack_plmodel import CellTrackLitModel #src.models.celltrack_plmodel
-from modules.graph_dataset_inference import CellTrackDataset
+from tracking.gnn_track.src.models.celltrack_plmodel import CellTrackLitModel
+from tracking.gnn_track.modules.graph_dataset_inference import CellTrackDataset
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -41,7 +41,7 @@ def predict(ckpt_path, path_csv_output, num_seq):
     trained_model.eval()
     trained_model.freeze()
 
-    data_yaml['dataset_params']['num_frames'] = 'all'
+    data_yaml['dataset_params']['num_frames'] = 'all' #TODO try different than all? Maybe in combination with jumpframes?
     data_yaml['dataset_params']['main_path'] = path_output
 
     second_path = num_seq
@@ -53,7 +53,7 @@ def predict(ckpt_path, path_csv_output, num_seq):
     x, x2, edge_index, edge_feature = test_data.x, test_data.x_2, test_data.edge_index, test_data.edge_feat
 
     outputs = trained_model((x, x2), edge_index, edge_feature.float())
-    data_path = path_output + '/gnn_files'
+    data_path = path_output #+ '/Masks_GNN_Track'
     path_output_folder = data_path
     print(f"save path : {path_output_folder}")
     os.makedirs(path_output_folder, exist_ok=True)

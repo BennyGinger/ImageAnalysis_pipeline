@@ -13,7 +13,7 @@ warnings.filterwarnings("ignore")
 from pathlib import Path
 import re
 
-from modules.resnet_3d.resnet import set_model_architecture, MLP
+from tracking.gnn_track.modules.resnet_3d.resnet import set_model_architecture, MLP
 
 import torch
 from skimage.morphology import label
@@ -68,12 +68,12 @@ class TestDataset(Dataset):
                 assert result.shape == image.shape
                 
             result_name = Path(result_path).stem
-            result_num = re.findall(r'\d+', result_name)[-1]
-            # result_num = result_path.split(".")[-2][-3:]
+            result_num = re.findall('f\d+', result_name)[0][1:]
+            
             
             im_name = Path(im_path).stem
-            im_num = re.findall(r'\d+', im_name)[-1]
-            # im_num = im_path.split(".")[-2][-3:]
+            im_num = re.findall('f\d+', im_name)[0][1:]
+           
 
             assert im_num == result_num, f"Image number ({im_num}) is not equal to result number ({result_num})"
 
@@ -81,14 +81,14 @@ class TestDataset(Dataset):
         if im_path is not None:
             flag = False
             im_name = Path(im_path).stem
-            im_num = re.findall(r'\d+', im_name)[-1]
-            # im_num = im_path.split(".")[-2][-3:]
+            im_num = re.findall('f\d+', im_name)[0][1:]
+            
             
         if result_path is not None:
             flag = False
             result_name = Path(result_path).stem
-            result_num = re.findall(r'\d+', result_name)[-1]
-            # result_num = result_path.split(".")[-2][-3:]            
+            result_num = re.findall('f\d+', result_name)[0][1:]
+                       
 
         if flag:
             assert im_num == result_num, f"Image number ({im_num}) is not equal to result number ({result_num})"
@@ -353,12 +353,11 @@ class TestDataset(Dataset):
             if img is None or result is None:
                 print('*' * 20 + 'We have None' + 20 * '*')
             im_name = Path(im_path).stem
-            im_num = re.findall(r'\d+', im_name)[-1]
-            # im_num = im_path.split(".")[-2][-3:]
+            im_num = re.findall('f\d+', im_name)[0][1:]
             
             result_name = Path(result_path).stem
-            result_num = re.findall(r'\d+', result_name)[-1]
-            # result_num = result_path.split(".")[-2][-3:]            
+            result_num = re.findall('f\d+', result_name)[0][1:]
+          
             assert im_num == result_num, f"Image number ({im_num}) is not equal to result number ({result_num})"
 
             num_labels = np.unique(result).shape[0] - 1
