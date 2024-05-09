@@ -14,21 +14,26 @@ from pipeline.image_handeling.data_utility import load_stack, create_save_folder
 def correct_channel_shift(exp_obj_lst: list[Experiment], reg_mtd: str, reg_channel: str, overwrite: bool=False)-> list[Experiment]:
     """Main function to apply the channel shift correction to the images."""
     for exp_obj in exp_obj_lst:
+        # Check if the channel shift is needed
+        if len(exp_obj.active_channel_list)==1:
+            print(f" --> Only one channel in the active_channel_list, no need to apply channel shift")
+            continue
+        
         # Activate the branch
         exp_obj.preprocess.is_channel_reg = True
+        
         # Already processed?
         if is_processed(exp_obj.preprocess.channel_reg,overwrite=overwrite):
             print(f" --> Channel shift was already applied on the images with {exp_obj.preprocess.channel_reg}")
             continue
-        # Or if it's needed
-        if len(exp_obj.active_channel_list)==1:
-            print(f" --> Only one channel in the active_channel_list, no need to apply channel shift")
-            continue
+        
         # If not, correct the channel shift
         stackreg = select_reg_mtd(reg_mtd)
         print(f" --> Applying channel shift correction on the images with '{reg_channel}' as reference and {reg_mtd} methods")
+        
         # Apply the channel shift correction
         apply_chan_shift(exp_obj,stackreg,reg_channel)
+        
         # Save settings
         exp_obj.preprocess.channel_reg = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}","fold_src=Images"]
         exp_obj.save_as_json()

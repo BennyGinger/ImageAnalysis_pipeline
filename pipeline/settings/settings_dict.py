@@ -1,7 +1,7 @@
 settings = {
-    "input_folder": '/home/Test_images/nd2/Run2',
-    "init":{"active_channel_list": ['GFP','RFP'],
-            'full_channel_list':["GFP","RFP"],
+    "input_folder": '/home/Test_images/bigy',
+    "init":{"active_channel_list": ['RFP'],
+            'full_channel_list':["RFP"],
             "overwrite": False},
     
     
@@ -10,16 +10,16 @@ settings = {
                 "size": 7,
                 "overwrite": False}),
     
-    "chan_shift": (True,
+    "chan_shift": (False,
                     {"reg_channel": "YFP",
                     "reg_mtd": "translation",
                     "overwrite": False}),
     
-    "frame_shift": (False,
-                {"reg_channel": "YFP",
+    "frame_shift": (True,
+                {"reg_channel": "RFP",
                 "reg_mtd": "rigid_body",
-                "img_ref": "mean",
-                "overwrite": True}),
+                "img_ref": "previous",
+                "overwrite": False}),
     
     "blur": (False,
             {"kernel": (15,15),
@@ -28,26 +28,26 @@ settings = {
             "overwrite": False}),
 
     "cellpose": (True,
-                {"channel_to_seg":"YFP", #BUG channel should be controlled if it exists in the channel list
-                "model_type": "/home/Fabian/Models/Cellpose/twoFishMacrophage", #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
-                "diameter": 15.0,
-                "flow_threshold": 0.0,
-                "cellprob_threshold":-3,
-                "overwrite": False,
+                {"channel_to_seg":"RFP", #BUG channel should be controlled if it exists in the channel list
+                "model_type": "cyto2", #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
+                "diameter": 30.0,
+                "flow_threshold": 0.5,
+                "cellprob_threshold":0,
                 "img_fold_src": "",
                 "process_as_2D": True,
-                "save_as_npy": True,
+                "save_as_npy": False,
                 "nuclear_marker": "",
-                "normalize":{"percentile":[1,99]}}),
+                "normalize":{"percentile":[1,99]},
+                "overwrite": False,}),
     
     "threshold": (False,
                 {"channel_to_seg":"RFP",
-                "overwrite": False,
                 "manual_threshold": None,
-                "img_fold_src": "",}),
+                "img_fold_src": "",
+                "overwrite": False,}),
     
     "iou_track": (True,
-                  {"channel_to_track":"YFP", #BUG channel should be controlled if it exists in the channel list
+                  {"channel_to_track":"RFP", #BUG channel should be controlled if it exists in the channel list
                    "img_fold_src": "",
                    "stitch_thres_percent": 0.1,
                    "shape_thres_percent": 0.8,
