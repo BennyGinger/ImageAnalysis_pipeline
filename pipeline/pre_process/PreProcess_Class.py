@@ -12,6 +12,7 @@ from pipeline.pre_process.image_registration import correct_frame_shift, correct
 from pipeline.settings.Setting_Classes import Settings
 from pipeline.image_handeling.Experiment_Classes import Experiment, init_from_dict, init_from_json
 from pipeline.image_handeling.Base_Module_Class import BaseModule
+from pipeline.image_handeling.data_utility import is_processed
 
 EXTENTION = ('.nd2','.tif','.tiff')
 
@@ -74,7 +75,7 @@ class PreProcess(BaseModule):
         sets = sets.preprocess
         # Run the different pre-process functions
         if hasattr(sets,'bg_sub'):
-            self.exp_obj_lst = self.bg_sub(**sets.bg_sub)
+            self.bg_sub(**sets.bg_sub)
         if hasattr(sets,'chan_shift'):
             self.exp_obj_lst = self.channel_shift(**sets.chan_shift)
         if hasattr(sets,'frame_shift'):
@@ -84,8 +85,19 @@ class PreProcess(BaseModule):
         self.save_as_json()
         return self.exp_obj_lst
     
-    def bg_sub(self, sigma: float=0, size: int=7, overwrite: bool=False)-> list[Experiment]:
-        return background_sub(self.exp_obj_lst,sigma,size,overwrite)
+    def bg_sub(self, sigma: float=0, size: int=7, overwrite: bool=False)-> None:
+        for exp_obj in self.exp_obj_lst:
+            # Activate the branch
+            exp_obj.preprocess.is_background_sub = True
+            # Already processed?
+            if is_processed(exp_obj.preprocess.background_sub,overwrite=overwrite):
+                print(f" --> Background substraction was already applied to the images with {exp_obj.preprocess.background_sub}")
+                continue
+            # Apply background substraction
+            background_sub(exp_obj.ori_imgs_lst,sigma,size,overwrite)
+            # Save the settings
+            exp_obj.preprocess.background_sub = (f"sigma={sigma}",f"size={size}","fold_src=Images")
+            exp_obj.save_as_json()
     
     def channel_shift(self, reg_channel: str, reg_mtd: str, overwrite: bool=False)-> list[Experiment]:
         return correct_channel_shift(self.exp_obj_lst,reg_mtd,reg_channel,overwrite)

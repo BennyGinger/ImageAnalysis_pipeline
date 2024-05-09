@@ -2,10 +2,10 @@ settings = {
     "input_folder": '/home/Test_images/bigy',
     "init":{"active_channel_list": ['RFP'],
             'full_channel_list':["RFP"],
-            "overwrite": False},
+            "overwrite": True},
     
     
-    "bg_sub": (False,
+    "bg_sub": (True,
                 {"sigma": 0.0,
                 "size": 7,
                 "overwrite": False}),
@@ -15,7 +15,7 @@ settings = {
                     "reg_mtd": "translation",
                     "overwrite": False}),
     
-    "frame_shift": (True,
+    "frame_shift": (False,
                 {"reg_channel": "RFP",
                 "reg_mtd": "rigid_body",
                 "img_ref": "previous",
@@ -27,7 +27,7 @@ settings = {
             "img_fold_src": "",
             "overwrite": False}),
 
-    "cellpose": (True,
+    "cellpose": (False,
                 {"channel_to_seg":"RFP", #BUG channel should be controlled if it exists in the channel list
                 "model_type": "cyto2", #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
                 "diameter": 30.0,
@@ -46,7 +46,7 @@ settings = {
                 "img_fold_src": "",
                 "overwrite": False,}),
     
-    "iou_track": (True,
+    "iou_track": (False,
                   {"channel_to_track":"RFP", #BUG channel should be controlled if it exists in the channel list
                    "img_fold_src": "",
                    "stitch_thres_percent": 0.1,
@@ -81,7 +81,7 @@ settings = {
                    "process_as_2D":True,
                    "overwrite":True}),
     
-    "extract_data": (True,
+    "extract_data": (False,
                         {"img_fold_src": "",
                         "overwrite": True}),
 }

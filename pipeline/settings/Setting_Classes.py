@@ -136,9 +136,9 @@ class Settings:
         analysis_dict = {k:v[1] for k,v in self.settings.items() if k in ANALYSIS_KEYS and v[0]}
         if analysis_dict:
             self.analysis = AnalysisSettings(analysis_dict)
-        # If upstream process have overwrite then update the overwrite of the analysis
-        if self.overwrite:
-            self.analysis.update_overwrite(overwrite_all=True)
+            # If upstream process have overwrite then update the overwrite of the analysis
+            if self.overwrite:
+                self.analysis.update_overwrite(overwrite_all=True)
             
         
     
