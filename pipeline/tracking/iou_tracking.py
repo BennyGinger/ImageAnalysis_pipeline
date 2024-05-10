@@ -278,7 +278,23 @@ def iou_tracking(exp_obj_lst: list[Experiment], channel_seg: str, mask_fold_src:
 
 
 if __name__ == "__main__":
-    folder = '/Users/benhome/BioTool/GitHub/cp_dev/Test_images/Run4/c4z1t91v1_s1/Masks_Cellpose'
-    mask_folder_src = [join(sep,folder+sep,file) for file in sorted(listdir(folder)) if file.endswith('.tif')]
-    mask_stack = load_stack(mask_folder_src,['RFP'],range(91))
-    print(type(mask_stack))
+    folder = '/home/Test_images/bigy/HEKA_c1031_c1829_miniSOG_80%_435_2min_40min_002_Merged_s1/Masks_Cellpose'
+    mask_folder_src = [join(folder,file) for file in sorted(listdir(folder)) if file.endswith('.tif')]
+    mask_stack = load_stack(mask_folder_src,'RFP',range(126),True)
+    
+    stitch_thres_percent = 0.1
+    shape_thres_percent = 0.8
+    mask_appear = 5
+    copy_first_to_start = True
+    copy_last_to_end = True
+    
+    mask_stack = track_cells(mask_stack,stitch_thres_percent)
+    # Check shape similarity to avoid false masks
+    mask_stack = check_mask_similarity(mask_stack,shape_thres_percent)
+    
+    # Re-assign the new value to the masks and obj. Previous step may have created dicontinuous masks
+    print('  ---> Reassigning masks value')
+    mask_stack,_,_ = relabel_sequential(mask_stack)
+    
+    # Morph missing masks
+    mask_stack = complete_track(mask_stack,mask_appear,copy_first_to_start,copy_last_to_end)

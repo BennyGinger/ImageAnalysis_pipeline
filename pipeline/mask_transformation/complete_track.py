@@ -67,6 +67,8 @@ def copy_first_last_mask(mask_stack: np.ndarray, copy_first_to_start: bool=True,
     
     if copy_first_to_start and not is_masks[0]:
         # get the index of the first mask
+        print(np.where(is_masks))
+        print("I'm here")
         idx = np.where(is_masks)[0][0]
         # copy the first mask to the start of the stack
         mask_stack[:idx,...] = mask_stack[idx]
@@ -116,6 +118,7 @@ def fill_gaps(cropped_stack: np.ndarray, copy_first_to_start: bool=True, copy_la
         stack (np.array): Cropped mask array with filled frames.
     """
     # Copy the first and/or last masks to the ends of the stacks if empty
+    print(f"{cropped_stack.shape=}")
     cropped_stack = copy_first_last_mask(cropped_stack, copy_first_to_start, copy_last_to_end)
     # Get the indexes of the masks to morph (i.e. that suround empty frames)
     masks_to_morph = find_gaps(cropped_stack)

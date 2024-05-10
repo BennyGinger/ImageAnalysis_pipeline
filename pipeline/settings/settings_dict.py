@@ -2,7 +2,7 @@ settings = {
     "input_folder": '/home/Test_images/bigy',
     "init":{"active_channel_list": ['RFP'],
             'full_channel_list':["RFP"],
-            "overwrite": True},
+            "overwrite": False},
     
     
     "bg_sub": (True,
@@ -27,7 +27,7 @@ settings = {
             "img_fold_src": "",
             "overwrite": False}),
 
-    "cellpose": (False,
+    "cellpose": (True,
                 {"channel_to_seg":"RFP", #BUG channel should be controlled if it exists in the channel list
                 "model_type": "cyto2", #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
                 "diameter": 30.0,
@@ -46,7 +46,7 @@ settings = {
                 "img_fold_src": "",
                 "overwrite": False,}),
     
-    "iou_track": (False,
+    "iou_track": (True,
                   {"channel_to_track":"RFP", #BUG channel should be controlled if it exists in the channel list
                    "img_fold_src": "",
                    "stitch_thres_percent": 0.1,
