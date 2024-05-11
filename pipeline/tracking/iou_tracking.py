@@ -280,6 +280,7 @@ def iou_tracking(exp_obj_lst: list[Experiment], channel_seg: str, mask_fold_src:
 if __name__ == "__main__":
     folder = '/home/Test_images/bigy/HEKA_c1031_c1829_miniSOG_80%_435_2min_40min_002_Merged_s1/Masks_Cellpose'
     mask_folder_src = [join(folder,file) for file in sorted(listdir(folder)) if file.endswith('.tif')]
+    print(len(mask_folder_src))
     mask_stack = load_stack(mask_folder_src,'RFP',range(126),True)
     
     stitch_thres_percent = 0.1
@@ -295,6 +296,6 @@ if __name__ == "__main__":
     # Re-assign the new value to the masks and obj. Previous step may have created dicontinuous masks
     print('  ---> Reassigning masks value')
     mask_stack,_,_ = relabel_sequential(mask_stack)
-    
+    imwrite('/home/Test_images/masks/labeled_masks.tif')
     # Morph missing masks
-    mask_stack = complete_track(mask_stack,mask_appear,copy_first_to_start,copy_last_to_end)
+    # mask_stack = complete_track(mask_stack,mask_appear,copy_first_to_start,copy_last_to_end)

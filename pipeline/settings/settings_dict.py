@@ -38,7 +38,7 @@ settings = {
                 "save_as_npy": False,
                 "nuclear_marker": "",
                 "normalize":{"percentile":[1,99]},
-                "overwrite": False,}),
+                "overwrite": True,}),
     
     "threshold": (False,
                 {"channel_to_seg":"RFP",
