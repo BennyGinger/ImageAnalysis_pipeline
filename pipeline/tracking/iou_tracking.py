@@ -195,7 +195,7 @@ def is_channel_in_lst(channel: str, img_paths: list[PathLike]) -> bool:
 def process_mask(prop: tuple[int,tuple[slice]], mask: np.ndarray, shape_thres_percent: float) -> tuple[tuple[slice],np.ndarray]:
     # Crop stack to save memory
     obj,slice_obj = prop
-    temp = mask[slice_obj]
+    temp = mask[slice_obj].copy()
     # Isolate mask obj
     temp[temp != obj] = 0
     # Calculate dice coef
@@ -278,10 +278,11 @@ def iou_tracking(exp_obj_lst: list[Experiment], channel_seg: str, mask_fold_src:
 
 
 if __name__ == "__main__":
+    from tifffile import imread
+    
     folder = '/home/Test_images/bigy/HEKA_c1031_c1829_miniSOG_80%_435_2min_40min_002_Merged_s1/Masks_Cellpose'
     mask_folder_src = [join(folder,file) for file in sorted(listdir(folder)) if file.endswith('.tif')]
-    print(len(mask_folder_src))
-    mask_stack = load_stack(mask_folder_src,'RFP',range(126),True)
+    # mask_stack = load_stack(mask_folder_src,'RFP',range(126),True)
     
     stitch_thres_percent = 0.1
     shape_thres_percent = 0.8
@@ -289,13 +290,16 @@ if __name__ == "__main__":
     copy_first_to_start = True
     copy_last_to_end = True
     
-    mask_stack = track_cells(mask_stack,stitch_thres_percent)
-    # Check shape similarity to avoid false masks
-    mask_stack = check_mask_similarity(mask_stack,shape_thres_percent)
+    # mask_stack = track_cells(mask_stack,stitch_thres_percent)
+    # imwrite('/home/Test_images/masks/tracked_masks.tif',mask_stack.astype('uint16'))
+    # # Check shape similarity to avoid false masks
+    # mask_stack = check_mask_similarity(mask_stack,shape_thres_percent)
+    # imwrite('/home/Test_images/masks/similar_masks.tif',mask_stack.astype('uint16'))
     
-    # Re-assign the new value to the masks and obj. Previous step may have created dicontinuous masks
-    print('  ---> Reassigning masks value')
-    mask_stack,_,_ = relabel_sequential(mask_stack)
-    imwrite('/home/Test_images/masks/labeled_masks.tif')
+    # # Re-assign the new value to the masks and obj. Previous step may have created dicontinuous masks
+    # print('  ---> Reassigning masks value')
+    # mask_stack,_,_ = relabel_sequential(mask_stack)
+    # imwrite('/home/Test_images/masks/labeled_masks.tif',mask_stack.astype('uint16'))
     # Morph missing masks
-    # mask_stack = complete_track(mask_stack,mask_appear,copy_first_to_start,copy_last_to_end)
+    mask_stack = imread('/home/Test_images/masks/labeled_masks.tif')
+    mask_stack = complete_track(mask_stack,mask_appear,copy_first_to_start,copy_last_to_end)

@@ -42,6 +42,7 @@ def complete_track(mask_stack: np.ndarray, mask_appear: int, copy_first_to_start
     
     # Trim incomplete tracks, as complete tracks can be overwritten by incomplete tracks
     if copy_first_to_start or copy_last_to_end:
+        print('  ---> Trimming incomplete tracks')
         new_stack = trim_incomplete_track(new_stack)
     return new_stack.astype('uint16')
 
@@ -67,8 +68,6 @@ def copy_first_last_mask(mask_stack: np.ndarray, copy_first_to_start: bool=True,
     
     if copy_first_to_start and not is_masks[0]:
         # get the index of the first mask
-        print(np.where(is_masks))
-        print("I'm here")
         idx = np.where(is_masks)[0][0]
         # copy the first mask to the start of the stack
         mask_stack[:idx,...] = mask_stack[idx]
@@ -118,7 +117,6 @@ def fill_gaps(cropped_stack: np.ndarray, copy_first_to_start: bool=True, copy_la
         stack (np.array): Cropped mask array with filled frames.
     """
     # Copy the first and/or last masks to the ends of the stacks if empty
-    print(f"{cropped_stack.shape=}")
     cropped_stack = copy_first_last_mask(cropped_stack, copy_first_to_start, copy_last_to_end)
     # Get the indexes of the masks to morph (i.e. that suround empty frames)
     masks_to_morph = find_gaps(cropped_stack)
@@ -134,7 +132,7 @@ def apply_filling(prop: tuple[int,tuple[slice]], mask_stack: np.ndarray, mask_ap
     """Intermediate function to apply the filling of the gaps in the mask stack in parallel."""
     # Crop stack to save memory
     obj,slice_obj = prop
-    temp = mask_stack[slice_obj]
+    temp = mask_stack[slice_obj].copy()
     # Isolate mask obj
     temp[temp!=obj] = 0
     framenumber = len(np.unique(np.where(mask_stack == obj)[0]))
@@ -166,7 +164,7 @@ if __name__ == "__main__":
     sys.path.append('/home/ImageAnalysis_pipeline/pipeline')
     from image_handeling.data_utility import load_stack
     from os.path import join
-    from tifffile import imwrite
+    from tifffile import imwrite, imread
     from mask_warp import mask_warp
     
     # mask_folder = '/home/Test_images/nd2/Run2/c2z25t23v1_nd2_s1/Masks_IoU_Track'
@@ -185,25 +183,30 @@ if __name__ == "__main__":
     # new_mask = morph_missing_mask(mask,5,True,True)
     # imwrite('/home/Test_images/masks/output.tif', new_mask.astype('uint16'))
     
-    from skimage.draw import disk
-    def mask_stack():
-        m1 = np.zeros((3, 100, 100), dtype=np.uint8)
-        rr, cc = disk((40, 50), 14)
-        m1[:,rr, cc] = 1
-        m2 = np.zeros((3, 100, 100), dtype=np.uint8)
-        rr, cc = disk((50, 50), 20)
-        m2[:,rr, cc] = 1
-        m3 = np.zeros((4, 100, 100), dtype=np.uint8)
-        rr, cc = disk((50, 60), 15)
-        m3[:,rr, cc] = 1
-        mask = np.concatenate((m1,m2,m3),axis=0)
-        return mask
+    # from skimage.draw import disk
+    # def mask_stack():
+    #     m1 = np.zeros((3, 100, 100), dtype=np.uint8)
+    #     rr, cc = disk((40, 50), 14)
+    #     m1[:,rr, cc] = 1
+    #     m2 = np.zeros((3, 100, 100), dtype=np.uint8)
+    #     rr, cc = disk((50, 50), 20)
+    #     m2[:,rr, cc] = 1
+    #     m3 = np.zeros((4, 100, 100), dtype=np.uint8)
+    #     rr, cc = disk((50, 60), 15)
+    #     m3[:,rr, cc] = 1
+    #     mask = np.concatenate((m1,m2,m3),axis=0)
+    #     return mask
     
-    mask = mask_stack()
-    imwrite('/home/Test_images/masks/expected.tif', mask.astype('uint16'))
+    # mask = mask_stack()
+    # imwrite('/home/Test_images/masks/expected.tif', mask.astype('uint16'))
     
-    mask[2:4, :, :] = 0
-    imwrite('/home/Test_images/masks/input.tif', mask.astype('uint16'))
+    # mask[2:4, :, :] = 0
+    # imwrite('/home/Test_images/masks/input.tif', mask.astype('uint16'))
     
-    new_mask = complete_track(mask,True,True)
-    imwrite('/home/Test_images/masks/output.tif', new_mask.astype('uint16'))
+    # new_mask = complete_track(mask,True,True)
+    # imwrite('/home/Test_images/masks/output.tif', new_mask.astype('uint16'))
+    mask_appear = 5
+    copy_first_to_start = True
+    copy_last_to_end = True
+    mask_stack = imread('/home/Test_images/masks/labeled_masks.tif')
+    complete_track(mask_stack, mask_appear, copy_first_to_start, copy_last_to_end)

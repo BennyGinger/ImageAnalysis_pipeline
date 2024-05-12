@@ -38,7 +38,7 @@ settings = {
                 "save_as_npy": False,
                 "nuclear_marker": "",
                 "normalize":{"percentile":[1,99]},
-                "overwrite": True,}),
+                "overwrite": False,}),
     
     "threshold": (False,
                 {"channel_to_seg":"RFP",
@@ -81,7 +81,7 @@ settings = {
                    "process_as_2D":True,
                    "overwrite":True}),
     
-    "extract_data": (False,
+    "extract_data": (True,
                         {"img_fold_src": "",
                         "overwrite": True}),
 }
