@@ -31,7 +31,7 @@ def draw_polygons(img, frames):
     """
 
     seqLeng = frames
-    
+    print(f'{seqLeng=}')
     # Load images and draw
     f = 0 # Allow to move between the different frames
     dict_roi = {} # Store the polygons
@@ -67,18 +67,20 @@ def draw_polygons(img, frames):
         
         # Read/Load image
         if seqLeng==1:
-            im = cv2.resize(img,(768,768),cv2.INTER_NEAREST)
+            im = img.copy() #cv2.resize(img,(1000,1000),cv2.INTER_NEAREST)
         else:
-            im = cv2.resize(img[f],(768,768),cv2.INTER_NEAREST)
+            im = img[f].copy() #cv2.resize(img[f],(1000,1000),cv2.INTER_NEAREST) #768
         im2 = im.copy()
-
         if togglemask == 0:
-            if f in dict_roi.keys():
+            print(f'{drawing=}')
+            if f in dict_roi.keys() and not drawing:
                 cv2.polylines(im,dict_roi[f], True, (0,255,255),2)
                 cv2.fillPoly(im,dict_roi[f],(0,255,255))
+                polygons = dict_roi[f]
 
-        cv2.namedWindow("Draw ROI of the Wound")
+        cv2.namedWindow("Draw ROI of the Wound", cv2.WINDOW_NORMAL)
         cv2.setMouseCallback("Draw ROI of the Wound",freehand_draw)
+        cv2.resizeWindow("Draw ROI of the Wound", 1024, 1024)
         
         # Setup labels
         text = f"Frame {f+1}/{seqLeng}"; coord = (320,20)
@@ -129,10 +131,11 @@ def draw_polygons(img, frames):
             # Numbers for arrow keys
             # Windows: left: 2424832, right: 2555904, up: 2490368, down: 2621440
             # Linux: left: 65361, right: 65363, up: 65362, down: 65364
-
+            
             key = cv2.waitKeyEx(1)
             if key != -1:
-                print(key)
+                print(f'{key=}')
+                print(f'{f=}')
             
             # if key != -1:
             #     print(key)
@@ -217,16 +220,15 @@ def draw_polygons(img, frames):
     cv2.destroyAllWindows()
     return dict_roi
 
-def polygon2mask(exp_obj:Experiment, poly_dict:dict)->np.array:
+def polygon_into_mask(exp_obj:Experiment, poly_dict:dict)->np.array:
     frames = exp_obj.img_properties.n_frames
     length = exp_obj.img_properties.img_length
     width = exp_obj.img_properties.img_width
     
-    mask_stack = np.zeros((frames,length,width))
-
+    mask_stack = np.zeros((frames,length,width),dtype=('uint8'))
     for frame, polygon in poly_dict.items():
-        tempmask =  polygon2mask((768,768),polygon).astype(int)
-        tempmask = resize(tempmask,output_shape=(length,width))
+        tempmask =  polygon2mask((length,width),polygon[0]).astype('uint8')
+        #tempmask = resize(tempmask,output_shape=(length,width), order=0)
         mask_stack[frame] = tempmask
     return mask_stack
 
@@ -267,8 +269,8 @@ def draw_wound_mask(exp_obj_lst: list[Experiment], mask_label: list|str, channel
             if not poly_dict:
                 raise AttributeError('No mask drawn!')
             
-            mask_stack = polygon2mask(exp_obj, poly_dict=poly_dict)
-            
+            mask_stack = polygon_into_mask(exp_obj, poly_dict=poly_dict)
+    
             mask_stack = complete_track(mask_stack,mask_appear=1,copy_first_to_start=True,copy_last_to_end=True)
             
             for frame, mask in enumerate(mask_stack):
