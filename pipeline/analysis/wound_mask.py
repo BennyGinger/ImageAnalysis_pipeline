@@ -81,47 +81,30 @@ def draw_polygons(img, frames):
         cv2.resizeWindow("Draw ROI of the Wound", 1024, 1024)
         
         # Setup labels
-        text = f"Frame {f+1}/{seqLeng}"; coord = (320,20)
-        texts = "Press 's' to save ROI and move forward"; coords = (10,40)
-        if system()=='Linux': textar = "Press 'l' to go forward"
-        elif system()=='Windows': textar = "Press 'ARROW RIGHT' to go forward"
-        coordar = (10,60)
-        if system()=='Linux': textal = "Press 'j' to go backward"
-        elif system()=='Windows': textal = "Press 'ARROW LEFT' to go backward"
-        coordal = (10,80)
-        textq = "Press 'q' for quit"; coordq = (10,100)
-        if system()=='Linux': textc = "Press 'c' once and 'i'(up) or 'k'(down) to change contrast"
-        elif system()=='Windows': textc = "Press 'c' once and 'ARROW UP/DOWN' to change contrast"
-        coordc = (10,120)
-        if system()=='Linux': textb = "Press 'b' once and 'i' or 'k' to change brightness"
-        elif system()=='Windows': textb = "Press 'b' once and 'ARROW UP/DOWN' to change brightness"
-        coordb = (10,140)
-        textx = "Press 'x' to toggle mask"; coordx = (10,160)  
-        textl = "Press 'h' to toggle help"; coordl = (10,180)                  
-
+        labels = {
+    "texts": {"text": "Press 's' to save ROI and move forward", "coord": (10,40)},
+    "textar": {"text": "Press 'l' to go forward" if system()=='Linux' 
+               else "Press 'ARROW RIGHT' to go forward", "coord": (10,60)},
+    "textal": {"text": "Press 'j' to go backward" if system()=='Linux' 
+               else "Press 'ARROW LEFT' to go backward", "coord": (10,80)},
+    "textq": {"text": "Press 'q' for quit", "coord": (10,100)},
+    "textc": {"text": "Press 'c' once and 'i'(up) or 'k'(down) to change contrast" if system()=='Linux' 
+              else "Press 'c' once and 'ARROW UP/DOWN' to change contrast", "coord": (10,120)},
+    "textb": {"text": "Press 'b' once and 'i' or 'k' to change brightness" if system()=='Linux' 
+              else "Press 'b' once and 'ARROW UP/DOWN' to change brightness", "coord": (10,140)},
+    "textx": {"text": "Press 'x' to toggle mask", "coord": (10,160)},
+    "textl": {"text": "Press 'h' to toggle help", "coord": (10,180)}}
+        
         font = cv2.FONT_HERSHEY_PLAIN; fontScale = 1.2; color = (0,255,255); thickness = 1
         
         # Apply label on images
-        cv2.putText(im, text, coord, font, fontScale, color, thickness, cv2.LINE_AA)
-        cv2.putText(im2, text, coord, font, fontScale, color, thickness, cv2.LINE_AA)
-        if togglelabel == 0:
-            cv2.putText(im, textal, coordal, font, fontScale, color, thickness, cv2.LINE_AA)
-            cv2.putText(im, textar, coordar, font, fontScale, color, thickness, cv2.LINE_AA)
-            cv2.putText(im, texts, coords, font, fontScale, color, thickness, cv2.LINE_AA)
-            cv2.putText(im, textq, coordq, font, fontScale, color, thickness, cv2.LINE_AA)
-            cv2.putText(im, textc, coordc, font, fontScale, color, thickness, cv2.LINE_AA)
-            cv2.putText(im, textb, coordb, font, fontScale, color, thickness, cv2.LINE_AA)
-            cv2.putText(im, textx, coordx, font, fontScale, color, thickness, cv2.LINE_AA)
-            cv2.putText(im, textl, coordl, font, fontScale, color, thickness, cv2.LINE_AA)
-
-            cv2.putText(im2, textal, coordal, font, fontScale, color, thickness, cv2.LINE_AA)
-            cv2.putText(im2, textar, coordar, font, fontScale, color, thickness, cv2.LINE_AA)
-            cv2.putText(im2, texts, coords, font, fontScale, color, thickness, cv2.LINE_AA)
-            cv2.putText(im2, textq, coordq, font, fontScale, color, thickness, cv2.LINE_AA)
-            cv2.putText(im2, textc, coordc, font, fontScale, color, thickness, cv2.LINE_AA)
-            cv2.putText(im2, textb, coordb, font, fontScale, color, thickness, cv2.LINE_AA)
-            cv2.putText(im2, textx, coordx, font, fontScale, color, thickness, cv2.LINE_AA)
-            cv2.putText(im2, textl, coordl, font, fontScale, color, thickness, cv2.LINE_AA)
+        cv2.putText(im, f"Frame {f+1}/{seqLeng}", (320,20), font, fontScale, color, thickness, cv2.LINE_AA)
+        cv2.putText(im2, f"Frame {f+1}/{seqLeng}", (320,20), font, fontScale, color, thickness, cv2.LINE_AA)
+        
+        for label in labels.values():
+            if togglelabel == 0:
+                cv2.putText(im, label["text"], label["coord"], font, fontScale, color, thickness, cv2.LINE_AA)
+                cv2.putText(im2, label["text"], label["coord"], font, fontScale, color, thickness, cv2.LINE_AA)
         
         while True:
             cv2.imshow("Draw ROI of the Wound",im)
@@ -272,7 +255,8 @@ def draw_wound_mask(exp_obj_lst: list[Experiment], mask_label: list|str, channel
                 save_tif(array=mask, save_path=save_path, um_per_pixel=exp_obj.analysis.um_per_pixel, finterval=exp_obj.analysis.interval_sec)
   
             
-            
+if __name__ == "__main__":
+    pass
             
                 
             
