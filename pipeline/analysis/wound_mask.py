@@ -31,7 +31,6 @@ def draw_polygons(img, frames):
     """
 
     seqLeng = frames
-    print(f'{seqLeng=}')
     # Load images and draw
     f = 0 # Allow to move between the different frames
     dict_roi = {} # Store the polygons
@@ -72,7 +71,6 @@ def draw_polygons(img, frames):
             im = img[f].copy() #cv2.resize(img[f],(1000,1000),cv2.INTER_NEAREST) #768
         im2 = im.copy()
         if togglemask == 0:
-            print(f'{drawing=}')
             if f in dict_roi.keys() and not drawing:
                 cv2.polylines(im,dict_roi[f], True, (0,255,255),2)
                 cv2.fillPoly(im,dict_roi[f],(0,255,255))
@@ -132,13 +130,9 @@ def draw_polygons(img, frames):
             # Windows: left: 2424832, right: 2555904, up: 2490368, down: 2621440
             # Linux: left: 65361, right: 65363, up: 65362, down: 65364
             
-            key = cv2.waitKeyEx(1)
+            key = cv2.waitKeyEx(1) 
             if key != -1:
                 print(f'{key=}')
-                print(f'{f=}')
-            
-            # if key != -1:
-            #     print(key)
             
             # press 'q' to exit.
             if key == ord("q"):
@@ -146,7 +140,7 @@ def draw_polygons(img, frames):
                 conbri = 0
                 break
             # press 'arrow key right' to move forward
-            elif key == 2555904 or key == ord("l"): #ArrowKey RIGHT for Windows
+            elif key == 2555904 or key == ord("l") or key==65363: #ArrowKey RIGHT for Windows
                 conbri = 0
                 if f == seqLeng-1:
                     f = seqLeng-1
@@ -155,7 +149,7 @@ def draw_polygons(img, frames):
                     f += 1
                     break
             # press 'arrow key left' to move backwards
-            elif key == 2424832 or key == ord("j"): #ArrowKey LEFT for Windows
+            elif key == 2424832 or key == ord("j") or key==65361: #ArrowKey LEFT for Windows
                 conbri = 0
                 if f == 0:
                     f = 0
@@ -166,14 +160,15 @@ def draw_polygons(img, frames):
             # press 's' to save roi.
             elif key == ord("s"):
                 conbri = 0
-                if f == seqLeng-1:
-                    dict_roi[f] = polygons
-                    f = seqLeng-1
-                    break
-                else:
-                    dict_roi[f] = polygons
-                    f += 1
-                    break   
+                if polygons.size > 0:
+                    if f == seqLeng-1:
+                        dict_roi[f] = polygons
+                        f = seqLeng-1
+                        break
+                    else:
+                        dict_roi[f] = polygons
+                        f += 1
+                        break   
             # press 'c' to activate contrast change mode
             elif key == ord("c"):
                 conbri = key
@@ -181,7 +176,7 @@ def draw_polygons(img, frames):
             elif key == ord("b"):
                 conbri = key
             # if Arrowkey up or down is pressed, check if contrast or brightness change mode is active
-            elif key == 2490368 or key == ord("i"): #ArrowKey UP for Windows
+            elif key == 2490368 or key == ord("i") or key==65362: #ArrowKey UP for Windows
                 if conbri == ord("c"):
                     alpha += 5
                     img = cv2.convertScaleAbs(img2, alpha=alpha, beta=beta)
@@ -190,7 +185,7 @@ def draw_polygons(img, frames):
                     beta += 5
                     img = cv2.convertScaleAbs(img2, alpha=alpha, beta=beta)  
                     break 
-            elif key ==  2621440 or key == ord("k"): #ArrowKey DOWN for Windows
+            elif key ==  2621440 or key == ord("k") or key==65364: #ArrowKey DOWN for Windows
                 if conbri == ord("c"):
                     alpha += -5
                     if alpha < 1:
