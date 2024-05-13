@@ -80,7 +80,7 @@ def prepare_manual_correct(exp_obj, channel_seg, mask_fold_src):
             points_df = points_df.join(props_df.set_index('label'),on='label', how='outer')
     points_df = points_df.sort_values('label').set_index('label')
     create_mdf_file(exp_obj, points_df, channel_seg)
-            
+
 def relabel_masks(exp_obj, channel_seg, mask_fold_src):
     # Load masks
     mask_src_list = track_mask_lst_src(exp_obj,mask_fold_src)

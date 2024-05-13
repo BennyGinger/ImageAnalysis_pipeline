@@ -60,7 +60,7 @@ def bbox_ND(mask: np.ndarray)-> tuple[np.ndarray, slice]:
     # Determine the number of dimensions
     N = mask.ndim
     
-    # Go trhough all the axes to get min and max coord val
+    # Go through all the axes to get min and max coord val
     slice_list = []
     for ax in itertools.combinations(reversed(range(N)), N - 1):
         nonzero = np.any(mask, axis=ax)

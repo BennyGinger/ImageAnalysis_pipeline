@@ -11,6 +11,7 @@ from pipeline.image_handeling.Experiment_Classes import Experiment, init_from_js
 from pipeline.image_handeling.data_utility import load_stack, img_list_src, seg_mask_lst_src, track_mask_lst_src
 from pipeline.analysis.channel_data import extract_data
 from pipeline.settings.Setting_Classes import Settings
+from pipeline.analysis.wound_mask import draw_wound_mask
 
 TRACKING_MASKS = ['iou_tracking','manual_tracking','gnn_tracking']
 SEGMENTATION_MASKS = ['cellpose_seg','threshold_seg']
@@ -42,8 +43,12 @@ class Analysis(BaseModule):
         self.save_as_json()
         return master_df
         
-    def create_master_df(self, img_fold_src: PathLike = "", overwrite: bool=False)-> pd.DataFrame:
+    def create_master_df(self, img_fold_src: PathLike = "", channel_show:str=None, drawing_label: str|list = None, overwrite: bool=False)-> pd.DataFrame:
         all_dfs = []
+        
+        if drawing_label:
+            draw_wound_mask(exp_obj_lst=self.exp_obj_lst, mask_label=drawing_label, channel_show=channel_show, overwrite=overwrite)
+        
         for exp_obj in self.exp_obj_lst:
             # extract the data
             all_dfs.append(self.extract_data(exp_obj, img_fold_src, overwrite))
@@ -101,7 +106,7 @@ class Analysis(BaseModule):
         exp_obj.save_as_json()
         return exp_df
 
-def _load_img(exp_obj: Experiment, img_fold_src: PathLike,)-> tuple[str,np.ndarray]:
+def _load_img(exp_obj: Experiment, img_fold_src: PathLike)-> tuple[str,np.ndarray]:
     fold_src, img_files = img_list_src(exp_obj, img_fold_src)
     frames = exp_obj.img_properties.n_frames
     channels = exp_obj.active_channel_list
