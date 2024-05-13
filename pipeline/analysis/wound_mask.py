@@ -131,8 +131,8 @@ def draw_polygons(img, frames):
             # Linux: left: 65361, right: 65363, up: 65362, down: 65364
             
             key = cv2.waitKeyEx(1) 
-            if key != -1:
-                print(f'{key=}')
+            # if key != -1:
+            #     print(f'{key=}')
             
             # press 'q' to exit.
             if key == ord("q"):
@@ -223,7 +223,6 @@ def polygon_into_mask(exp_obj:Experiment, poly_dict:dict)->np.array:
     mask_stack = np.zeros((frames,length,width),dtype=('uint8'))
     for frame, polygon in poly_dict.items():
         tempmask =  polygon2mask((length,width),polygon[0]).astype('uint8')
-        #tempmask = resize(tempmask,output_shape=(length,width), order=0)
         mask_stack[frame] = tempmask
     return mask_stack
 
