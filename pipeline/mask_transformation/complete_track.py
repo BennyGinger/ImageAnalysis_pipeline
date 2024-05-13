@@ -155,8 +155,14 @@ def trim_incomplete_track(array: np.ndarray)-> np.ndarray:
     # Create a list of obj to remove
     obj_to_remove = obj[cnt!=array.shape[0]]
     for obj in obj_to_remove:
-        array[array==obj] = 0
+        trim_mask(obj,array)
     return array
+
+def trim_mask(obj_ID: int, mask_stack: np.ndarray)-> None:
+    """Function to trim the mask in the mask stack.
+    Args:
+        obj_ID (int): The object ID to remove from the mask stack."""
+    mask_stack[mask_stack==obj_ID] = 0
 
 if __name__ == "__main__":
     from os import listdir

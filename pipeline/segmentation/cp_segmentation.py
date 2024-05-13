@@ -1,12 +1,13 @@
 from __future__ import annotations
 from functools import partial
+import json
 import re
 from typing import Callable
 import numpy as np
 from cellpose import models, core
 from cellpose.io import logger_setup, masks_flows_to_seg
 from os import PathLike, sep
-from os.path import isfile
+from os.path import isfile, join
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pipeline.image_handeling.data_utility import load_stack, create_save_folder, save_tif
 
@@ -89,7 +90,8 @@ def cellpose_segmentation(img_paths: list[PathLike], channel_seg: str, model_typ
     if any(channel_seg in file for file in img_paths if file.endswith(file_type)) and not overwrite:
         # Log
         print(f" --> Cells have already been segmented with cellpose as {file_type} for the '{channel_seg}' channel.")
-        return
+        model,model_settings = load_metadata(exp_path,channel_seg)
+        return model,model_settings
     
     # Else run cellpose
     print(f" --> Segmenting cells as {file_type} for the '{channel_seg}' channel")
@@ -98,23 +100,12 @@ def cellpose_segmentation(img_paths: list[PathLike], channel_seg: str, model_typ
     frames, z_slices = get_img_prop(img_paths)
     
     # Setup model and eval settings
-    if kwargs and "nuclear_marker" in kwargs:
-        nuclear_marker = kwargs['nuclear_marker']
-        channels = [channel_seg,nuclear_marker]
-    else:
-        nuclear_marker = ""
-        channels = [channel_seg]
-        
+    nuclear_marker,channels,metadata = unpack_kwargs(kwargs,channel_seg)
     cellpose_setup = CellposeSetup(z_slices,channel_seg,nuclear_marker,process_as_2D,save_as_npy)
     cellpose_eval = cellpose_setup.eval_settings(diameter,flow_threshold,cellprob_threshold,**kwargs)
     model,model_settings = cellpose_setup.setup_model(model_type)
     
     # Run Cellpose
-    if kwargs and 'metadata' in kwargs:
-        metadata = kwargs['metadata']
-    else:
-        metadata = {'finterval':None, 'um_per_pixel':None}
-    
     run_cellpose_partial = partial(run_cellpose,metadata=metadata,img_paths=img_paths,channels=channels,
                                    process_as_2D=process_as_2D,model=model,cellpose_eval=cellpose_eval,
                                    save_as_npy=save_as_npy)
@@ -132,7 +123,7 @@ def run_cellpose(frame: int, img_paths: list[PathLike], channels: list[str], pro
     path_name = [path for path in sorted(img_paths) if f'_f{frame+1:04d}' in path][0]
     mask_path = path_name.replace('Images','Masks_Cellpose').replace('_Registered','').replace('_Blured','')
     # log
-    print(f"  ---> Processing frame {frame} at {mask_path}")
+    print(f"  ---> Processing frame {frame}")
     # Run Cellpose
     masks, flows, _ = model.eval(img,**cellpose_eval)
     # Save
@@ -258,6 +249,43 @@ def get_img_prop(img_paths: list[PathLike])-> tuple[int,int]:
                      for path in img_paths if re.search('_z\d{4}', path)]
     return len(set(frames)),len(set(z_slices))
 
+def load_metadata(file_path: PathLike, channel_to_seg: str)-> tuple[dict,dict]:
+    """Function to load the metadata from the json file if it exists. Experiment obj are saved as json files,
+    which contains the metadata for the experiment. The metadata contains the model settings and the cellpose 
+    evaluation settings."""
+    
+    # Check if metadata exists, if not return empty settings
+    file_path = join(file_path,"exp_settings.json")
+    if not isfile(file_path):
+        print(f" ---> No metadata found for the '{channel_to_seg}' channel.")
+        return {},{}
+    # Load metadata
+    print(f" ---> Loading metadata for the '{channel_to_seg}' channel.")    
+    with open(file_path,'r') as fp:
+        meta = json.load(fp)
+    model_settings = meta['segmentation']['cellpose_seg'][channel_to_seg]['model_settings']
+    cellpose_eval = meta['segmentation']['cellpose_seg'][channel_to_seg]['cellpose_eval']
+    return model_settings,cellpose_eval 
+
+def unpack_kwargs(kwargs: dict, channel_seg: str)-> tuple[str,list[str],dict]:
+    """Function to unpack the kwargs and extract necessary variable."""
+    if not kwargs:
+        nuclear_marker = ""
+        channels = [channel_seg]
+        metadata = {'finterval':None, 'um_per_pixel':None}
+        return nuclear_marker,channels,metadata
+    
+    if "nuclear_marker" in kwargs:
+        nuclear_marker = kwargs['nuclear_marker']
+        channels = [channel_seg,nuclear_marker]
+        del kwargs['nuclear_marker']
+
+    if 'metadata' in kwargs:
+        metadata = kwargs['metadata']
+        del kwargs['metadata']
+    return nuclear_marker,channels,metadata
+    
+        
 
 #################### Test ####################
 if __name__ == "__main__":

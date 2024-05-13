@@ -51,7 +51,7 @@ settings = {
                    "img_fold_src": "",
                    "stitch_thres_percent": 0.1,
                    "shape_thres_percent": 0.8,
-                   "mask_appear":90,
+                   "mask_appear":50,
                    "copy_first_to_start": True, 
                    "copy_last_to_end": True,
                    "overwrite":True}),

@@ -164,21 +164,6 @@ def check_mask_similarity(mask: np.ndarray, shape_thres_percent: float = 0.9) ->
         new_mask[slice_obj] += temp
     return new_mask.astype('uint16')
         
-def reassign_mask_val(mask_stack: np.ndarray) -> np.ndarray:
-    """
-    Reassigns the values of the input mask stack to consecutive integers starting from 0.
-    
-    Args:
-        mask_stack (np.ndarray): The input mask stack.
-    
-    Returns:
-        np.ndarray: The mask stack with reassigned values.
-    """
-    
-    for n, val in enumerate(list(np.unique(mask_stack))):
-        mask_stack[mask_stack == val] = n
-    return mask_stack
-
 def is_channel_in_lst(channel: str, img_paths: list[PathLike]) -> bool:
     """
     Check if a channel is in the list of image paths.
@@ -253,15 +238,16 @@ def iou_tracking(exp_obj_lst: list[Experiment], channel_seg: str, mask_fold_src:
         
         # Track masks
         mask_stack = track_cells(mask_stack,stitch_thres_percent)
+        
         # Check shape similarity to avoid false masks
         mask_stack = check_mask_similarity(mask_stack,shape_thres_percent)
+        
+        # Morph missing masks
+        mask_stack = complete_track(mask_stack,mask_appear,copy_first_to_start,copy_last_to_end)
         
         # Re-assign the new value to the masks and obj. Previous step may have created dicontinuous masks
         print('  ---> Reassigning masks value')
         mask_stack,_,_ = relabel_sequential(mask_stack)
-        
-        # Morph missing masks
-        mask_stack = complete_track(mask_stack,mask_appear,copy_first_to_start,copy_last_to_end)
         
         # Save masks
         mask_src_list = [file for file in mask_src_list if file.__contains__('_z0001')]

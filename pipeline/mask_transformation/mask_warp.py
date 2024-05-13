@@ -85,7 +85,6 @@ def relocate_mask(mask: np.ndarray, location: tuple[int,int])-> tuple[np.ndarray
     """
     loc_y,loc_x = location
     # Get centroid of mask
-    print(f"{mask.shape=}")
     center_y,center_x = regionprops(mask.astype(int))[0].centroid
 
     # Get interval of centroid
@@ -264,7 +263,6 @@ def resize_mask(missing_masks: np.ndarray, ngap: int, interpol_centroids: list[t
         np.ndarray: The resized mask.
 
     """
-    # print(f"{missing_masks.shape=}")
     # Resize the mask to original size
     for i in range(ngap):
         # Replace mask to new center position, and reset mask value to original
