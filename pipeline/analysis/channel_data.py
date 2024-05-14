@@ -40,13 +40,7 @@ def extract_data(img_array: np.ndarray, mask_array: np.ndarray, channels: list[s
         remove(save_path)
     
     # Prepare the renaming of the columns
-    col_rename = {'centroid_0':'centroid_y','centroid_1':'centroid_x'}
-    if img_array.ndim != mask_array.ndim: # If the img_array has a channel dimension
-        col_rename = {**col_rename, **{f'intensity_mean_{i}': f'intensity_mean_{channels[i]}' for i in range(len(channels))},
-                      **{f'intensity_centroid_{i}': f'intensity_centroid_{channels[i]}' for i in range(len(channels))}}
-    else:
-        col_rename['intensity_mean'] = f'intensity_mean_{channels[0]}'
-        col_rename['intensity_centroid'] = f'intensity_centroid_{channels[0]}'
+    col_rename = rename_columns(img_array.ndim, mask_array.ndim, channels)
     
     # Log
     print(f"Extracting data from {save_path}")
@@ -54,10 +48,11 @@ def extract_data(img_array: np.ndarray, mask_array: np.ndarray, channels: list[s
     # If the mask_array is not a time sequence
     if mask_array.ndim ==2:
         prop = regionprops_table(mask_array,intensity_image=img_array,separator='_',
-                                 properties=PROPERTIES,extra_properties=[intensity_centroid])
+                                 properties=PROPERTIES,extra_properties=[dmap])
         master_df = pd.DataFrame(prop)
         master_df['frame'] = 1
         master_df.rename(columns=col_rename, inplace=True)
+        trim_dmap_col(master_df, img_array.ndim)
         master_df.to_csv(save_path, index=False)
         return master_df
     
@@ -69,24 +64,53 @@ def extract_data(img_array: np.ndarray, mask_array: np.ndarray, channels: list[s
     # Create the DataFrame and save to csv
     master_df = pd.concat(lst_df, ignore_index=True)
     master_df.rename(columns=col_rename, inplace=True)
+    trim_dmap_col(master_df, img_array.ndim)
     master_df.to_csv(save_path, index=False)
     return master_df
 
-def get_regionprops(frame: int, mask_array: np.ndarray, img_array: np.ndarray)-> pd.DataFrame:
+def get_regionprops(frame: int, mask_array: np.ndarray, img_array: np.ndarray, ref_masks: dict[str,np.ndarray])-> pd.DataFrame:
         """Nested function to extract the regionprops for each frame in multi-threading."""
         prop = regionprops_table(mask_array[frame], intensity_image=img_array[frame],
-                                 properties=PROPERTIES, separator='_',extra_properties=[intensity_centroid])
+                                 properties=PROPERTIES, separator='_')
+        
+        if ref_masks:
+            for ref_name,ref_mask in ref_masks.items():
+                prop_ref = regionprops_table(mask_array[frame], intensity_image=ref_mask[frame],
+                                             properties=['label'], separator='_',extra_properties=[dmap])
+                df_ref = pd.DataFrame(prop_ref)
         df = pd.DataFrame(prop)
         df['frame'] = frame+1
         return df
 
-def intensity_centroid(mask_region: np.ndarray, intensity_image: np.ndarray)-> int:
+def rename_columns(img_dim: int, mask_dim: int, channels: list[str])-> dict[str,str]:
+    col_rename = {'centroid_0':'centroid_y','centroid_1':'centroid_x'}
+    # If the img_array has a channel dimension
+    if img_dim != mask_dim: 
+        col_rename = {**col_rename, **{f'intensity_mean_{i}': f'intensity_mean_{channels[i]}' for i in range(len(channels))},
+                      **{'dmap_0':'dmap'}}
+    else:
+        col_rename['intensity_mean'] = f'intensity_mean_{channels[0]}'
+        col_rename['intensity_centroid'] = f'intensity_centroid_{channels[0]}'
+    return col_rename
+
+def dmap(mask_region: np.ndarray, intensity_image: np.ndarray)-> int:
+    """Function that extract the intensity at the centroid position of the mask region. 
+    This function is used as an extra property in the regionprops_table function to extract
+    the value of the dmap at the centroid position of the mask region."""
     # Calculate the centroid coordinates as integers of mask
     y, x = np.nonzero(mask_region)
     y, x = int(np.mean(y)), int(np.mean(x))
     # Return the intensity at the centroid position
     return int(intensity_image[y,x])
 
+def trim_dmap_col(df: pd.DataFrame, img_dim: int)-> None:
+    """Trim the DataFrame to only contain the columns with the mean intensity values of the channels."""
+    # If only one channel, do nothing
+    if img_dim == 2:
+        return
+    # Collect the dmap column
+    dmap_col = [col for col in df.columns if 'dmap_' in col]
+    df.drop(columns=dmap_col, inplace=True)
 
 # # # # # # # # # Test
 if __name__ == "__main__":

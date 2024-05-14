@@ -105,7 +105,7 @@ class Analysis(BaseModule):
             # Draw
             draw_wound_mask(img_files,mask_label,channel_show,exp_obj.img_properties.n_frames,overwrite,metadata=metadata)
             # Save settings
-            exp_obj.analysis.reference_masks.update({f"Masks_{label}":{'fold_src':img_flod_src,'channel_show':channel_show} 
+            exp_obj.analysis.reference_masks.update({label:{'fold_src':img_flod_src,'channel_show':channel_show} 
                                                      for label in mask_label})
             exp_obj.save_as_json()
 
