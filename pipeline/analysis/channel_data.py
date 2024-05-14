@@ -5,10 +5,109 @@ import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 from skimage.measure import regionprops_table
+from functools import partial
 
 
 PROPERTIES = ['area','centroid','intensity_mean',
                        'label','perimeter','slice','solidity']
+
+########################### Main functions ###########################
+def extract_data(img_array: np.ndarray, mask_array: np.ndarray, channels: list[str], 
+                 save_path: PathLike, overwrite: bool = False)-> pd.DataFrame:
+    """Extract img properties (skimage.measure.regionprops_table) with provided mask. Img and mask must have 
+    the same shape, except that img can have an optional channel dimension. Frame dimension is also optional. 
+    The shape of img must be ([F],Y,X,[C]) and the shape of mask must be ([F],Y,X). If channel dim is present,
+    the mean intensity of each channel will be extracted. Same for frame dim. The extracted data can be
+    saved to the provided path. The data will be returned as a pandas.DataFrame.
+        
+    Args:
+        img_array ([[F],Y,X,[C]], np.ndarray): The image array to extract the mean intensities from. Frame and channel dim are optional.
+        mask_array ([[F],Y,X], np.ndarray): The mask array to extract the mean intensities from. Frame dim is optional.
+        channels (list[str]): List of channel names.
+        save_path (PathLike): The path to save the extracted data (as csv) with the name provided.
+        overwrite (bool, optional): If True, the data will be extracted and overwrite previous extraction. Defaults to False.
+    Returns:
+        pd.DataFrame: The extracted data."""
+    
+    # Check if the data has already been extracted
+    save_path = join(save_path, "regionprops.csv")
+    if exists(save_path) and not overwrite:
+        print(f"Data has already been extracted. Loading data from {save_path}")
+        return pd.read_csv(save_path)
+    
+    # Remove the previous data if overwrite is True
+    if exists(save_path):
+        remove(save_path)
+    
+    # Prepare the renaming of the columns
+    col_rename = {'centroid_0':'centroid_y','centroid_1':'centroid_x'}
+    if img_array.ndim != mask_array.ndim: # If the img_array has a channel dimension
+        col_rename = {**col_rename, **{f'intensity_mean_{i}': f'intensity_mean_{channels[i]}' for i in range(len(channels))},
+                      **{f'intensity_centroid_{i}': f'intensity_centroid_{channels[i]}' for i in range(len(channels))}}
+    else:
+        col_rename['intensity_mean'] = f'intensity_mean_{channels[0]}'
+        col_rename['intensity_centroid'] = f'intensity_centroid_{channels[0]}'
+    
+    # Log
+    print(f"Extracting data from {save_path}")
+    
+    # If the mask_array is not a time sequence
+    if mask_array.ndim ==2:
+        prop = regionprops_table(mask_array,intensity_image=img_array,separator='_',
+                                 properties=PROPERTIES,extra_properties=[intensity_centroid])
+        master_df = pd.DataFrame(prop)
+        master_df['frame'] = 1
+        master_df.rename(columns=col_rename, inplace=True)
+        master_df.to_csv(save_path, index=False)
+        return master_df
+    
+    # If the mask_array is a time sequence
+    get_regionprops_partial = partial(get_regionprops, mask_array=mask_array, img_array=img_array)
+    with ThreadPoolExecutor() as executor:
+        lst_df = executor.map(get_regionprops_partial, range(mask_array.shape[0]))
+    
+    # Create the DataFrame and save to csv
+    master_df = pd.concat(lst_df, ignore_index=True)
+    master_df.rename(columns=col_rename, inplace=True)
+    master_df.to_csv(save_path, index=False)
+    return master_df
+
+def get_regionprops(frame: int, mask_array: np.ndarray, img_array: np.ndarray)-> pd.DataFrame:
+        """Nested function to extract the regionprops for each frame in multi-threading."""
+        prop = regionprops_table(mask_array[frame], intensity_image=img_array[frame],
+                                 properties=PROPERTIES, separator='_',extra_properties=[intensity_centroid])
+        df = pd.DataFrame(prop)
+        df['frame'] = frame+1
+        return df
+
+def intensity_centroid(mask_region: np.ndarray, intensity_image: np.ndarray)-> int:
+    # Calculate the centroid coordinates as integers of mask
+    y, x = np.nonzero(mask_region)
+    y, x = int(np.mean(y)), int(np.mean(x))
+    # Return the intensity at the centroid position
+    return int(intensity_image[y,x])
+
+
+# # # # # # # # # Test
+if __name__ == "__main__":
+    import time
+    from tifffile import imread
+    
+    start = time.time()
+    img_path = "/home/Test_images/masks/MAX_Images.tif"
+    stack_path = "/home/Test_images/masks/MAX_Merged.tif"
+    mask_path = "/home/Test_images/masks/Masks_IoU_Track.tif"
+
+    img = imread(img_path)
+    stack = imread(stack_path)
+    stack = np.moveaxis(stack, [1], [-1])
+    mask = imread(mask_path)
+    
+    master_df = extract_data(stack, mask, ['RFP','GFP'], '/home/Test_images/masks',overwrite=True)
+    end = time.time()
+    print(f"Processing time: {end-start}")
+
+
 
 # def masks_process_dict(masks_class: LoadClass)-> dict:
 #     masks_dict ={}
@@ -142,89 +241,7 @@ PROPERTIES = ['area','centroid','intensity_mean',
 #         exp_obj.save_as_json()
 #     return exp_obj_lst
 
-########################### Main functions ###########################
-def extract_data(img_array: np.ndarray, mask_array: np.ndarray, channels: list[str], 
-                 save_path: PathLike, overwrite: bool = False)-> pd.DataFrame:
-    """Extract img properties (skimage.measure.regionprops_table) with provided mask. Img and mask must have 
-    the same shape, except that img can have an optional channel dimension. Frame dimension is also optional. 
-    The shape of img must be ([F],Y,X,[C]) and the shape of mask must be ([F],Y,X). If channel dim is present,
-    the mean intensity of each channel will be extracted. Same for frame dim. The extracted data can be
-    saved to the provided path. The data will be returned as a pandas.DataFrame.
-        
-    Args:
-        img_array ([[F],Y,X,[C]], np.ndarray): The image array to extract the mean intensities from. Frame and channel dim are optional.
-        mask_array ([[F],Y,X], np.ndarray): The mask array to extract the mean intensities from. Frame dim is optional.
-        channels (list[str]): List of channel names.
-        save_path (PathLike): The path to save the extracted data (as csv) with the name provided.
-        overwrite (bool, optional): If True, the data will be extracted and overwrite previous extraction. Defaults to False.
-    Returns:
-        pd.DataFrame: The extracted data."""
-    
-    # Check if the data has already been extracted
-    save_path = join(save_path, "regionprops.csv")
-    if exists(save_path) and not overwrite:
-        print(f"Data has already been extracted. Loading data from {save_path}")
-        return pd.read_csv(save_path)
-    
-    # Remove the previous data if overwrite is True
-    if exists(save_path):
-        remove(save_path)
-    
-    # Prepare the renaming of the columns
-    col_rename = {'centroid_0':'centroid_y','centroid_1':'centroid_x'}
-    if img_array.ndim != mask_array.ndim: # If the img_array has a channel dimension
-        col_rename = {**col_rename, **{f'intensity_mean_{i}': f'intensity_mean_{channels[i]}' for i in range(len(channels))}}
-    else:
-        col_rename['intensity_mean'] = f'intensity_mean_{channels[0]}'
-    
-    # Log
-    print(f"Extracting data from {save_path}")
-    
-    # If the mask_array is not a time sequence
-    if mask_array.ndim ==2:
-        prop = regionprops_table(mask_array,intensity_image=img_array,properties=PROPERTIES,separator='_')
-        master_df = pd.DataFrame(prop)
-        master_df['frame'] = 1
-        master_df.rename(columns=col_rename, inplace=True)
-        master_df.to_csv(save_path, index=False)
-        return master_df
-    
-    # If the mask_array is a time sequence
-    def get_regionprops(frame: int)-> pd.DataFrame:
-        """Nested function to extract the regionprops for each frame in multi-threading."""
-        prop = regionprops_table(mask_array[frame], intensity_image=img_array[frame],
-                                 properties=PROPERTIES, separator='_')
-        df = pd.DataFrame(prop)
-        df['frame'] = frame+1
-        return df
-    
-    with ThreadPoolExecutor() as executor:
-        lst_df = executor.map(get_regionprops, range(mask_array.shape[0]))
-    
-    # Create the DataFrame and save to csv
-    master_df = pd.concat(lst_df, ignore_index=True)
-    master_df.rename(columns=col_rename, inplace=True)
-    master_df.to_csv(save_path, index=False)
-    return master_df
 
-# # # # # # # # # Test
-if __name__ == "__main__":
-    import time
-    from tifffile import imread
-    
-    start = time.time()
-    img_path = "/home/Test_images/masks/MAX_Images.tif"
-    stack_path = "/home/Test_images/masks/MAX_Merged.tif"
-    mask_path = "/home/Test_images/masks/Masks_IoU_Track.tif"
-
-    img = imread(img_path)
-    stack = imread(stack_path)
-    stack = np.moveaxis(stack, [1], [-1])
-    mask = imread(mask_path)
-    
-    master_df = extract_data(stack, mask, ['RFP','GFP'], '/home/Test_images/masks',overwrite=True)
-    end = time.time()
-    print(f"Processing time: {end-start}")
 
 ########################### Potential functions ###########################
 

@@ -114,6 +114,8 @@ class Analysis(LoadClass):
     file_type: str = None
     labels: list[str] = None
     analysis_type: dict = field(default_factory=dict)
+    is_reference_masks: bool = False
+    reference_masks: dict = field(default_factory=dict)
 
 @dataclass
 class Experiment(LoadClass):

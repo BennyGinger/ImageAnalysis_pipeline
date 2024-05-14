@@ -5,7 +5,7 @@ from platform import system
 from pipeline.image_handeling.data_utility import load_stack, img_list_src, create_save_folder, save_tif
 from pipeline.mask_transformation.complete_track import complete_track
 from image_handeling.Experiment_Classes import Experiment
-from os import PathLike
+from os import PathLike, scandir, sep
 from os.path import join
 from skimage.color import gray2rgb
 from skimage.transform import resize
@@ -198,20 +198,17 @@ def draw_polygons(img, frames):
     cv2.destroyAllWindows()
     return dict_roi
 
-def polygon_into_mask(exp_obj:Experiment, poly_dict:dict)->np.array:
-    frames = exp_obj.img_properties.n_frames
-    length = exp_obj.img_properties.img_length
-    width = exp_obj.img_properties.img_width
-    
-    mask_stack = np.zeros((frames,length,width),dtype=('uint8'))
+def polygon_into_mask(frames: int, poly_dict:dict, img_shape: tuple[int,int])->np.array:
+    mask_stack = np.zeros((frames,*img_shape),dtype=('uint8'))
     for frame, polygon in poly_dict.items():
-        tempmask =  polygon2mask((length,width),polygon[0]).astype('uint8')
+        tempmask =  polygon2mask(img_shape,polygon[0]).astype('uint8')
         mask_stack[frame] = tempmask
     return mask_stack
 
 # # # # # # # # main functions # # # # # # # # # 
 
-def draw_wound_mask(exp_obj_lst: list[Experiment], mask_label: list|str, channel_show: str, img_fold_src:PathLike=None, overwrite: bool=False)->None:
+def draw_wound_mask(img_files: list[PathLike], mask_label: list|str, channel_show: str, 
+                    frames: int, overwrite: bool=False, **kwargs)-> None:
     """Function to draw a mask on the given Image. Will be saved in a folder.
     Args:
         exp_set (Experiment): The experiment settings.
@@ -221,38 +218,44 @@ def draw_wound_mask(exp_obj_lst: list[Experiment], mask_label: list|str, channel
         overwrite (bool): Flag to override.
     Returns:
         None, saves the masks into folder."""
-    for exp_obj in exp_obj_lst:
+    
+    if isinstance(mask_label, str):
+        mask_label=[mask_label]
+    
+    # Check if mask_label exist
+    exp_path: PathLike = img_files[0].rsplit(sep,2)[0]
+    for label in mask_label:
+        label_path = create_save_folder(exp_path,f'Masks_{label}')
+        if any(scandir(label_path)) and not overwrite:
+            print(f" --> Masks already exist for {label} in {exp_path}.")
+            continue
         
-        if overwrite:
-            if isinstance(mask_label, str):
-                mask_label=[mask_label]
-                
-            _, img_files = img_list_src(exp_obj, img_fold_src=img_fold_src)
-            frames = exp_obj.img_properties.n_frames
-            
-            # load image stack   
-            img_stack = load_stack(img_files,channel_show,range(frames),return_2D=True)
-            
-            # transform stack into an RGB format
-            img_stack = gray2rgb(img_stack)
-    
-            #loop through the different labels if needed and draw multiple masks
-            for label in mask_label:
-                print(f" --> Drawing mask with label {mask_label}")
-                create_save_folder(exp_obj.exp_path,f'Masks_{label}')
-            
-            poly_dict = draw_polygons(img=img_stack.astype('uint8'), frames=frames)
-            
-            if not poly_dict:
-                raise AttributeError('No mask drawn!')
-            
-            mask_stack = polygon_into_mask(exp_obj, poly_dict=poly_dict)
-    
-            mask_stack = complete_track(mask_stack,mask_appear=1,copy_first_to_start=True,copy_last_to_end=True)
-            
-            for frame, mask in enumerate(mask_stack):
-                save_path = join(exp_obj.exp_path,f'Masks_{label}', f'Masks_{label}_{frame+1}.tif')
-                save_tif(array=mask, save_path=save_path, um_per_pixel=exp_obj.analysis.um_per_pixel, finterval=exp_obj.analysis.interval_sec)
+        print(f" --> Drawing mask with label {mask_label}")
+        # load image stack and transform it into an RGB format  
+        img_stack = load_stack(img_files,channel_show,range(frames),return_2D=True)
+        img_stack = gray2rgb(img_stack)
+
+        # Draw the polygons
+        poly_dict = draw_polygons(img=img_stack.astype('uint8'), frames=frames)
+        
+        if not poly_dict:
+            raise AttributeError('No mask drawn!')
+        
+        mask_stack = polygon_into_mask(frames,poly_dict,img_stack.shape[1:])
+
+        mask_stack = complete_track(mask_stack,mask_appear=1,copy_first_to_start=True,copy_last_to_end=True)
+        
+        if kwargs and 'metadata' in kwargs:
+            metadata = kwargs['metadata']
+        else:
+            metadata = {'finterval':None, 'um_per_pixel':None}
+        
+        # Save the masks
+        # Get the name of the image and reconstruct the frame numbers
+        mask_name = img_files[0].rsplit('/',1)[-1].rsplit('_',2)[0::2]
+        for frame, mask in enumerate(mask_stack):
+            save_path = join(label_path, f"{mask_name[0]}_f{frame+1:04d}_{mask_name[1]}.tif")
+            save_tif(mask,save_path,**metadata)
   
             
 if __name__ == "__main__":

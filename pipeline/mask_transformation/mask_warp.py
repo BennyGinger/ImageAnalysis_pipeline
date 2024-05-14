@@ -2,7 +2,7 @@ from __future__ import annotations
 import itertools
 from skimage.measure import regionprops
 import numpy as np
-from mahotas import distance
+from scipy.ndimage import distance_transform_edt
 
 # TODO: maybe change this into a class...
 ############################# Main Functions #############################
@@ -277,7 +277,7 @@ def get_dmap_array(non_overlap_mask: np.ndarray, overlap: np.ndarray)-> np.ndarr
         overlap (np.ndarray): The overlap mask.
     Returns:
         np.ndarray: The distance map array."""
-    dmap = distance(np.logical_not(overlap),metric='euclidean')
+    dmap = distance_transform_edt(np.logical_not(overlap))
     dmap_array = dmap.copy()
     dmap_array[non_overlap_mask==0] = 0
     return dmap_array
