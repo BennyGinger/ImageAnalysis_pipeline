@@ -21,8 +21,8 @@ def complete_track(mask_stack: np.ndarray, mask_appear: int, copy_first_to_start
     """
     
     # Get the region properties of the mask, and zip it: (label,(slice_f,slice_y,slice_x))
-    props: zip[tuple[int,tuple]] = zip(*regionprops_table(mask_stack,properties=('label','slice')).values())
-    
+    props: list[zip[tuple[int,tuple]]] = list(zip(*regionprops_table(mask_stack,properties=('label','slice')).values()))
+    print(props)
     # Generate input data
     print('  ---> Morphing missing masks')
     apply_filling_partial = partial(apply_filling, mask_stack=mask_stack, mask_appear=mask_appear, 
@@ -55,12 +55,13 @@ def copy_first_last_mask(mask_stack: np.ndarray, copy_first_to_start: bool=True,
         copy_last_to_end (bool): Copy the last mask to the end of the stack.
     Returns:
         np.ndarray: Mask array with copied masks."""
-    # Check if any copy is needed
+    # Check no copy needed, skip
     if not copy_first_to_start and not copy_last_to_end:
         return mask_stack
     
     # Convert array to bool, whether mask is present or not
     is_masks = np.any(mask_stack,axis=(1,2))
+    print(is_masks)
     
     # if both end of the stack are not missing, return the original stack
     if is_masks[0] and is_masks[-1]:
@@ -71,6 +72,7 @@ def copy_first_last_mask(mask_stack: np.ndarray, copy_first_to_start: bool=True,
         idx = np.where(is_masks)[0][0]
         # copy the first mask to the start of the stack
         mask_stack[:idx,...] = mask_stack[idx]
+        print(f'{np.unique(mask_stack[idx])=}')
     
     if copy_last_to_end and not is_masks[-1]:
         # get the index of the last mask
@@ -131,8 +133,14 @@ def apply_filling(prop: tuple[int,tuple[slice]], mask_stack: np.ndarray, mask_ap
                   copy_first_to_start: bool, copy_last_to_end: bool)-> tuple[int,tuple[slice],np.ndarray]:
     """Intermediate function to apply the filling of the gaps in the mask stack in parallel."""
     # Crop stack to save memory
+    print('Test')
     obj,slice_obj = prop
+    print(f'{slice_obj=}')
+    ref_f = slice(0,mask_stack.shape[0])
+    slice_obj=(ref_f, *(slice_obj[1:]))
+    print(f'{mask_stack.shape=}')
     temp = mask_stack[slice_obj].copy()
+    print(f'{temp.shape=}')
     # Isolate mask obj
     temp[temp!=obj] = 0
     framenumber = len(np.unique(np.where(mask_stack == obj)[0]))

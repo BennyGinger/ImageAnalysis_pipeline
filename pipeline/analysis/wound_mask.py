@@ -4,7 +4,7 @@ import numpy as np
 from platform import system
 from pipeline.image_handeling.data_utility import load_stack, img_list_src, create_save_folder, save_tif
 from pipeline.mask_transformation.complete_track import complete_track
-from image_handeling.Experiment_Classes import Experiment
+from pipeline.image_handeling.Experiment_Classes import Experiment
 from os import PathLike, scandir, sep
 from os.path import join
 from skimage.color import gray2rgb
@@ -207,7 +207,7 @@ def polygon_into_mask(frames: int, poly_dict:dict, img_shape: tuple[int,int])->n
 
 # # # # # # # # main functions # # # # # # # # # 
 
-def draw_wound_mask(img_files: list[PathLike], mask_label: list|str, channel_show: str, 
+def draw_wound_mask(img_files: list[PathLike], mask_label: list[str] | str, channel_show: str, 
                     frames: int, overwrite: bool=False, **kwargs)-> None:
     """Function to draw a mask on the given Image. Will be saved in a folder.
     Args:
@@ -240,11 +240,10 @@ def draw_wound_mask(img_files: list[PathLike], mask_label: list|str, channel_sho
         
         if not poly_dict:
             raise AttributeError('No mask drawn!')
-        
-        mask_stack = polygon_into_mask(frames,poly_dict,img_stack.shape[1:])
-
+        mask_stack = polygon_into_mask(frames,poly_dict,img_stack.shape[1:-1])
+        print(f'{np.unique(mask_stack)=}')
         mask_stack = complete_track(mask_stack,mask_appear=1,copy_first_to_start=True,copy_last_to_end=True)
-        
+        print(f'{np.unique(mask_stack)=}')
         if kwargs and 'metadata' in kwargs:
             metadata = kwargs['metadata']
         else:
@@ -259,8 +258,18 @@ def draw_wound_mask(img_files: list[PathLike], mask_label: list|str, channel_sho
   
             
 if __name__ == "__main__":
-    pass
-            
+    from tifffile import imread
+    from os import listdir, sep
+    from os.path import join
+    
+    fold_path = '/home/Fabian/ImageData/240502-minoSOG_mito_L10/HEKA_c1031_c1829_miniSOG_80%_435_2min_40min_002_Merged_s1/Images_Registered'
+    img_files = [join(fold_path,file) for file in sorted(listdir(fold_path)) if file.endswith('.tif')]
+    mask_label = 'wound'
+    channel = 'YFP'
+    frames = 126
+    
+    draw_wound_mask(img_files,mask_label,channel,frames, True)
+           
                 
             
             
