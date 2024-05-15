@@ -32,6 +32,8 @@ class Postprocess(object):
             self.results = [os.path.join(dir_results, fname) for fname in sorted(os.listdir(dir_results)) #path of segmentation masks in correct order
                             if type_masks in fname]
 
+        self.mitosis = True #TODO bring this outside
+        self.max_travel_dist = 50 #TODO bring this outside
         self.is_3d = is_3d
         self.center_coord = center_coord
         self.merge_operation = merge_operation
@@ -93,9 +95,9 @@ class Postprocess(object):
         df_parent.loc[:, "child_id"] = cell_starts
         return df_parent
 
-    def find_parent_cell(self, frame_ind, all_frames_traject, df, num_starts, cell_starts):
-        ind_place = np.argwhere(all_frames_traject[frame_ind, :] == -1)
-        finish_node_ids = all_frames_traject[frame_ind - 1, ind_place].squeeze(axis=1)
+    def find_parent_cell(self, frame_ind, all_frames_traject, df, cell_starts): #TODO implement gap frames
+        ind_place = np.argwhere(all_frames_traject[frame_ind, :] == -1) #find all indeces were a track ended
+        finish_node_ids = all_frames_traject[frame_ind - 1, ind_place].squeeze(axis=1)# find the start IDs in the frame before
         # print(f"frame_ind: {frame_ind}, cell_starts: {cell_starts}, cell_ends: {finish_node_ids}")
 
         df_parent = pd.DataFrame(index=range(len(cell_starts)), columns=self.cols)
@@ -112,11 +114,21 @@ class Postprocess(object):
                 else:
                     curr_cell = df.loc[cell, ["centroid_row", "centroid_col"]].values
 
-                distance = ((finish_cell - curr_cell) ** 2).sum(axis=-1)
-                nearest_cell = np.argmin(distance, axis=-1)
+                distance = np.sqrt(((finish_cell - curr_cell) ** 2).sum(axis=-1)) #get the distance from every point
+                distance_mask = distance < self.max_travel_dist #check that distances are inside the max_travel distance
+                filtered_distance = distance[distance_mask] #apply the filter on the array
+                if filtered_distance.size == 0:
+                    df_parent.loc[ind, "child_id"] = cell
+                    df_parent.loc[ind, "parent_id"] = 0
+                    continue
+                min_index = np.argmin(filtered_distance) #get the smalest distance index in the filtered array
+                nearest_cell = np.where(distance_mask)[0][min_index] #get back the index from the original array
+
+                # nearest_cell = np.argmin(distance, axis=-1)
                 parent_cell = int(finish_node_ids[nearest_cell])
                 df_parent.loc[ind, "child_id"] = cell
                 df_parent.loc[ind, "parent_id"] = parent_cell
+                finish_node_ids = np.delete(finish_node_ids, [nearest_cell]) #make sure to not connect another track to this track
         else:
             df_parent.loc[:, "child_id"] = cell_starts
             df_parent.loc[:, "parent_id"] = 0
@@ -237,7 +249,7 @@ class Postprocess(object):
         return final_outputs_hard, edge_index
 
     def find_connected_edges(self): #outputs are propably the confidence scores of the model, whether two cells are connected
-        edge_index, df, outputs = self.edge_index, self.df_preds, self.output_pred
+        edge_index, outputs = self.edge_index, self.output_pred
 
         if not self.directed:
             final_outputs_hard, edge_index = self.merge_match_edges(edge_index.detach().clone(), outputs.detach().clone())
@@ -260,10 +272,8 @@ class Postprocess(object):
         # intialize the matrix with -2 meaning empty cell, -1 means end of trajectory,
         # other value means the number of node in the graph
         all_frames_traject[:, :] = -2
-        all_trajectory_dict = {}
         str_track = ''
         df_parents = []
-
         for frame_ind in frame_nums: #loop through the frames
             # mask_frame_ind = df.frame_num.isin([frame_ind])  # find the places containing frame_ind
             nodes_indices = df[df.frame_num==frame_ind].index.values # find the places containing frame_ind, nodes_indices: unique value for every node
@@ -282,27 +292,49 @@ class Postprocess(object):
             for i in nodes_indices: #loop through the nodes in one frame
                 if i in connected_indices[0, :]:
                     ind_place = np.argwhere(connected_indices[0, :] == i) # find all potential connections
-                    #check how many potential connections one cell has
-                    if ind_place.shape[-1] > 1: # if more than one connection is possible:
-                        next_frame_ind = connected_indices[1, ind_place].numpy().squeeze() #get the ID of the potential cells in the next frame
-                        if self.is_3d:
-                            next_frame = df.loc[next_frame_ind, ["centroid_depth", "centroid_row", "centroid_col"]].values
-                            curr_node = df.loc[i, ["centroid_depth", "centroid_row", "centroid_col"]].values
-                        else:
-                            next_frame = df.loc[next_frame_ind, ["centroid_row", "centroid_col"]].values #getting the centroid position for the potential connection points
-                            curr_node = df.loc[i, ["centroid_row", "centroid_col"]].values #getting the original centroid
-
-                        distance = np.sqrt(((next_frame - curr_node) ** 2).sum(axis=-1)) #get the euclidean distance between the node and the possible cells to connect
-                        nearest_cell = np.argmin(distance, axis=-1) #get the index of the closest cell
-                        # add to the array
-                        next_node_ind = next_frame_ind[nearest_cell]
-
-                    elif ind_place.shape[-1] == 1:  # one node in the next frame is connected to current node
-                        next_node_ind = connected_indices[1, ind_place[0]]
-                    else:  # no node in the next frame is connected to current node -
-                        # in this case we end the trajectory (-1 means stop of track)
+                    
+                    next_frame_ind = connected_indices[1, ind_place][0]#.numpy().squeeze() #get the ID of the potential cells in the next frame
+                    if self.is_3d:
+                        next_frame = df.loc[next_frame_ind, ["centroid_depth", "centroid_row", "centroid_col"]].values
+                        curr_node = df.loc[i, ["centroid_depth", "centroid_row", "centroid_col"]].values
+                    else:
+                        next_frame = df.loc[next_frame_ind, ["centroid_row", "centroid_col"]].values #getting the centroid position for the potential connection points
+                        curr_node = df.loc[i, ["centroid_row", "centroid_col"]].values #getting the original centroid
+                    
+                    distance = np.sqrt(((next_frame - curr_node) ** 2).sum(axis=-1)) #get the euclidean distance between the node and the possible cells to connect
+                    distance_mask = distance < self.max_travel_dist #check that distances are inside the max_travel distance
+                    filtered_distance = distance[distance_mask] #apply the filter on the array
+                    if filtered_distance.size == 0:
                         next_node_ind = -1
+                    else:
+                        min_index = np.argmin(filtered_distance) #get the smalest distance index in the filtered array
+                        nearest_cell = np.where(distance_mask)[0][min_index] #get back the index from the original array
+                        next_node_ind = int(next_frame_ind[nearest_cell])
+                        
+                        
+                    # #check how many potential connections one cell has
+                    # if ind_place.shape[-1] > 1: # if more than one connection is possible:
+                    #     next_frame_ind = connected_indices[1, ind_place].numpy().squeeze() #get the ID of the potential cells in the next frame
+                    #     if self.is_3d:
+                    #         next_frame = df.loc[next_frame_ind, ["centroid_depth", "centroid_row", "centroid_col"]].values
+                    #         curr_node = df.loc[i, ["centroid_depth", "centroid_row", "centroid_col"]].values
+                    #     else:
+                    #         next_frame = df.loc[next_frame_ind, ["centroid_row", "centroid_col"]].values #getting the centroid position for the potential connection points
+                    #         curr_node = df.loc[i, ["centroid_row", "centroid_col"]].values #getting the original centroid
 
+                    #     distance = np.sqrt(((next_frame - curr_node) ** 2).sum(axis=-1)) #get the euclidean distance between the node and the possible cells to connect
+                    #     nearest_cell = np.argmin(distance, axis=-1) #get the index of the closest cell
+                    #     # add to the array
+                    #     next_node_ind = next_frame_ind[nearest_cell]
+
+                    # elif ind_place.shape[-1] == 1:  # one node in the next frame is connected to current node
+                    #     next_node_ind = connected_indices[1, ind_place[0]]
+                    # else:  # no node in the next frame is connected to current node -
+                    #     # in this case we end the trajectory (-1 means stop of track)
+                    #     next_node_ind = -1
+                    if not self.mitosis and not next_node_ind==-1:  
+                        condition = connected_indices[1,:] == next_node_ind #delete already assigned nodes from the list to avoid several cells with the same ID per frame
+                        connected_indices = connected_indices[:,~condition] 
                 else:
                     # we dont find the current node in the edge indices matrix - meaning we dont have a connection
                     # for the node - in this case we end the trajectory and the cell
@@ -310,6 +342,7 @@ class Postprocess(object):
                         self.flag_id0_terminate = True #only needed if the cell with node 0 terminates after first frame. To make sure to give it a proper ID later
                     next_node_ind = -1
 
+                        
                 next_frame_indices = np.append(next_frame_indices, next_node_ind) #add the next node index or -1 for track stop into the next_frame_indices list
                 # count the number of starting trajectories
                 start, all_frames_traject = self.insert_in_specific_col(all_frames_traject, frame_ind, i, next_node_ind)
@@ -317,10 +350,9 @@ class Postprocess(object):
 
                 if start == 1:  # append the id of the cell to the list
                     cell_starts.append(i)
-
+            num_starts = 0
             if num_starts > 0:
-                df_parents.append(self.find_parent_cell(frame_ind, all_frames_traject, df, num_starts, cell_starts)) #TODO check this function
-            all_trajectory_dict[frame_ind] = {'from': nodes_indices, 'to': next_frame_indices}
+                df_parents.append(self.find_parent_cell(frame_ind, all_frames_traject, df, cell_starts)) #TODO check this function
 
         all_frames_traject = all_frames_traject.astype(int)
 
@@ -331,19 +363,12 @@ class Postprocess(object):
         # convert csv to res_track.txt and res_track_real.txt
         str_track = self.df2str(df_track_res)
 
-        # convert all_frames_traject to csv
-        df_trajectory = pd.DataFrame(all_frames_traject)
-
-
         self.all_frames_traject = all_frames_traject
         self.trajectory_same_label = trajectory_same_label
-        self.df_trajectory = df_trajectory
         self.df_track = df_track_res
         self.file_str = str_track
         
-        return all_frames_traject, trajectory_same_label, \
-               df_trajectory,  \
-               str_track
+        return all_frames_traject, trajectory_same_label, str_track
 
     def get_pred(self, idx):
         pred = None
@@ -394,14 +419,14 @@ class Postprocess(object):
         self.create_save_dir()
         all_frames_traject, trajectory_same_label = self.all_frames_traject, self.trajectory_same_label
         df = self.df_preds
-        n_rows, n_cols = all_frames_traject.shape
+        n_rows, _ = all_frames_traject.shape
 
         count_diff_vals = 0
         for idx in range(n_rows):
             pred = self.get_pred(idx)
-            pred_copy = pred.copy() #TODO get rid of this line as well
+            pred_copy = pred.copy()
             curr_row = all_frames_traject[idx, :]
-            mask_id = np.bitwise_and(curr_row != -1, curr_row != -2)
+            mask_id = np.bitwise_and(curr_row != -1, curr_row != -2) #TODO add -3 for gaps?
             graph_ids = curr_row[mask_id]
             graph_true_ids = trajectory_same_label[idx, mask_id]
             # mask_where = np.ones_like(pred) #TODO why np_ones? Are we not losing mask 1 than?
@@ -453,7 +478,6 @@ class Postprocess(object):
 
                     val = pred[row_center, col_center] #get the ID of the cell in the original Mask
                     if 'seg_label' in df.columns:
-                        print('We do have seg_label in the dataframe')
                         v_old = val
                         val = df.loc[id, "seg_label"]
                         count_diff_vals += 1 if v_old != val else 0
@@ -481,10 +505,9 @@ class Postprocess(object):
                 # pred_copy[mask_curr] = true_id
                 # mask_where = np.logical_and(np.logical_not(mask_val), mask_where)
                 
-                pred[pred==val]=true_id
+                pred_copy[pred==val]=true_id
 
                 frame_ids.append(true_id)
-            pred_copy=pred.copy() #TODO remove this if working
             print(f'processing frame: {idx+1}')
             isOK, predID_not_in_currID = self.check_ids_consistent(idx, np.unique(pred_copy), frame_ids)
             if not debug:
@@ -522,7 +545,7 @@ if __name__== "__main__":
                      path_inference_output=path_inference_output, center_coord=False,
                      directed=directed,
                      path_seg_result=path_Seg_result)
-    all_frames_traject, trajectory_same_label, df_trajectory, str_track = pp.create_trajectory()
+    all_frames_traject, trajectory_same_label, str_track = pp.create_trajectory()
     pp.fill_mask_labels(debug=False)
 
 

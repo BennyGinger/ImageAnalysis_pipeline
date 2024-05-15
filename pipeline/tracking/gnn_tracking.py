@@ -158,10 +158,9 @@ def gnn_tracking(exp_obj_lst: list[Experiment], channel_seg: str, model:str, ove
         pp = Postprocess(is_3d=is_3d, type_masks='tif', merge_operation='AND', decision_threshold=decision_threshold,
                      path_inference_output=files_folder, center_coord=False, directed=True, path_seg_result=input_seg)
         
-        all_frames_traject, trajectory_same_label, df_trajectory, _ =  pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
+        all_frames_traject, trajectory_same_label, _ =  pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
         np.savetxt("/home/Fabian/ImageData/all_frames_traject.csv", all_frames_traject, delimiter=",")
         np.savetxt("/home/Fabian/ImageData/trajectory_same_label.csv", trajectory_same_label, delimiter=",")
-        np.savetxt("/home/Fabian/ImageData/df_trajectory.csv", df_trajectory, delimiter=",")
         
         pp.fill_mask_labels(debug=False)
         

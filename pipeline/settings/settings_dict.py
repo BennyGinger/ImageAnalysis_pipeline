@@ -63,7 +63,7 @@ settings = {
                    "mask_fold_src": "",
                    "morph":False, # not implemented yet
                    'min_cell_size': 15,
-                   'decision_threshold': 0.5, #between 0-1, 1=more interrupted tracks, 0= more tracks gets connected, checks for the confidence of the model for the connection of two cells
+                   'decision_threshold': 0.4, #between 0-1, 1=more interrupted tracks, 0= more tracks gets connected, checks for the confidence of the model for the connection of two cells
                    "mask_appear":5, # not implemented yet
                    "manual_correct":True,
                    "overwrite":True}),
