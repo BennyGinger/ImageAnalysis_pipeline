@@ -40,12 +40,9 @@ class Postprocess(object):
         self.path_inference_output = path_inference_output
         self.cols = ["child_id", "parent_id", "start_frame"]
 
-        data = self._load_file(file1)
-        self.edge_index = data.edge_index
+        self.edge_index = (self._load_file(file1)).edge_index
 
         self.df_preds = self._load_file(file2)
-        if self.df_preds.frame_num.min() == 1:
-            self.df_preds['frame_num'] = self.df_preds.frame_num -1
         self.output_pred = self._load_file(file3)
         self.find_connected_edges()
 
@@ -70,28 +67,28 @@ class Postprocess(object):
             text_file.write(str_txt)
 
     def insert_in_specific_col(self, all_frames_traject, frame_ind, curr_node, next_node):
-        if curr_node in all_frames_traject[frame_ind, :]:
-            flag = 0
+        if curr_node in all_frames_traject[frame_ind, :]: #check if the node where we found a connection for has already a track in the earlier frames and connect the next cell to it
+            flag = 0 #no start of a new track
             ind_place = np.argwhere(all_frames_traject[frame_ind, :] == curr_node)
-            if frame_ind + 1 < all_frames_traject.shape[0]:
+            if frame_ind + 1 < all_frames_traject.shape[0]: #if its the last frame, we dont do a connection
                 all_frames_traject[frame_ind + 1, ind_place] = next_node
-        else:
-            flag = 1
-            ind_place = np.argwhere(all_frames_traject[frame_ind, :] == -2)
-            while ind_place.size == 0:
+        else: #if the current note was not connected before, we start a new track
+            flag = 1 #flag for start of a new track
+            ind_place = np.argwhere(all_frames_traject[frame_ind, :] == -2) #check for empty (-2) space to put the track
+            while ind_place.size == 0: #if there is not enough space, add a new colum for that track
                 new_col = -2 * np.ones((all_frames_traject.shape[0], 1), dtype=all_frames_traject.dtype)
                 all_frames_traject = np.append(all_frames_traject, new_col, axis=1)
                 ind_place = np.argwhere(all_frames_traject[frame_ind, :] == -2)
             ind_place = ind_place.min()
             all_frames_traject[frame_ind, ind_place] = curr_node
-            if frame_ind + 1 < all_frames_traject.shape[0]:
+            if frame_ind + 1 < all_frames_traject.shape[0]: #write the connection for the next frame, if not in the last frame
                 all_frames_traject[frame_ind + 1, ind_place] = next_node
 
-        return flag, all_frames_traject
+        return flag, all_frames_traject #return the updated trajectorys and the flag if there was a new start of track or not
 
     def fill_first_frame(self, cell_starts):
-        cols = ["child_id", "parent_id", "start_frame"]
-        df_parent = pd.DataFrame(index=range(len(list(cell_starts))), columns=cols)
+        # cols = ["child_id", "parent_id", "start_frame"]
+        df_parent = pd.DataFrame(index=range(len(cell_starts)), columns=self.cols)
         df_parent.loc[:, ["start_frame", "parent_id"]] = 0
         df_parent.loc[:, "child_id"] = cell_starts
         return df_parent
@@ -212,8 +209,10 @@ class Postprocess(object):
         self.outputs_hard = final_outputs_hard
         return final_outputs_hard
 
-    def merge_match_edges(self, edge_index, output_pred):
-        # [:, ::2] every second
+    def merge_match_edges(self, edge_index, output_pred): 
+        #function looks for both ways of the tensor to see if connections where established and 
+        # checks for conficence in comparison to the decission threshold
+        #AND, OR, AVG: how to bring the two confidence lists together
         assert torch.all(edge_index[:, ::2] == edge_index[[1, 0], 1::2]), \
             "The results don't match!"
         edge_index = edge_index[:, ::2]
@@ -237,7 +236,7 @@ class Postprocess(object):
 
         return final_outputs_hard, edge_index
 
-    def find_connected_edges(self):
+    def find_connected_edges(self): #outputs are propably the confidence scores of the model, whether two cells are connected
         edge_index, df, outputs = self.edge_index, self.df_preds, self.output_pred
 
         if not self.directed:
@@ -245,8 +244,8 @@ class Postprocess(object):
             self.outputs_hard = final_outputs_hard
             self.edge_index = edge_index
         else:
-            outputs_soft = torch.sigmoid(outputs)
-            self.outputs_hard = (outputs_soft > self.decision_threshold).int()
+            outputs_soft = torch.sigmoid(outputs) #created values between 0 and 1 for the confidence
+            self.outputs_hard = (outputs_soft > self.decision_threshold).int() #when confidence from the model is superior to the decision threshold, connection is accepted
 
     def create_trajectory(self):
         edge_index, df, outputs_hard = self.edge_index, self.df_preds, self.outputs_hard
@@ -255,11 +254,8 @@ class Postprocess(object):
         connected_indices = edge_index[:, outputs_hard.bool()]
 
         # find number of frames for iterations
-        frame_nums = np.unique(df.frame_num)
-        frame_nums = np.array(range(frame_nums.shape[0]))
-        # find number of cells in each frame and build matrix [num_frames, max_cells]
-        max_elements = [df.frame_num.isin([i]).sum() for i in frame_nums]
-        all_frames_traject = np.zeros((frame_nums.shape[0], max(max_elements)))
+        frame_nums, counts = np.unique(df.frame_num, return_counts=True)
+        all_frames_traject = np.zeros((frame_nums.shape[0], counts.max())) #crearing matrix with shape (rows=frames, column=max num of label in frame)
 
         # intialize the matrix with -2 meaning empty cell, -1 means end of trajectory,
         # other value means the number of node in the graph
@@ -268,12 +264,12 @@ class Postprocess(object):
         str_track = ''
         df_parents = []
 
-        for frame_ind in frame_nums:
-            mask_frame_ind = df.frame_num.isin([frame_ind])  # find the places containing frame_ind
-
+        for frame_ind in frame_nums: #loop through the frames
+            # mask_frame_ind = df.frame_num.isin([frame_ind])  # find the places containing frame_ind
+            nodes_indices = df[df.frame_num==frame_ind].index.values # find the places containing frame_ind, nodes_indices: unique value for every node
             # filter the places with the specific frame_ind and take the corresponding indices
-            nodes = df.loc[mask_frame_ind, :]
-            nodes_indices = nodes.index.values
+            # nodes = df.loc[mask_frame_ind, :]
+            # nodes_indices = nodes.index.values #nodes_indices: unique value for every node
 
             next_frame_indices = np.array([])
 
@@ -283,38 +279,38 @@ class Postprocess(object):
 
             num_starts = 0
             cell_starts = []
-            for i in nodes_indices:
+            for i in nodes_indices: #loop through the nodes in one frame
                 if i in connected_indices[0, :]:
-                    ind_place = np.argwhere(connected_indices[0, :] == i)
-
-                    if ind_place.shape[-1] > 1:
-                        next_frame_ind = connected_indices[1, ind_place].numpy().squeeze()
+                    ind_place = np.argwhere(connected_indices[0, :] == i) # find all potential connections
+                    #check how many potential connections one cell has
+                    if ind_place.shape[-1] > 1: # if more than one connection is possible:
+                        next_frame_ind = connected_indices[1, ind_place].numpy().squeeze() #get the ID of the potential cells in the next frame
                         if self.is_3d:
                             next_frame = df.loc[next_frame_ind, ["centroid_depth", "centroid_row", "centroid_col"]].values
                             curr_node = df.loc[i, ["centroid_depth", "centroid_row", "centroid_col"]].values
                         else:
-                            next_frame = df.loc[next_frame_ind, ["centroid_row", "centroid_col"]].values
-                            curr_node = df.loc[i, ["centroid_row", "centroid_col"]].values
+                            next_frame = df.loc[next_frame_ind, ["centroid_row", "centroid_col"]].values #getting the centroid position for the potential connection points
+                            curr_node = df.loc[i, ["centroid_row", "centroid_col"]].values #getting the original centroid
 
-                        distance = ((next_frame - curr_node) ** 2).sum(axis=-1)
-                        nearest_cell = np.argmin(distance, axis=-1)
+                        distance = np.sqrt(((next_frame - curr_node) ** 2).sum(axis=-1)) #get the euclidean distance between the node and the possible cells to connect
+                        nearest_cell = np.argmin(distance, axis=-1) #get the index of the closest cell
                         # add to the array
                         next_node_ind = next_frame_ind[nearest_cell]
 
                     elif ind_place.shape[-1] == 1:  # one node in the next frame is connected to current node
                         next_node_ind = connected_indices[1, ind_place[0]]
                     else:  # no node in the next frame is connected to current node -
-                        # in this case we end the trajectory
+                        # in this case we end the trajectory (-1 means stop of track)
                         next_node_ind = -1
 
                 else:
                     # we dont find the current node in the edge indices matrix - meaning we dont have a connection
                     # for the node - in this case we end the trajectory and the cell
                     if i == 0:
-                        self.flag_id0_terminate = True
+                        self.flag_id0_terminate = True #only needed if the cell with node 0 terminates after first frame. To make sure to give it a proper ID later
                     next_node_ind = -1
 
-                next_frame_indices = np.append(next_frame_indices, next_node_ind)
+                next_frame_indices = np.append(next_frame_indices, next_node_ind) #add the next node index or -1 for track stop into the next_frame_indices list
                 # count the number of starting trajectories
                 start, all_frames_traject = self.insert_in_specific_col(all_frames_traject, frame_ind, i, next_node_ind)
                 num_starts += start
@@ -323,7 +319,7 @@ class Postprocess(object):
                     cell_starts.append(i)
 
             if num_starts > 0:
-                df_parents.append(self.find_parent_cell(frame_ind, all_frames_traject, df, num_starts, cell_starts))
+                df_parents.append(self.find_parent_cell(frame_ind, all_frames_traject, df, num_starts, cell_starts)) #TODO check this function
             all_trajectory_dict[frame_ind] = {'from': nodes_indices, 'to': next_frame_indices}
 
         all_frames_traject = all_frames_traject.astype(int)
@@ -344,7 +340,7 @@ class Postprocess(object):
         self.df_trajectory = df_trajectory
         self.df_track = df_track_res
         self.file_str = str_track
-
+        
         return all_frames_traject, trajectory_same_label, \
                df_trajectory,  \
                str_track
@@ -403,12 +399,12 @@ class Postprocess(object):
         count_diff_vals = 0
         for idx in range(n_rows):
             pred = self.get_pred(idx)
-            pred_copy = pred.copy()
+            pred_copy = pred.copy() #TODO get rid of this line as well
             curr_row = all_frames_traject[idx, :]
             mask_id = np.bitwise_and(curr_row != -1, curr_row != -2)
             graph_ids = curr_row[mask_id]
             graph_true_ids = trajectory_same_label[idx, mask_id]
-            mask_where = np.ones_like(pred)
+            # mask_where = np.ones_like(pred) #TODO why np_ones? Are we not losing mask 1 than?
             frame_ids = []
             for id, true_id in zip(graph_ids, graph_true_ids):
                 flag_id0 = true_id == 0
@@ -455,14 +451,15 @@ class Postprocess(object):
                         row_center += n_row_img // 2 #BUG stupid thing
                         col_center += n_col_img // 2
 
-                    val = pred[row_center, col_center]
+                    val = pred[row_center, col_center] #get the ID of the cell in the original Mask
                     if 'seg_label' in df.columns:
+                        print('We do have seg_label in the dataframe')
                         v_old = val
                         val = df.loc[id, "seg_label"]
                         count_diff_vals += 1 if v_old != val else 0
 
-                    if val == 0:
-                        if np.any(pred[row_center-3:row_center+3, col_center-3:col_center+3] != 0):
+                    if val == 0: #only if the Cell ID on the position == 0
+                        if np.any(pred[row_center-3:row_center+3, col_center-3:col_center+3] != 0): # try the IDs in an area and find the most common ID
                             area = pred[row_center-3:row_center+3, col_center-3:col_center+3]
                             unique_labels, counts = np.unique(area, return_counts=True)
                             mask = unique_labels != 0
@@ -470,7 +467,7 @@ class Postprocess(object):
                             counts = counts[mask]
                             val = unique_labels[np.argmax(counts)]
                         else:
-                            print("Problem! The provided center coordinates value is zero, should be labeled with other value")
+                            print("Problem! The provided center coordinates value is zero, should be labeled with other value") #print error if there is no ID
                             print(df.loc[id, ["seg_label", "frame_num", "centroid_row", "centroid_col",
                                               "min_row_bb", "min_col_bb", "max_row_bb", "max_col_bb"]].astype(int))
                             continue
@@ -479,13 +476,15 @@ class Postprocess(object):
                                  "should be labeled with other value"
                 if flag_id0:
                     true_id = new_id
-                mask_val = (pred_copy == val).copy()
-                mask_curr = np.logical_and(mask_val, mask_where)
-                pred_copy[mask_curr] = true_id
-                mask_where = np.logical_and(np.logical_not(mask_val), mask_where)
+                # mask_val = (pred_copy == val).copy() #get a mask with only the obj == val
+                # mask_curr = np.logical_and(mask_val, mask_where)
+                # pred_copy[mask_curr] = true_id
+                # mask_where = np.logical_and(np.logical_not(mask_val), mask_where)
+                
+                pred[pred==val]=true_id
 
                 frame_ids.append(true_id)
-                
+            pred_copy=pred.copy() #TODO remove this if working
             print(f'processing frame: {idx+1}')
             isOK, predID_not_in_currID = self.check_ids_consistent(idx, np.unique(pred_copy), frame_ids)
             if not debug:

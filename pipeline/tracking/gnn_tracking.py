@@ -11,6 +11,8 @@ from pandas import DataFrame
 from os.path import join
 from os import getcwd
 
+import numpy as np #TODO remove later!
+
 def model_select(model):
     model_dict = {}
     root = getcwd()
@@ -119,6 +121,7 @@ def gnn_tracking(exp_obj_lst: list[Experiment], channel_seg: str, model:str, ove
         # Activate the branch
         exp_obj.tracking.is_gnn_tracking = True
 
+        
         # Already processed?
         if is_processed(exp_obj.tracking.gnn_tracking,channel_seg,overwrite):
                 # Log
@@ -127,7 +130,7 @@ def gnn_tracking(exp_obj_lst: list[Experiment], channel_seg: str, model:str, ove
 
         # Track images
         print(f" --> Tracking cells for the '{channel_seg}' channel")
-
+        
         # Create save folder and remove old masks
         create_save_folder(exp_obj.exp_path,'Masks_GNN_Track')
         create_save_folder(exp_obj.exp_path,'gnn_files')
@@ -138,11 +141,11 @@ def gnn_tracking(exp_obj_lst: list[Experiment], channel_seg: str, model:str, ove
         #get path of mask
         mask_fold_src, _ = seg_mask_lst_src(exp_obj,mask_fold_src)
         input_seg = join(exp_obj.exp_path, mask_fold_src)
-        
+
         #get path of image
         img_fold_src, _ = img_list_src(exp_obj,img_fold_src)
         input_img = join(exp_obj.exp_path, img_fold_src)
-        
+
         if exp_obj.img_properties.n_slices==1: # check of 2D or 3D
             is_3d = False
             preprocess_seq2graph_clean.create_csv(input_images=input_img, input_seg=input_seg, input_model=model_dict['model_metric'], channel=channel_seg, output_csv=files_folder, min_cell_size=min_cell_size)
@@ -155,8 +158,14 @@ def gnn_tracking(exp_obj_lst: list[Experiment], channel_seg: str, model:str, ove
         pp = Postprocess(is_3d=is_3d, type_masks='tif', merge_operation='AND', decision_threshold=decision_threshold,
                      path_inference_output=files_folder, center_coord=False, directed=True, path_seg_result=input_seg)
         
-        pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
+        all_frames_traject, trajectory_same_label, df_trajectory, _ =  pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
+        np.savetxt("/home/Fabian/ImageData/all_frames_traject.csv", all_frames_traject, delimiter=",")
+        np.savetxt("/home/Fabian/ImageData/trajectory_same_label.csv", trajectory_same_label, delimiter=",")
+        np.savetxt("/home/Fabian/ImageData/df_trajectory.csv", df_trajectory, delimiter=",")
+        
         pp.fill_mask_labels(debug=False)
+        
+        
         
         #relabel the masks from ID 1 until n and add metadata
         relabel_masks(exp_obj, channel_seg, mask_fold_src = 'Masks_GNN_Track')

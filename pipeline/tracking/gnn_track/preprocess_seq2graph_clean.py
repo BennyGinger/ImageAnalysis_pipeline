@@ -13,6 +13,8 @@ import warnings
 warnings.filterwarnings("always")
 from pathlib import Path
 import re
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 
 from tracking.gnn_track.modules.resnet_2d.resnet import set_model_architecture, MLP #src_metric_learning.modules.resnet_2d.resnet
 from skimage.morphology import label
@@ -243,7 +245,6 @@ class TestDataset(Dataset):
 
     def preprocess_features_loop_by_results_w_metric_learning(self, path_to_write, dict_path):
         dict_params = torch.load(dict_path)
-
         self.roi_model = dict_params['roi']
         self.find_min_max_and_roi()
         self.flag_new_roi = self.global_delta_row > self.roi_model['row'] or self.global_delta_col > self.roi_model['col']
@@ -286,27 +287,46 @@ class TestDataset(Dataset):
 
         cols_resnet = [f'feat_{i}' for i in range(mlp_dims[-1])]
         cols += cols_resnet
-
+        
+        _, _, im_path, _ = self[0]
+        im_name = Path(im_path).stem
+        im_num = int(re.findall('f\d+', im_name)[0][1:])
+        firstframeflag = False
+        if im_num !=0:
+            firstframeflag = True
+            subst_value = im_num
+        
         for ind_data in range(self.__len__()):
             img, result, im_path, result_path = self[ind_data]
-
             im_name = Path(im_path).stem
-            im_num = re.findall('f\d+', im_name)[0][1:]
-         
+            im_num = int(re.findall('f\d+', im_name)[0][1:])
             print(f'Processing Image: {im_path}')
 
             result_name = Path(result_path).stem
-            result_num = re.findall('f\d+', result_name)[0][1:]
-          
+            result_num = int(re.findall('f\d+', result_name)[0][1:])
+            
+            #check if the stack start with frame 0, otherwise set the naming begin to 0
+            if firstframeflag:
+                result_num -= subst_value
+                im_num -= subst_value
+                
             assert im_num == result_num, f"Image number ({im_num}) is not equal to result number ({result_num})"
 
             num_labels = np.unique(result).shape[0] - 1
 
             df = pd.DataFrame(index=range(num_labels), columns=cols)
 
+
+
+            # partial_get_properties = partial(get_properties_to_df, result=result, cols_resnet=cols_resnet, img=img, df=df, func=self.extract_freature_metric_learning)
+            
+            # with ThreadPoolExecutor() as executer:
+            #     executer.map(partial_get_properties,np.unique(result))
+            
+
             for ind, id_res in enumerate(np.unique(result)):
                 # Color 0 is assumed to be background or artifacts
-                row_ind = ind - 1
+                row_ind = ind - 1 #because we skip 0 and want to start writing with position 0
                 if id_res == 0:
                     continue
 
@@ -333,16 +353,51 @@ class TestDataset(Dataset):
                     properties.max_intensity, properties.mean_intensity, properties.min_intensity
 
 
-            df.loc[:, "frame_num"] = int(im_num)
+            df.loc[:, "frame_num"] = im_num
 
             if df.isnull().values.any():
                 warnings.warn("Pay Attention! there are Nan values!")
 
             full_dir = op.join(path_to_write, "csv")
             os.makedirs(full_dir, exist_ok=True)
+            im_num=str(im_num).zfill(4)
             file_path = op.join(full_dir, f"frame_{im_num}.csv")
             df.to_csv(file_path, index=False)
         print(f"files were saved to : {full_dir}")
+
+
+def get_properties_to_df(result, cols_resnet, img, df, id_res, func):
+    #get enumerate ID to write in the right positions in df
+    print('do we start?')
+    ind = np.where(np.unique(result)==id_res)[0][0]
+    # Color 0 is assumed to be background or artifacts
+    row_ind = ind - 1 #because we skip 0 and want to start writing with position 0
+    if id_res == 0:
+        return
+    print(f'{id_res=}')
+    # extracting statistics using regionprops
+    properties = regionprops(np.uint8(result == id_res), img)[0]
+    print('Are we coming here?')
+    embedded_feat = func(properties.bbox, img.copy(), result.copy(), id_res)
+    print('and what about here?')
+    df.loc[row_ind, cols_resnet] = embedded_feat
+    df.loc[row_ind, "seg_label"] = id_res
+
+    df.loc[row_ind, "area"] = properties.area
+
+    df.loc[row_ind, "min_row_bb"], df.loc[row_ind, "min_col_bb"], \
+    df.loc[row_ind, "max_row_bb"], df.loc[row_ind, "max_col_bb"] = properties.bbox
+
+    df.loc[row_ind, "centroid_row"], df.loc[row_ind, "centroid_col"] = \
+        properties.centroid[0].round().astype(np.int16), \
+        properties.centroid[1].round().astype(np.int16)
+
+    df.loc[row_ind, "major_axis_length"], df.loc[row_ind, "minor_axis_length"] = \
+        properties.major_axis_length, properties.minor_axis_length
+
+    df.loc[row_ind, "max_intensity"], df.loc[row_ind, "mean_intensity"], df.loc[row_ind, "min_intensity"] = \
+        properties.max_intensity, properties.mean_intensity, properties.min_intensity
+
 
 
 def create_csv(input_images, input_seg, input_model, output_csv, min_cell_size, channel:str = ''):

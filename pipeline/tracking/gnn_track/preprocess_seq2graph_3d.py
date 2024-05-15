@@ -348,15 +348,24 @@ class TestDataset(Dataset):
         cols_resnet = [f'feat_{i}' for i in range(mlp_dims[-1])]
         cols += cols_resnet
 
+        subst_value = 0
         for ind_data in range(self.__len__()):
             img, result, im_path, result_path = self[ind_data]
             if img is None or result is None:
                 print('*' * 20 + 'We have None' + 20 * '*')
             im_name = Path(im_path).stem
-            im_num = re.findall('f\d+', im_name)[0][1:]
+            im_num = int(re.findall('f\d+', im_name)[0][1:])
             
             result_name = Path(result_path).stem
-            result_num = re.findall('f\d+', result_name)[0][1:]
+            result_num = int(re.findall('f\d+', result_name)[0][1:])
+          
+            #check if the stack start with frame 0, otherwise set the naming begin to 0
+            if ind_data == 0:
+                if im_num !=0:
+                    subst_value = im_num
+            if subst_value != 0:
+                result_num -= subst_value
+                im_num -= subst_value
           
             assert im_num == result_num, f"Image number ({im_num}) is not equal to result number ({result_num})"
 
@@ -394,11 +403,11 @@ class TestDataset(Dataset):
                 df.loc[row_ind, "max_intensity"], df.loc[row_ind, "mean_intensity"], df.loc[row_ind, "min_intensity"] = \
                     properties.max_intensity, properties.mean_intensity, properties.min_intensity
 
-            df.loc[:, "frame_num"] = int(im_num)
+            df.loc[:, "frame_num"] = im_num
 
             if df.isnull().values.any():
                 warnings.warn("Pay Attention! there are Nan values!")
-
+            im_num=str(im_num).zfill(4)
             full_dir = op.join(path_to_write, "csv")
             os.makedirs(full_dir, exist_ok=True)
             file_path = op.join(full_dir, f"frame_{im_num}.csv")

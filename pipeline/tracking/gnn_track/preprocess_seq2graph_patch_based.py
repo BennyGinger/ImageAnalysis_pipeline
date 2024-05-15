@@ -260,18 +260,26 @@ class TestDataset(Dataset):
         cols_resnet = [f'feat_{i}' for i in range(mlp_dims[-1])]
         cols += cols_resnet
 
+        subst_value = 0
         for ind_data in range(self.__len__()):
             img, result, im_path, result_path = self[ind_data]
             mask_path = result_path
             mask = result
             im_name = Path(im_path).stem
-            im_num = re.findall('f\d+', im_name)[0][1:]      
+            im_num = int(re.findall('f\d+', im_name)[0][1:]      )
             
             mask_name = Path(mask_path).stem
-            mask_num = re.findall('f\d+', mask_name)[0][1:]
+            mask_num = int(re.findall('f\d+', mask_name)[0][1:])
+
+            #check if the stack start with frame 0, otherwise set the naming begin to 0
+            if ind_data == 0:
+                if im_num !=0:
+                    subst_value = im_num
+            if subst_value != 0:
+                mask_num -= subst_value
+                im_num -= subst_value
 
             assert im_num == mask_num, f"Image number ({im_num}) is not equal to mask number ({mask_num})"
-            im_num_int = int(im_num)
             labels_mask = np.unique(mask)
 
             num_labels = labels_mask.shape[0]
@@ -338,6 +346,7 @@ class TestDataset(Dataset):
 
             full_dir = op.join(path_to_write, "csv")
             os.makedirs(full_dir, exist_ok=True)
+            im_num=str(im_num).zfill(4)
             file_path = op.join(full_dir, f"frame_{im_num}.csv")
             print(f"save file to : {file_path}")
             df.to_csv(file_path, index=False)
