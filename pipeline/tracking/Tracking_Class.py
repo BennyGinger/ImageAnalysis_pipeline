@@ -9,7 +9,7 @@ from pipeline.tracking.man_tracking import man_tracking
 from pipeline.settings.Setting_Classes import Settings
 
 @dataclass
-class Tracking(BaseModule):
+class TrackingModule(BaseModule):
     # Attributes from the BaseModule class:
         # input_folder: PathLike | list[PathLike]
         # exp_obj_lst: list[Experiment] = field(init=False)

@@ -81,6 +81,11 @@ settings = {
                    "process_as_2D":True,
                    "overwrite":True}),
     
+    "draw_mask": (True,
+                  {"mask_label": "wound", # str or list[str]
+                   "channel_show": "RFP",
+                   "overwrite": True}),
+    
     "extract_data": (True,
                         {"img_fold_src": "",
                         "overwrite": True}),

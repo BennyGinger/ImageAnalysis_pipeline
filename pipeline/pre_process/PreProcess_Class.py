@@ -17,7 +17,7 @@ from pipeline.image_handeling.data_utility import is_processed
 EXTENTION = ('.nd2','.tif','.tiff')
 
 @dataclass
-class PreProcess(BaseModule):
+class PreProcessModule(BaseModule):
     # Attributes from the BaseModule class:
         # input_folder: PathLike | list[PathLike]
         # exp_obj_lst: list[Experiment] = field(init=False)
@@ -145,5 +145,5 @@ if __name__ == "__main__":
     
 
     img_path = '/home/Test_images/nd2/Run3'
-    obj = PreProcess(img_path,overwrite=True)
+    obj = PreProcessModule(img_path,overwrite=True)
     print(obj.exp_obj_lst)

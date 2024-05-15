@@ -241,9 +241,7 @@ def draw_wound_mask(img_files: list[PathLike], mask_label: list[str] | str, chan
         if not poly_dict:
             raise AttributeError('No mask drawn!')
         mask_stack = polygon_into_mask(frames,poly_dict,img_stack.shape[1:-1])
-        print(f'{np.unique(mask_stack)=}')
         mask_stack = complete_track(mask_stack,mask_appear=1,copy_first_to_start=True,copy_last_to_end=True)
-        print(f'{np.unique(mask_stack)=}')
         if kwargs and 'metadata' in kwargs:
             metadata = kwargs['metadata']
         else:

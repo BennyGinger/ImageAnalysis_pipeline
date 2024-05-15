@@ -10,7 +10,7 @@ from pipeline.settings.Setting_Classes import Settings
 from pipeline.image_handeling.data_utility import img_list_src
 
 @dataclass
-class Segmentation(BaseModule):
+class SegmentationModule(BaseModule):
     # Attributes from the BaseModule class:
         # input_folder: PathLike | list[PathLike]
         # exp_obj_lst: list[Experiment] = field(init=False)

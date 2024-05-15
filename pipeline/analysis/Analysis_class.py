@@ -18,7 +18,7 @@ SEGMENTATION_MASKS = ['cellpose_seg','threshold_seg']
 REFERENCE_MASKS = [] # TODO: Add reference masks
 
 @dataclass
-class Analysis(BaseModule):
+class AnalysisModule(BaseModule):
     # Attributes from the BaseModule class:
     # input_folder: PathLike | list[PathLike]
     # exp_obj_lst: list[Experiment] = field(init=False)
@@ -38,6 +38,8 @@ class Analysis(BaseModule):
             print("No analysis settings found")
             return pd.DataFrame()
         sets = sets.analysis
+        if hasattr(sets,'draw_mask'):
+            self.draw_wound_mask(**sets.draw_mask)
         if hasattr(sets,'extract_data'):
             master_df = self.create_master_df(**sets.extract_data)
         self.save_as_json()
@@ -94,7 +96,7 @@ class Analysis(BaseModule):
         exp_obj.save_as_json()
         return exp_df
 
-    def draw_wound_mask(self, mask_label: str|list, channel_show:str=None, overwrite: bool=False)-> None:
+    def draw_wound_mask(self, mask_label: str | list[str], channel_show: str=None, overwrite: bool=False)-> None:
         for exp_obj in self.exp_obj_lst:
             # Activate branch and get imgage files
             exp_obj.analysis.is_reference_masks = True
