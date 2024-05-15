@@ -74,8 +74,8 @@ class Analysis(BaseModule):
         # Extract the data
         dfs = []
         for mask_name, mask_array in masks_arrays.items():
-            df = extract_data(img_array,mask_array,channels=exp_obj.active_channel_list,
-                                save_path=exp_obj.exp_path,overwrite=overwrite)
+            df = extract_data(img_array,mask_array,exp_obj.active_channel_list,
+                                exp_obj.exp_path,ref_masks,overwrite)
             # Add the mask name, time in seconds and experiment name
             df['mask_name'] = mask_name
             if exp_obj.analysis.interval_sec == None:
@@ -159,15 +159,17 @@ def _load_mask(exp_obj: Experiment)-> dict[str,np.ndarray]:
                  for channel in mask_dict['channels']})
     return masks_arrays
 
-def _load_ref_masks(exp_obj: Experiment)-> dict[str,np.ndarray]:
+def _load_ref_masks(exp_obj: Experiment)-> dict[str,tuple[np.ndarray,float]]:
     mask_files = exp_obj.analysis.reference_masks
     exp_path = exp_obj.exp_path
     channel = mask_files['channel_show']
+    resolution = exp_obj.analysis.um_per_pixel[0]
     # if empty, then return
     if not mask_files:
         return {}
     # Get mask paths
     for mask_fold in mask_files.keys():
         mask_paths = join(exp_path,mask_fold)
-        mask_files[mask_fold] = load_stack(mask_paths,channel,range(exp_obj.img_properties.n_frames),True)
+        mask_array = load_stack(mask_paths,channel,range(exp_obj.img_properties.n_frames),True)
+        mask_files[mask_fold] = (mask_array,resolution)
     return mask_files

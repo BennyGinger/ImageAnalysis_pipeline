@@ -13,7 +13,7 @@ PROPERTIES = ['area','centroid','intensity_mean',
 
 ########################### Main functions ###########################
 def extract_data(img_array: np.ndarray, mask_array: np.ndarray, channels: list[str], 
-                 save_path: PathLike, overwrite: bool = False)-> pd.DataFrame:
+                 save_path: PathLike, ref_masks: dict[str,np.ndarray] = None, overwrite: bool = False)-> pd.DataFrame:
     """Extract img properties (skimage.measure.regionprops_table) with provided mask. Img and mask must have 
     the same shape, except that img can have an optional channel dimension. Frame dimension is also optional. 
     The shape of img must be ([F],Y,X,[C]) and the shape of mask must be ([F],Y,X). If channel dim is present,
@@ -22,10 +22,18 @@ def extract_data(img_array: np.ndarray, mask_array: np.ndarray, channels: list[s
         
     Args:
         img_array ([[F],Y,X,[C]], np.ndarray): The image array to extract the mean intensities from. Frame and channel dim are optional.
+        
         mask_array ([[F],Y,X], np.ndarray): The mask array to extract the mean intensities from. Frame dim is optional.
+        
         channels (list[str]): List of channel names.
+        
         save_path (PathLike): The path to save the extracted data (as csv) with the name provided.
+        
+        ref_masks (dict[str,tuple[np.ndarray,float]], optional): Dictionary of reference masks to extract the dmap from. With keys as the reference 
+        label names and values as tuple of the reference array and image resolution. Defaults to None. 
+        
         overwrite (bool, optional): If True, the data will be extracted and overwrite previous extraction. Defaults to False.
+    
     Returns:
         pd.DataFrame: The extracted data."""
     
@@ -49,45 +57,83 @@ def extract_data(img_array: np.ndarray, mask_array: np.ndarray, channels: list[s
     if mask_array.ndim ==2:
         prop = regionprops_table(mask_array,intensity_image=img_array,separator='_',
                                  properties=PROPERTIES,extra_properties=[dmap])
-        master_df = pd.DataFrame(prop)
-        master_df['frame'] = 1
+        master_df = get_regionprops(0,mask_array,img_array,ref_masks)
         master_df.rename(columns=col_rename, inplace=True)
-        trim_dmap_col(master_df, img_array.ndim)
         master_df.to_csv(save_path, index=False)
         return master_df
     
     # If the mask_array is a time sequence
-    get_regionprops_partial = partial(get_regionprops, mask_array=mask_array, img_array=img_array)
+    get_regionprops_partial = partial(get_regionprops, mask_array=mask_array, img_array=img_array, ref_masks=ref_masks)
     with ThreadPoolExecutor() as executor:
         lst_df = executor.map(get_regionprops_partial, range(mask_array.shape[0]))
     
     # Create the DataFrame and save to csv
     master_df = pd.concat(lst_df, ignore_index=True)
     master_df.rename(columns=col_rename, inplace=True)
-    trim_dmap_col(master_df, img_array.ndim)
     master_df.to_csv(save_path, index=False)
     return master_df
 
-def get_regionprops(frame: int, mask_array: np.ndarray, img_array: np.ndarray, ref_masks: dict[str,np.ndarray])-> pd.DataFrame:
-        """Nested function to extract the regionprops for each frame in multi-threading."""
-        prop = regionprops_table(mask_array[frame], intensity_image=img_array[frame],
+def get_regionprops(frame_idx: int, mask_array: np.ndarray, img_array: np.ndarray, ref_masks: dict[str,dict])-> pd.DataFrame:
+        """Function to extract the regionprops from the mask_array and img_array. The function will extract the
+        properties defined in the PROPERTIES list. If the ref_masks dictionary is provided, the function will extract
+        the dmap from the reference masks. The extracted data will be returned as a pandas.DataFrame.
+        
+        Args:
+            frame (int): The frame index to extract the data from.
+            
+            mask_array ([[F],Y,X], np.ndarray): The mask array to extract the regionprops from. Frame dim is optional.
+            
+            img_array ([[F],Y,X,[C]], np.ndarray): The image array to extract the mean intensities from. Frame and channel dim are optional.
+            
+            ref_masks (dict[str,tuple[np.ndarray,float]]): Dictionary of reference masks to extract the dmap from. With keys as the reference 
+            label names and values as tuple of the reference array and image resolution.
+            
+        Returns:
+            pd.DataFrame: The extracted regionprops data."""
+            
+            
+        # Extract the regionprops
+        if mask_array.ndim == 2:
+            prop = regionprops_table(mask_array,intensity_image=img_array,
+                                 properties=PROPERTIES, separator='_')
+        else:
+            prop = regionprops_table(mask_array[frame_idx],intensity_image=img_array[frame_idx],
                                  properties=PROPERTIES, separator='_')
         
+        # Extract the dmap from the reference masks
         if ref_masks:
-            for ref_name,ref_mask in ref_masks.items():
-                prop_ref = regionprops_table(mask_array[frame], intensity_image=ref_mask[frame],
+            for ref_name,ref_tuple in ref_masks.items():
+                ref_mask,resolution = ref_tuple
+                # Check if the experiment is a time sequence
+                if mask_array.ndim == 2:
+                    prop_ref = regionprops_table(mask_array, intensity_image=ref_mask,
                                              properties=['label'], separator='_',extra_properties=[dmap])
-                df_ref = pd.DataFrame(prop_ref)
+                else:
+                    prop_ref = regionprops_table(mask_array[frame_idx], intensity_image=ref_mask[frame_idx],
+                                             properties=['label'], separator='_',extra_properties=[dmap])
+                prop[f'dmap_um_{ref_name}'] = prop_ref['dmap']*resolution
         df = pd.DataFrame(prop)
-        df['frame'] = frame+1
+        df['frame'] = frame_idx+1
         return df
 
 def rename_columns(img_dim: int, mask_dim: int, channels: list[str])-> dict[str,str]:
+    """Function to rename the columns of the regionprops_table output. The columns will be renamed
+    with the channels names.
+    
+    Args:
+        img_dim (int): The dimension of the img_array.
+        
+        mask_dim (int): The dimension of the mask_array.
+        
+        channels (list[str]): List of channel names.
+        
+    Returns:
+        dict[str,str]: Dictionary of the columns to rename with old name as key and new name as value."""
+    
     col_rename = {'centroid_0':'centroid_y','centroid_1':'centroid_x'}
     # If the img_array has a channel dimension
     if img_dim != mask_dim: 
-        col_rename = {**col_rename, **{f'intensity_mean_{i}': f'intensity_mean_{channels[i]}' for i in range(len(channels))},
-                      **{'dmap_0':'dmap'}}
+        col_rename = {**col_rename, **{f'intensity_mean_{i}': f'intensity_mean_{channels[i]}' for i in range(len(channels))}}
     else:
         col_rename['intensity_mean'] = f'intensity_mean_{channels[0]}'
         col_rename['intensity_centroid'] = f'intensity_centroid_{channels[0]}'
@@ -96,21 +142,23 @@ def rename_columns(img_dim: int, mask_dim: int, channels: list[str])-> dict[str,
 def dmap(mask_region: np.ndarray, intensity_image: np.ndarray)-> int:
     """Function that extract the intensity at the centroid position of the mask region. 
     This function is used as an extra property in the regionprops_table function to extract
-    the value of the dmap at the centroid position of the mask region."""
+    the value of the dmap at the centroid position of the mask region.
+    
+    Args:
+        mask_region (np.ndarray): The mask region to extract the intensity from.
+        
+        intensity_image (np.ndarray): The image array to extract the intensity from.
+        
+    Returns:
+        int: The intensity value at the centroid position of the mask region."""
+        
+        
     # Calculate the centroid coordinates as integers of mask
     y, x = np.nonzero(mask_region)
     y, x = int(np.mean(y)), int(np.mean(x))
     # Return the intensity at the centroid position
     return int(intensity_image[y,x])
 
-def trim_dmap_col(df: pd.DataFrame, img_dim: int)-> None:
-    """Trim the DataFrame to only contain the columns with the mean intensity values of the channels."""
-    # If only one channel, do nothing
-    if img_dim == 2:
-        return
-    # Collect the dmap column
-    dmap_col = [col for col in df.columns if 'dmap_' in col]
-    df.drop(columns=dmap_col, inplace=True)
 
 # # # # # # # # # Test
 if __name__ == "__main__":
@@ -121,13 +169,15 @@ if __name__ == "__main__":
     img_path = "/home/Test_images/masks/MAX_Images.tif"
     stack_path = "/home/Test_images/masks/MAX_Merged.tif"
     mask_path = "/home/Test_images/masks/Masks_IoU_Track.tif"
+    mask_ref = '/home/Test_images/masks/mask_ref.tif'
 
     img = imread(img_path)
     stack = imread(stack_path)
     stack = np.moveaxis(stack, [1], [-1])
     mask = imread(mask_path)
+    ref_mask = {'wound':(imread(mask_ref)[0],0.322),'NTC':(imread(mask_ref)[0],0.322)}
     
-    master_df = extract_data(stack, mask, ['RFP','GFP'], '/home/Test_images/masks',overwrite=True)
+    master_df = extract_data(stack, mask, ['RFP','GFP'], '/home/Test_images/masks',ref_masks=None,overwrite=True)
     end = time.time()
     print(f"Processing time: {end-start}")
 
