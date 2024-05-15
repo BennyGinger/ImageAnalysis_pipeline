@@ -24,7 +24,6 @@ settings = {
     "blur": (False,
             {"kernel": (15,15),
             "sigma": 5,
-            "img_fold_src": "",
             "overwrite": False}),
 
     "cellpose": (True,
@@ -33,11 +32,8 @@ settings = {
                 "diameter": 30.0,
                 "flow_threshold": 0.5,
                 "cellprob_threshold":0,
-                "img_fold_src": "",
                 "process_as_2D": True,
                 "save_as_npy": False,
-                "nuclear_marker": "",
-                "normalize":{"percentile":[1,99]},
                 "overwrite": False,}),
     
     "threshold": (False,

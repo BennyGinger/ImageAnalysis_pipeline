@@ -70,6 +70,7 @@ class PreProcess(LoadClass):
     # Flag wheather the branches are active or not
     is_frame_reg: bool = False
     is_img_blured: bool = False
+    is_channel_reg: bool = False
     # Settings of active branches
     background_sub: list = field(default_factory=list)
     channel_reg: list = field(default_factory=list)

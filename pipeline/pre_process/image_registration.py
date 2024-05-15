@@ -1,8 +1,10 @@
 from __future__ import annotations
+from functools import partial
+from os import PathLike, sep, listdir
 import shutil
 from tifffile import imread
 import numpy as np
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pystackreg import StackReg
 from pipeline.image_handeling.Experiment_Classes import Experiment
 from pipeline.image_handeling.data_utility import load_stack, create_save_folder, save_tif, is_processed
@@ -11,69 +13,74 @@ from pipeline.image_handeling.data_utility import load_stack, create_save_folder
 ####################################################################################
 ############################# Channel shift correction #############################
 ################################## main function ###################################
-def correct_channel_shift(exp_obj_lst: list[Experiment], reg_mtd: str, reg_channel: str, overwrite: bool=False)-> list[Experiment]:
-    """Main function to apply the channel shift correction to the images."""
-    for exp_obj in exp_obj_lst:
-        # Check if the channel shift is needed
-        if len(exp_obj.active_channel_list)==1:
-            print(f" --> Only one channel in the active_channel_list, no need to apply channel shift")
-            continue
+def correct_channel_shift(img_paths: list[PathLike], reg_mtd: str, reg_channel: str, 
+                          channels: list[str]=[], metadata: dict={})-> None:
+    """Main function to apply the channel shift correction to the images. Requires multiple channels.
+    It will register only the first frames of all channels to the reg_channel. If images have a z-stack, 
+    it will only register the maxIP of the images, but the transformation will be applied to all images.
+    
+    Args:
+        img_paths (list[PathLike]): The list of images path.
         
-        # Activate the branch
-        exp_obj.preprocess.is_channel_reg = True
+        reg_mtd (str): The registration method to use (Translation, Rigid Body, Scaled Rotation, Affine or Bilinear).
         
-        # Already processed?
-        if is_processed(exp_obj.preprocess.channel_reg,overwrite=overwrite):
-            print(f" --> Channel shift was already applied on the images with {exp_obj.preprocess.channel_reg}")
-            continue
+        reg_channel (str): The reference channel to register the other channels to.
         
-        # If not, correct the channel shift
-        stackreg = select_reg_mtd(reg_mtd)
-        print(f" --> Applying channel shift correction on the images with '{reg_channel}' as reference and {reg_mtd} methods")
+        channels (list[str], optional): The list of channels to process. If empty, it will get all the channels from the img_paths. Defaults to [].
         
-        # Apply the channel shift correction
-        apply_chan_shift(exp_obj,stackreg,reg_channel)
-        
-        # Save settings
-        exp_obj.preprocess.channel_reg = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}","fold_src=Images"]
-        exp_obj.save_as_json()
-    return exp_obj_lst
+        metadata (dict, optional): The metadata (mainly the interval of the frames and resolution) to save with the images. Defaults to {}."""
+    
+    
+    # Check channels list, if empty, get all the channels from the img_paths
+    if not channels: 
+        channels = list(set([get_channel_from_path(path) for path in img_paths]))
+    
+    # Check if only one channel is detected
+    if len(channels)==1:
+        print(f" --> Only one channel detected in the img_paths, no need to apply channel shift")
+        return
+    
+    # Initiate the stackreg object
+    stackreg = select_reg_mtd(reg_mtd)
+    print(f" --> Applying channel shift correction on the images with '{reg_channel}' as reference and {reg_mtd} methods")
+    
+    # Apply the channel shift correction
+    apply_chan_shift(stackreg,img_paths,channels,reg_channel,metadata)
+    
 
 ################################ Satelite functions ################################
-def get_tmats_chan(stackreg: StackReg, exp_obj: Experiment, reg_channel: str)-> dict[str,np.ndarray]:
+def get_tmats_chan(stackreg: StackReg, img_paths: list[PathLike], channels: list[str], reg_channel: str)-> dict[str,np.ndarray]:
     """Register the first frame of all channels to the ref channel. 
     Output is a dict with the channel (excluding the ref channel) as key and the tmat np.ndarray (2D) as value."""
     # Load ref image
-    img_ref = load_stack(exp_obj.ori_imgs_lst,reg_channel,0,True)
+    img_ref = load_stack(img_paths,reg_channel,0,True)
     # Get the list of channel to process
-    channel_lst = [chan for chan in exp_obj.active_channel_list if chan!=reg_channel]
+    channels.remove(reg_channel)
     # Get all the tmats
     tmats_dict = {}
-    for chan in channel_lst:
-        img = load_stack(exp_obj.ori_imgs_lst,chan,0,True)
+    for chan in channels:
+        img = load_stack(img_paths,chan,0,True)
         tmats_dict[chan] = stackreg.register(img_ref,img)
     return tmats_dict
 
-def apply_chan_shift(exp_obj: Experiment, stackreg: StackReg, reg_channel: str)-> None:
+def apply_chan_shift(stackreg: StackReg, img_paths: list[PathLike], channels: list[str], 
+                     reg_channel: str, metadata: dict)-> None:
     """Apply the channel shift correction to the images."""
     # Get all the tmats
-    tmats_dict = get_tmats_chan(stackreg,exp_obj,reg_channel)
+    tmats_dict = get_tmats_chan(stackreg,img_paths,channels,reg_channel)
     
     # Sort the images by channel, expcept the reg_channel, as it doesn't need to be processed
-    sorted_channels = {chan: [file for file in exp_obj.ori_imgs_lst if chan in file] 
-                      for chan in exp_obj.active_channel_list if chan!=reg_channel} 
+    img_paths = [path for path in img_paths if reg_channel not in path]
     
     # Generate input data for parallel processing
-    input_data = [{'stackreg':stackreg,
-                   'img_path':path,
-                   'save_path':path,
-                   'tmat':tmats_dict[chan],
-                   'metadata':{'um_per_pixel':exp_obj.analysis.um_per_pixel,
-                               'finterval':exp_obj.analysis.interval_sec}} 
-                  for chan, img_path_lst in sorted_channels.items() for path in img_path_lst]
+    if not metadata:
+        metadata = {'um_per_pixel':None,'finterval':None}
+    
+    partial_apply_tmat = partial(apply_tmat_to_img,stackreg=stackreg,tmats_dict=tmats_dict,
+                                 metadata=metadata)
     
     with ProcessPoolExecutor() as executor:
-        executor.map(apply_tmat_to_img,input_data)
+        executor.map(partial_apply_tmat,img_paths)
 
 
 ####################################################################################
@@ -204,9 +211,34 @@ def select_reg_mtd(reg_mtd: str)-> StackReg:
     elif reg_mtd=='bilinear':        stackreg = StackReg(StackReg.BILINEAR)
     return stackreg
 
-def apply_tmat_to_img(input_dict: dict)-> None:
+def apply_tmat_to_img(img_path: PathLike, stackreg: StackReg, tmats_dict: dict[str,np.ndarray],
+                      metadata: dict)-> None:
     """Transform the image with the given tmat and save it to the save_path."""
-    img = imread(input_dict['img_path'])
-    reg_img = input_dict['stackreg'].transform(img,input_dict['tmat'])
+    
+    img = imread(img_path)
+    channel = get_channel_from_path(img_path)
+    reg_img = stackreg.transform(img,tmats_dict[channel])
     reg_img[reg_img<0] = 0
-    save_tif(reg_img.astype(np.uint16),input_dict['save_path'],**input_dict['metadata'])
+    save_tif(reg_img.astype(np.uint16),img_path,**metadata)
+
+def get_channel_from_path(img_path: PathLike)-> str:
+    """Get the channel name from the image path with the format 
+    'path/to/image/channel_s00_f0000_z0000.tif'."""
+    return img_path.rsplit(sep,1)[-1].split('_',1)[0]
+
+
+if __name__ == "__main__":
+    from time import time
+    from os.path import join
+    # Test
+    
+    folder = '/home/Test_images/nd2/Run2/c2z25t23v1_nd2_s1/Images'
+    img_paths = [join(folder,file) for file in sorted(listdir(folder))]
+    start = time()
+    correct_channel_shift(img_paths,'rigid_body','RFP')
+    end = time()
+    print(f"Time taken: {end-start}")
+    # start = time()
+    # correct_frame_shift(img_paths,'RFP','rigid_body','previous')
+    # end = time()
+    # print(f"Time taken: {end-start}")

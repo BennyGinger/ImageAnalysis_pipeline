@@ -84,10 +84,10 @@ def cellpose_segmentation(img_paths: list[PathLike], channel_seg: str, model_typ
     # Set up the segmentation saving folder
     file_type = '.npy' if save_as_npy else '.tif'
     exp_path: PathLike = img_paths[0].rsplit(sep,2)[0]
-    create_save_folder(exp_path,'Masks_Cellpose')
+    save_path = create_save_folder(exp_path,'Masks_Cellpose')
     
     # Check if exist
-    if any(channel_seg in file for file in img_paths if file.endswith(file_type)) and not overwrite:
+    if any(channel_seg in file for file in sorted(listdir(save_path)) if file.endswith(file_type)) and not overwrite:
         # Log
         print(f" --> Cells have already been segmented with cellpose as {file_type} for the '{channel_seg}' channel.")
         model,model_settings = load_metadata(exp_path,channel_seg)
