@@ -1,9 +1,9 @@
 from __future__ import annotations
-from image_handeling.Experiment_Classes import Experiment
-from image_handeling.data_utility import is_processed, create_save_folder, delete_old_masks, seg_mask_lst_src, img_list_src, track_mask_lst_src, load_stack, save_tif
-from tracking.gnn_track.inference_clean import predict
-from tracking.gnn_track.postprocess_clean import Postprocess
-from tracking.gnn_track import preprocess_seq2graph_clean, preprocess_seq2graph_3d
+from pipeline.image_handeling.Experiment_Classes import Experiment
+from pipeline.image_handeling.data_utility import is_processed, create_save_folder, delete_old_masks, seg_mask_lst_src, img_list_src, track_mask_lst_src, load_stack, save_tif
+from pipeline.tracking.gnn_track.inference_clean import predict
+from pipeline.tracking.gnn_track.postprocess_clean import Postprocess
+from pipeline.tracking.gnn_track import preprocess_seq2graph_clean, preprocess_seq2graph_3d
 from skimage.segmentation import relabel_sequential
 from skimage.measure import regionprops_table
 from matplotlib.colors import cnames
@@ -146,7 +146,7 @@ def gnn_tracking(exp_obj_lst: list[Experiment], channel_seg: str, model:str, max
         input_img = join(exp_obj.exp_path, img_fold_src)
         if exp_obj.img_properties.n_slices==1: # check of 2D or 3D
             is_3d = False
-            # preprocess_seq2graph_clean.create_csv(input_images=input_img, input_seg=input_seg, input_model=model_dict['model_metric'], channel=channel_seg, output_csv=files_folder)
+            preprocess_seq2graph_clean.create_csv(input_images=input_img, input_seg=input_seg, input_model=model_dict['model_metric'], channel=channel_seg, output_csv=files_folder)
         else:
             is_3d = True
             preprocess_seq2graph_3d.create_csv(input_images=input_img, input_seg=input_seg, input_model=model_dict['model_metric'], channel=channel_seg, output_csv=files_folder)

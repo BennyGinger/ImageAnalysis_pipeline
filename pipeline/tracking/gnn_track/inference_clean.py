@@ -2,8 +2,8 @@ import os
 import yaml
 import torch
 
-from tracking.gnn_track.src.models.celltrack_plmodel import CellTrackLitModel
-from tracking.gnn_track.modules.graph_dataset_inference import CellTrackDataset
+from pipeline.tracking.gnn_track.src.models.celltrack_plmodel import CellTrackLitModel
+from pipeline.tracking.gnn_track.modules.graph_dataset_inference import CellTrackDataset
 import warnings
 warnings.filterwarnings("ignore")
 
