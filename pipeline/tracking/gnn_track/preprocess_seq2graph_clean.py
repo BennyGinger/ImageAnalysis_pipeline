@@ -13,8 +13,6 @@ import warnings
 warnings.filterwarnings("always")
 from pathlib import Path
 import re
-from concurrent.futures import ThreadPoolExecutor
-from functools import partial
 
 from tracking.gnn_track.modules.resnet_2d.resnet import set_model_architecture, MLP #src_metric_learning.modules.resnet_2d.resnet
 from skimage.morphology import label
@@ -122,88 +120,6 @@ class TestDataset(Dataset):
 
         return embedded_img.numpy().squeeze()
 
-    def correct_masks(self, min_cell_size):
-        n_changes = 0
-        for ind_data in range(self.__len__()):
-            per_cell_change = False
-            per_mask_change = False
-
-            img, result, im_path, result_path = self[ind_data]
-            res_save = result.copy()
-            labels_mask = result.copy()
-            while True:
-                bin_mask = labels_mask > 0
-                re_label_mask = label(bin_mask)
-                un_labels, counts = np.unique(re_label_mask, return_counts=True)
-
-                if np.any(counts < min_cell_size):
-                    per_mask_change = True
-
-                    first_label_ind = np.argwhere(counts < min_cell_size)
-                    if first_label_ind.size > 1:
-                        first_label_ind = first_label_ind.squeeze()[0]
-                    first_label_num = un_labels[first_label_ind]
-                    labels_mask[re_label_mask == first_label_num] = 0
-                else:
-                    break
-            bin_mask = (labels_mask > 0) * 1.0
-            result = np.multiply(result, bin_mask)
-            if not np.all(np.unique(result) == np.unique(res_save)):
-                warnings.warn(
-                    f"pay attention! the labels have changed from {np.unique(res_save)} to {np.unique(result)}")
-
-
-            for ind, id_res in enumerate(np.unique(result)):
-                if id_res == 0:
-                    continue
-                bin_mask = (result == id_res).copy()
-                while True:
-                    re_label_mask = label(bin_mask)
-                    un_labels, counts = np.unique(re_label_mask, return_counts=True)
-
-                    if np.any(counts < min_cell_size):
-                        per_cell_change = True
-
-                        first_label_ind = np.argwhere(counts < min_cell_size)
-                        if first_label_ind.size > 1:
-                            first_label_ind = first_label_ind.squeeze()[0]
-                        first_label_num = un_labels[first_label_ind]
-                        curr_mask = np.logical_and(result == id_res, re_label_mask == first_label_num)
-                        bin_mask[curr_mask] = False
-                        result[curr_mask] = 0.0
-                    else:
-                        break
-                while True:
-                    re_label_mask = label(bin_mask)
-                    un_labels, counts = np.unique(re_label_mask, return_counts=True)
-                    if un_labels.shape[0] > 2:
-                        per_cell_change = True
-                        n_changes += 1
-                        first_label_ind = np.argmin(counts)
-                        if first_label_ind.size > 1:
-                            first_label_ind = first_label_ind.squeeze()[0]
-                        first_label_num = un_labels[first_label_ind]
-                        curr_mask = np.logical_and(result == id_res, re_label_mask == first_label_num)
-                        bin_mask[curr_mask] = False
-                        result[curr_mask] = 0.0
-                    else:
-                        break
-            if not np.all(np.unique(result) == np.unique(res_save)):
-                warnings.warn(
-                    f"pay attention! the labels have changed from {np.unique(res_save)} to {np.unique(result)}")
-            if per_cell_change or per_mask_change:
-                n_changes += 1
-                res1 = (res_save > 0) * 1.0
-                res2 = (result > 0) * 1.0
-                n_pixels = np.abs(res1 - res2).sum()
-                print(f"per_mask_change={per_mask_change}, per_cell_change={per_cell_change}, number of changed pixels: {n_pixels}")
-                io.imsave(result_path, result.astype(np.uint16), compression=1) #BUG #original: compression = 6 is OJPEG, which is not implemented in tiffile in the moment
-
-
-
-        print(f"number of detected changes: {n_changes}")
-
-
     def find_min_max_and_roi(self):
         global_min = 2 ** 16 - 1
         global_max = 0
@@ -211,9 +127,9 @@ class TestDataset(Dataset):
         global_delta_col = 0
         counter = 0
         for ind_data in range(self.__len__()):
-            img, result, im_path, result_path = self[ind_data]
+            img, result, _, _ = self[ind_data]
 
-            for ind, id_res in enumerate(np.unique(result)):
+            for id_res in np.unique(result):
                 if id_res == 0:
                     continue
 
@@ -315,13 +231,6 @@ class TestDataset(Dataset):
             num_labels = np.unique(result).shape[0] - 1
 
             df = pd.DataFrame(index=range(num_labels), columns=cols)
-
-
-
-            # partial_get_properties = partial(get_properties_to_df, result=result, cols_resnet=cols_resnet, img=img, df=df, func=self.extract_freature_metric_learning)
-            
-            # with ThreadPoolExecutor() as executer:
-            #     executer.map(partial_get_properties,np.unique(result))
             
 
             for ind, id_res in enumerate(np.unique(result)):
@@ -366,41 +275,11 @@ class TestDataset(Dataset):
         print(f"files were saved to : {full_dir}")
 
 
-def get_properties_to_df(result, cols_resnet, img, df, id_res, func):
-    #get enumerate ID to write in the right positions in df
-    print('do we start?')
-    ind = np.where(np.unique(result)==id_res)[0][0]
-    # Color 0 is assumed to be background or artifacts
-    row_ind = ind - 1 #because we skip 0 and want to start writing with position 0
-    if id_res == 0:
-        return
-    print(f'{id_res=}')
-    # extracting statistics using regionprops
-    properties = regionprops(np.uint8(result == id_res), img)[0]
-    print('Are we coming here?')
-    embedded_feat = func(properties.bbox, img.copy(), result.copy(), id_res)
-    print('and what about here?')
-    df.loc[row_ind, cols_resnet] = embedded_feat
-    df.loc[row_ind, "seg_label"] = id_res
-
-    df.loc[row_ind, "area"] = properties.area
-
-    df.loc[row_ind, "min_row_bb"], df.loc[row_ind, "min_col_bb"], \
-    df.loc[row_ind, "max_row_bb"], df.loc[row_ind, "max_col_bb"] = properties.bbox
-
-    df.loc[row_ind, "centroid_row"], df.loc[row_ind, "centroid_col"] = \
-        properties.centroid[0].round().astype(np.int16), \
-        properties.centroid[1].round().astype(np.int16)
-
-    df.loc[row_ind, "major_axis_length"], df.loc[row_ind, "minor_axis_length"] = \
-        properties.major_axis_length, properties.minor_axis_length
-
-    df.loc[row_ind, "max_intensity"], df.loc[row_ind, "mean_intensity"], df.loc[row_ind, "min_intensity"] = \
-        properties.max_intensity, properties.mean_intensity, properties.min_intensity
 
 
 
-def create_csv(input_images, input_seg, input_model, output_csv, min_cell_size, channel:str = ''):
+
+def create_csv(input_images, input_seg, input_model, output_csv, channel:str = ''):
     dict_path = input_model
     path_output = output_csv
     path_Seg_result = input_seg
@@ -410,7 +289,6 @@ def create_csv(input_images, input_seg, input_model, output_csv, min_cell_size, 
         channel=channel,
         type_img="tif",
         type_masks="tif")
-    # ds.correct_masks(min_cell_size)
     ds.preprocess_features_loop_by_results_w_metric_learning(path_to_write=path_output,
         dict_path=dict_path)
 
@@ -428,11 +306,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    min_cell_size = args.cs
     input_images = args.ii
     input_segmentation = args.iseg
     input_model = args.im
 
     output_csv = args.oc
 
-    create_csv(input_images, input_segmentation, input_model, output_csv, min_cell_size)
+    create_csv(input_images, input_segmentation, input_model, output_csv)

@@ -1,5 +1,5 @@
 settings = {
-    "input_folder": '/home/Fabian/ImageData/CalciumImmunCell/Macrophage/Amputation',
+    "input_folder": '/home/Fabian/ImageData/TrackingTestFiles/PipelineTest',
     "init":{"active_channel_list": ['RFP','GFP'],
             'full_channel_list':['RFP','GFP'],
             "overwrite": False},
@@ -15,7 +15,7 @@ settings = {
                     "reg_mtd": "translation",
                     "overwrite": False}),
     
-    "frame_shift": (False,
+    "frame_shift": (True,
                 {"reg_channel": "RFP",
                 "reg_mtd": "rigid_body",
                 "img_ref": "mean",
@@ -29,10 +29,10 @@ settings = {
 
     "cellpose": (True,
                 {"channel_to_seg":"RFP", #BUG channel should be controlled if it exists in the channel list
-                "model_type": "/home/Fabian/Models/Cellpose/twoFishMacrophage", #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
+                "model_type": "cyto2", #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
                 "diameter": 15.0,
-                "flow_threshold": 0.0,
-                "cellprob_threshold":-3,
+                "flow_threshold": 0.5,
+                "cellprob_threshold":0.0,
                 "overwrite": False,
                 "img_fold_src": "",
                 "process_as_2D": True,
@@ -56,14 +56,14 @@ settings = {
                    "copy_last_to_end": True,
                    "overwrite":True}),
     
-    "gnn_track": (True,
+    "gnn_track": (True,                         #not working: Fluo-C2DL-Huh7
                   {"channel_to_track":"RFP",
                    "img_fold_src": "",
-                   "model":"neutrophil", #neutrophil, neutrophil_old, Fluo-C2DL-Huh7, Fluo-N2DH-SIM+, Fluo-N2DL-HeLa, Fluo-N3DH-SIM+ (implement from server first!), PhC-C2DH-U373
+                   "model":"Fluo-N2DL-HeLa", #neutrophil, Fluo-N2DH-SIM+, Fluo-N2DL-HeLa, Fluo-N3DH-SIM+ (implement from server first!), PhC-C2DH-U373
                    "mask_fold_src": "",
                    "morph":False, # not implemented yet
-                   'min_cell_size': 15,
                    'decision_threshold': 0.4, #between 0-1, 1=more interrupted tracks, 0= more tracks gets connected, checks for the confidence of the model for the connection of two cells
+                   'max_travel_dist':50,
                    "mask_appear":5, # not implemented yet
                    "manual_correct":True,
                    "overwrite":True}),

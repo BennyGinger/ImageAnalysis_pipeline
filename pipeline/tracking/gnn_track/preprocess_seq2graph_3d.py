@@ -130,91 +130,6 @@ class TestDataset(Dataset):
 
         return image
 
-    def correct_masks(self, min_cell_size=10):
-        n_changes = 0
-        for ind_data in range(self.__len__()): #[110:]:
-            per_cell_change = False
-            per_mask_change = False
-
-            img, result, im_path, result_path = self[ind_data]
-            res_save = result.copy()
-            print(f"start: {im_path}")
-            labels_mask = result.copy()
-            while True:
-                bin_mask = labels_mask > 0
-                re_label_mask = label(bin_mask)
-                un_labels, counts = np.unique(re_label_mask, return_counts=True)
-
-                if np.any(counts < min_cell_size):
-                    per_mask_change = True
-                    n_changes += 1
-                    print(f"{im_path}: \n {counts}")
-                    first_label_ind = np.argwhere(counts < 20)
-                    if first_label_ind.size > 1:
-                        first_label_ind = first_label_ind.squeeze()[0]
-                    first_label_num = un_labels[first_label_ind]
-                    labels_mask[re_label_mask == first_label_num] = 0
-                else:
-                    break
-
-            bin_mask = (labels_mask > 0) * 1.0
-            result = np.multiply(result, bin_mask)
-
-            if not np.all(np.unique(result) == np.unique(res_save)):
-                warnings.warn(f"pay attention! the labels have changed from {np.unique(res_save)} to {np.unique(result)}")
-            # assert np.all(np.unique(result) == np.unique(res_save))
-            for ind, id_res in enumerate(np.unique(result)):
-                if id_res == 0:
-                    continue
-                bin_mask = (result == id_res).copy()
-                while True:
-                    re_label_mask = label(bin_mask)
-                    un_labels, counts = np.unique(re_label_mask, return_counts=True)
-
-                    if np.any(counts < min_cell_size):
-                        per_cell_change = True
-                        n_changes += 1
-                        print(f"{im_path}: \n {counts}")
-                        first_label_ind = np.argwhere(counts < min_cell_size)
-                        if first_label_ind.size > 1:
-                            first_label_ind = first_label_ind.squeeze()[0]
-                        first_label_num = un_labels[first_label_ind]
-                        curr_mask = np.logical_and(result == id_res, re_label_mask == first_label_num)
-                        bin_mask[curr_mask] = False
-                        result[curr_mask] = 0.0
-                    else:
-                        break
-                while True:
-                    re_label_mask = label(bin_mask)
-                    un_labels, counts = np.unique(re_label_mask, return_counts=True)
-                    if un_labels.shape[0] > 2:
-                        per_cell_change = True
-                        n_changes += 1
-                        print(f"un_labels.shape[0] > 2 : {im_path}: \n {counts}")
-                        first_label_ind = np.argmin(counts)
-                        if first_label_ind.size > 1:
-                            first_label_ind = first_label_ind.squeeze()[0]
-                        first_label_num = un_labels[first_label_ind]
-                        curr_mask = np.logical_and(result == id_res, re_label_mask == first_label_num)
-                        bin_mask[curr_mask] = False
-                        result[curr_mask] = 0.0
-                    else:
-                        break
-
-            if not np.all(np.unique(result) == np.unique(res_save)):
-                warnings.warn(
-                    f"pay attention! the labels have changed from {np.unique(res_save)} to {np.unique(result)}")
-            if per_cell_change or per_mask_change:
-                res1 = (res_save > 0) * 1.0
-                res2 = (result > 0) * 1.0
-                n_pixels = np.abs(res1 - res2).sum()
-                print(f"per_mask_change={per_mask_change}, per_cell_change={per_cell_change}, number of changed pixels: {n_pixels}")
-
-                print(f"save: {result_path}")
-
-        print(f"number of detected changes: {n_changes}")
-
-
     def extract_freature_metric_learning(self, bbox, img, seg_mask, ind, normalize_type='MinMaxCell'):
         min_depth_bb, min_row_bb, min_col_bb, \
         max_depth_bb, max_row_bb, max_col_bb = bbox
@@ -425,7 +340,7 @@ def create_csv(input_images, input_seg, input_model, output_csv, channel:str = '
         channel = channel,
         type_img="tif",
         type_masks="tif")
-    # ds.correct_masks()
+
     ds.preprocess_features_loop_by_results_w_metric_learning(path_to_write=path_output,
         dict_path=dict_path)
 
