@@ -59,7 +59,7 @@ settings = {
     "gnn_track": (True,                         #not working: Fluo-C2DL-Huh7
                   {"channel_to_track":"RFP",
                    "img_fold_src": "",
-                   "model":"Fluo-N2DL-HeLa", #neutrophil, Fluo-N2DH-SIM+, Fluo-N2DL-HeLa, Fluo-N3DH-SIM+ (implement from server first!), PhC-C2DH-U373
+                   "model":"PhC-C2DH-U373", #neutrophil, Fluo-N2DH-SIM+, Fluo-N2DL-HeLa, Fluo-N3DH-SIM+ (implement from server first!), PhC-C2DH-U373
                    "mask_fold_src": "",
                    "morph":False, # not implemented yet
                    'decision_threshold': 0.4, #between 0-1, 1=more interrupted tracks, 0= more tracks gets connected, checks for the confidence of the model for the connection of two cells
