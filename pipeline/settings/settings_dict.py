@@ -4,7 +4,6 @@ settings = {
             'full_channel_list':'BF',
             "overwrite": False},
     
-    
     "bg_sub": (False,
                 {"sigma": 0.0,
                 "size": 7,
@@ -52,17 +51,17 @@ settings = {
                    "copy_last_to_end": True,
                    "overwrite":True}),
     
-    "gnn_track": (False,
+    "gnn_track": (True,                         #not working: Fluo-C2DL-Huh7
                   {"channel_to_track":"RFP",
                    "img_fold_src": "",
-                   "model":"Fluo-N2DH-SIM+", #neutrophil, neutrophil_old, Fluo-C2DL-Huh7, Fluo-N2DH-SIM+, Fluo-N2DL-HeLa, Fluo-N3DH-SIM+ (implement from server first!), PhC-C2DH-U373
+                   "model":"PhC-C2DH-U373", #neutrophil, Fluo-N2DH-SIM+, Fluo-N2DL-HeLa, Fluo-N3DH-SIM+ (implement from server first!), PhC-C2DH-U373
                    "mask_fold_src": "",
                    "morph":False, # not implemented yet
-                   'min_cell_size': 15,
-                   'decision_threshold': 0.1, #between 0 and one, 1=more interrupted tracks, 0= more tracks gets connected
+                   'decision_threshold': 0.4, #between 0-1, 1=more interrupted tracks, 0= more tracks gets connected, checks for the confidence of the model for the connection of two cells
+                   'max_travel_dist':50,
                    "mask_appear":5, # not implemented yet
                    "manual_correct":True,
-                   "overwrite":False}),
+                   "overwrite":True}),
     
     "man_track": (False,
                   {"channel_to_track":"BF",

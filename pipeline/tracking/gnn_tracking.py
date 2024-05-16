@@ -11,6 +11,8 @@ from pandas import DataFrame
 from os.path import join
 from os import getcwd
 
+import numpy as np #TODO remove later!
+
 def model_select(model):
     model_dict = {}
     root = getcwd()
@@ -93,9 +95,9 @@ def relabel_masks(exp_obj, channel_seg, mask_fold_src):
 
 # # # # # # # # main functions # # # # # # # # # 
 
-def gnn_tracking(exp_obj_lst: list[Experiment], channel_seg: str, model:str, overwrite: bool=False,
+def gnn_tracking(exp_obj_lst: list[Experiment], channel_seg: str, model:str, max_travel_dist:int ,overwrite: bool=False,
                  img_fold_src: str = None, mask_fold_src: str = None, morph: bool=False, mask_appear=2,
-                 min_cell_size:int = 20, decision_threshold:float = 0.5, manual_correct:bool=False):
+                 decision_threshold:float = 0.5, manual_correct:bool=False):
     """
     Perform GNN Tracking based cell tracking on a list of experiments.
 
@@ -108,7 +110,6 @@ def gnn_tracking(exp_obj_lst: list[Experiment], channel_seg: str, model:str, ove
         mask_fold_src (str): Source folder path for masks.
         morph: bool=False (not included yet)
         mask_appear (int, optional): Number of times a mask should appear to be considered valid. Defaults to 2.
-        min_cell_size (int, optional): Minimum cell size to be recognized as cell. Defaults to 20.
         decision_threshold (float, optional): #0 to 1, 1=more interrupted tracks, 0= more tracks gets connected.(Source: ChatGPT) Defaults to 0.5.
         manual_correct (bool, optional): Flag to create .mdf file for ImageJ plugin MTrackJ to manual correct the tracks. Defaults to False.
     
@@ -119,6 +120,7 @@ def gnn_tracking(exp_obj_lst: list[Experiment], channel_seg: str, model:str, ove
         # Activate the branch
         exp_obj.tracking.is_gnn_tracking = True
 
+        
         # Already processed?
         if is_processed(exp_obj.tracking.gnn_tracking,channel_seg,overwrite):
                 # Log
@@ -127,7 +129,7 @@ def gnn_tracking(exp_obj_lst: list[Experiment], channel_seg: str, model:str, ove
 
         # Track images
         print(f" --> Tracking cells for the '{channel_seg}' channel")
-
+        
         # Create save folder and remove old masks
         create_save_folder(exp_obj.exp_path,'Masks_GNN_Track')
         create_save_folder(exp_obj.exp_path,'gnn_files')
@@ -138,25 +140,30 @@ def gnn_tracking(exp_obj_lst: list[Experiment], channel_seg: str, model:str, ove
         #get path of mask
         mask_fold_src, _ = seg_mask_lst_src(exp_obj,mask_fold_src)
         input_seg = join(exp_obj.exp_path, mask_fold_src)
-        
+
         #get path of image
         img_fold_src, _ = img_list_src(exp_obj,img_fold_src)
         input_img = join(exp_obj.exp_path, img_fold_src)
-        
         if exp_obj.img_properties.n_slices==1: # check of 2D or 3D
             is_3d = False
-            preprocess_seq2graph_clean.create_csv(input_images=input_img, input_seg=input_seg, input_model=model_dict['model_metric'], channel=channel_seg, output_csv=files_folder, min_cell_size=min_cell_size)
+            # preprocess_seq2graph_clean.create_csv(input_images=input_img, input_seg=input_seg, input_model=model_dict['model_metric'], channel=channel_seg, output_csv=files_folder)
         else:
             is_3d = True
-            preprocess_seq2graph_3d.create_csv(input_images=input_img, input_seg=input_seg, input_model=model_dict['model_metric'], channel=channel_seg, output_csv=files_folder, min_cell_size=min_cell_size)
+            preprocess_seq2graph_3d.create_csv(input_images=input_img, input_seg=input_seg, input_model=model_dict['model_metric'], channel=channel_seg, output_csv=files_folder)
             
         predict(ckpt_path=model_dict['model_lightning'], path_csv_output=files_folder, num_seq='01')
-                
+   
         pp = Postprocess(is_3d=is_3d, type_masks='tif', merge_operation='AND', decision_threshold=decision_threshold,
-                     path_inference_output=files_folder, center_coord=False, directed=True, path_seg_result=input_seg)
+                     path_inference_output=files_folder, directed=True, path_seg_result=input_seg, max_travel_dist=max_travel_dist)
         
-        pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
+        all_frames_traject, trajectory_same_label, _ = pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
+        np.savetxt("/home/Fabian/ImageData/all_frames_traject.csv", all_frames_traject, delimiter=",")
+        np.savetxt("/home/Fabian/ImageData/trajectory_same_label.csv", trajectory_same_label, delimiter=",")
+
+
         pp.fill_mask_labels(debug=False)
+        
+        
         
         #relabel the masks from ID 1 until n and add metadata
         relabel_masks(exp_obj, channel_seg, mask_fold_src = 'Masks_GNN_Track')
@@ -165,7 +172,7 @@ def gnn_tracking(exp_obj_lst: list[Experiment], channel_seg: str, model:str, ove
             prepare_manual_correct(exp_obj, channel_seg, mask_fold_src = 'Masks_GNN_Track')
             
         # Save settings
-        exp_obj.tracking.gnn_tracking[channel_seg] = {'img_fold_src':img_fold_src, 'mask_fold_src':mask_fold_src, 'model':model, 'mask_appear':mask_appear, 'morph':morph, 'min_cell_size':min_cell_size, 'decision_threshold':decision_threshold}
+        exp_obj.tracking.gnn_tracking[channel_seg] = {'img_fold_src':img_fold_src, 'mask_fold_src':mask_fold_src, 'model':model, 'mask_appear':mask_appear, 'morph':morph, 'decision_threshold':decision_threshold, 'max_travel_dist':max_travel_dist}
         exp_obj.save_as_json()
     return exp_obj_lst
 
