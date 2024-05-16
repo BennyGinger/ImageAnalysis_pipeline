@@ -73,6 +73,8 @@ class AnalysisModule(BaseModule):
         # If reference masks were drawn
         if exp_obj.analysis.is_reference_masks:
             ref_masks = _load_ref_masks(exp_obj)
+        else:
+            ref_masks = {}
         # Extract the data
         dfs = []
         for mask_name, mask_array in masks_arrays.items():

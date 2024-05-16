@@ -14,7 +14,7 @@ def background_sub(img_paths: list[PathLike], sigma: float=0.0, size: int=7,
     """For each experiment, apply a background substraction on the images and return a list of Settings objects"""
     # Log
     exp_name = img_paths[0].rsplit(sep,2)[0].rsplit(sep,1)[1]
-    print(f" --> Applying background substraction to {exp_name} with sigma={sigma} and size={size}")
+    print(f"--> Applying background substraction to {exp_name} with sigma={sigma} and size={size}")
     # Generate input data
     img_shape = imread(img_paths[0]).shape
     smo = SMO(shape=img_shape,sigma=sigma,size=size) 

@@ -1,40 +1,40 @@
 settings = {
-    "input_folder": '/home/Test_images/bigy',
-    "init":{"active_channel_list": ['RFP'],
-            'full_channel_list':["RFP"],
+    "input_folder": '/home/Test_images/szimi',
+    "init":{"active_channel_list": 'BF',
+            'full_channel_list':'BF',
             "overwrite": False},
     
     
-    "bg_sub": (True,
+    "bg_sub": (False,
                 {"sigma": 0.0,
                 "size": 7,
                 "overwrite": False}),
     
     "chan_shift": (False,
-                    {"reg_channel": "YFP",
-                    "reg_mtd": "translation",
+                    {"reg_channel": "RFP",
+                    "reg_mtd": "rigid_body",
                     "overwrite": False}),
     
-    "frame_shift": (False,
-                {"reg_channel": "RFP",
+    "frame_shift": (True,
+                {"reg_channel": "BF",
                 "reg_mtd": "rigid_body",
-                "img_ref": "previous",
-                "overwrite": False}),
+                "img_ref": "first",
+                "overwrite": True}),
     
     "blur": (False,
             {"kernel": (15,15),
             "sigma": 5,
             "overwrite": False}),
 
-    "cellpose": (True,
+    "cellpose": (False,
                 {"channel_to_seg":"RFP", #BUG channel should be controlled if it exists in the channel list
                 "model_type": "cyto2", #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
-                "diameter": 30.0,
+                "diameter": 60.0,
                 "flow_threshold": 0.5,
                 "cellprob_threshold":0,
                 "process_as_2D": True,
                 "save_as_npy": False,
-                "overwrite": False,}),
+                "overwrite": True,}),
     
     "threshold": (False,
                 {"channel_to_seg":"RFP",
@@ -42,12 +42,12 @@ settings = {
                 "img_fold_src": "",
                 "overwrite": False,}),
     
-    "iou_track": (True,
+    "iou_track": (False,
                   {"channel_to_track":"RFP", #BUG channel should be controlled if it exists in the channel list
                    "img_fold_src": "",
                    "stitch_thres_percent": 0.1,
                    "shape_thres_percent": 0.8,
-                   "mask_appear":50,
+                   "mask_appear":5,
                    "copy_first_to_start": True, 
                    "copy_last_to_end": True,
                    "overwrite":True}),
@@ -77,12 +77,12 @@ settings = {
                    "process_as_2D":True,
                    "overwrite":True}),
     
-    "draw_mask": (True,
+    "draw_mask": (False,
                   {"mask_label": "wound", # str or list[str]
                    "channel_show": "RFP",
                    "overwrite": True}),
     
-    "extract_data": (True,
-                        {"img_fold_src": "",
-                        "overwrite": True}),
+    "extract_data": (False,
+                  {"img_fold_src": "",
+                   "overwrite": True}),
 }

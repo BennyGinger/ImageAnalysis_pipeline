@@ -6,7 +6,7 @@ from typing import Callable
 import numpy as np
 from cellpose import models, core
 from cellpose.io import logger_setup, masks_flows_to_seg
-from os import PathLike, sep
+from os import PathLike, sep, listdir
 from os.path import isfile, join
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pipeline.image_handeling.data_utility import load_stack, create_save_folder, save_tif
@@ -120,7 +120,7 @@ def run_cellpose(frame: int, img_paths: list[PathLike], channels: list[str], pro
     # Load image/stack and model
     img = load_stack(img_paths,channels,frame,process_as_2D)
     # Save path
-    path_name = [path for path in sorted(img_paths) if f'_f{frame+1:04d}' in path][0]
+    path_name = [path for path in sorted(img_paths) if f'_f{frame+1:04d}' in path and channels[0] in path][0]
     mask_path = path_name.replace('Images','Masks_Cellpose').replace('_Registered','').replace('_Blured','')
     # log
     print(f"  ---> Processing frame {frame}")
@@ -279,10 +279,15 @@ def unpack_kwargs(kwargs: dict, channel_seg: str)-> tuple[str,list[str],dict]:
         nuclear_marker = kwargs['nuclear_marker']
         channels = [channel_seg,nuclear_marker]
         del kwargs['nuclear_marker']
+    else:
+        nuclear_marker = ""
+        channels = [channel_seg]
 
     if 'metadata' in kwargs:
         metadata = kwargs['metadata']
         del kwargs['metadata']
+    else:
+        metadata = {'finterval':None, 'um_per_pixel':None}
     return nuclear_marker,channels,metadata
     
         

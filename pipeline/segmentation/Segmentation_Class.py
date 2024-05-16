@@ -42,7 +42,6 @@ class SegmentationModule(BaseModule):
                  cellprob_threshold: float = 0, overwrite: bool = False, 
                  img_fold_src: str = "", process_as_2D: bool = False, 
                  save_as_npy: bool = False,**kwargs: Any)-> None:
-        
         if isinstance(channel_to_seg,str):
             for exp_obj in self.exp_obj_lst:
                 # Activate branch
