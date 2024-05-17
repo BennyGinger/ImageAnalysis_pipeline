@@ -12,22 +12,29 @@ from pipeline.pre_process.image_registration import correct_frame_shift, correct
 from pipeline.settings.Setting_Classes import Settings
 from pipeline.image_handeling.Experiment_Classes import Experiment, init_from_dict, init_from_json
 from pipeline.image_handeling.Base_Module_Class import BaseModule
+from pipeline.image_handeling.data_utility import img_list_src, is_processed
 
 EXTENTION = ('.nd2','.tif','.tiff')
 
 @dataclass
-class PreProcess(BaseModule):
+class PreProcessModule(BaseModule):
     # Attributes from the BaseModule class:
         # input_folder: PathLike | list[PathLike]
         # exp_obj_lst: list[Experiment] = field(init=False)
-    active_channel_list: list[str] = field(default_factory=list)
-    full_channel_list: list[str] = field(default_factory=list)
+    active_channel_list: list[str] | str = field(default_factory=list)
+    full_channel_list: list[str] | str = field(default_factory=list)
     overwrite: bool = False
 
     def __post_init__(self)-> None:
         super().__post_init__()
         exp_files = self.search_exp_files()
         print('done')
+        # Check if the channel lists are strings, if so convert them to lists
+        if isinstance(self.active_channel_list,str):
+            self.active_channel_list = [self.active_channel_list]
+        if isinstance(self.full_channel_list,str):
+            self.full_channel_list = [self.full_channel_list]
+        
         ## Convert the images to img_seq
         self.exp_obj_lst = self.extract_img_seq(exp_files)
         
@@ -35,7 +42,6 @@ class PreProcess(BaseModule):
         for exp_obj in self.exp_obj_lst:
             exp_obj.analysis.labels = self.get_labels(exp_obj)
             
-        
     def search_exp_files(self)-> list[PathLike]:
         # look through the folder and collect all image files
         print(f"\n... Searching for {EXTENTION} files in {self.input_folder} ...")
@@ -74,24 +80,90 @@ class PreProcess(BaseModule):
         sets = sets.preprocess
         # Run the different pre-process functions
         if hasattr(sets,'bg_sub'):
-            self.exp_obj_lst = self.bg_sub(**sets.bg_sub)
+            self.bg_sub(**sets.bg_sub)
         if hasattr(sets,'chan_shift'):
-            self.exp_obj_lst = self.channel_shift(**sets.chan_shift)
+            self.channel_shift(**sets.chan_shift)
         if hasattr(sets,'frame_shift'):
-            self.exp_obj_lst = self.frame_shift(**sets.frame_shift)
+            self.frame_shift(**sets.frame_shift)
         if hasattr(sets,'blur'):
             self.exp_obj_lst = self.blur(**sets.blur)
         self.save_as_json()
         return self.exp_obj_lst
     
-    def bg_sub(self, sigma: float=0, size: int=7, overwrite: bool=False)-> list[Experiment]:
-        return background_sub(self.exp_obj_lst,sigma,size,overwrite)
+    def bg_sub(self, sigma: float=0, size: int=7, overwrite: bool=False)-> None:
+        """Method to apply background substraction to the images. 
+        The images are saved in the same folder as the original images."""
+        
+        
+        for exp_obj in self.exp_obj_lst:
+            # Activate the branch
+            exp_obj.preprocess.is_background_sub = True
+            # Already processed?
+            if is_processed(exp_obj.preprocess.background_sub,overwrite=overwrite):
+                print(f" --> Background substraction was already applied to the images with {exp_obj.preprocess.background_sub}")
+                continue
+            # Apply background substraction
+            background_sub(exp_obj.ori_imgs_lst,sigma,size,overwrite)
+            # Save the settings
+            exp_obj.preprocess.background_sub = (f"sigma={sigma}",f"size={size}","fold_src=Images")
+            exp_obj.save_as_json()
     
-    def channel_shift(self, reg_channel: str, reg_mtd: str, overwrite: bool=False)-> list[Experiment]:
-        return correct_channel_shift(self.exp_obj_lst,reg_mtd,reg_channel,overwrite)
+    def channel_shift(self, reg_channel: str, reg_mtd: str, overwrite: bool=False)-> None:
+        """Method to apply channel shift to the images. Images are saved in the same folder as 
+        the original images."""
+        
+        
+        for exp_obj in self.exp_obj_lst:
+            if len(exp_obj.active_channel_list)==1:
+                print(f" --> Only one channel in the image, no channel shift needed")
+                continue
+            
+            # Activate the branch
+            exp_obj.preprocess.is_channel_reg = True
+            
+            if is_processed(exp_obj.preprocess.channel_reg,overwrite=overwrite):
+                print(f" --> Channel shift was already applied to the images with {exp_obj.preprocess.channel_reg}")
+                continue
+            
+            # Get the images to register
+            img_fold_src,img_paths = img_list_src(exp_obj,'Images')
+            
+            # Apply the channel shift
+            correct_channel_shift(img_paths,reg_mtd,reg_channel,exp_obj.active_channel_list,
+                                  {'finterval':exp_obj.analysis.interval_sec,'um_per_pixel':exp_obj.analysis.um_per_pixel})
+            
+            # Save the settings
+            exp_obj.preprocess.channel_reg = [f"reg_mtd={reg_mtd}",f"reg_channel={reg_channel}",f"fold_src={img_fold_src}"]
+            exp_obj.save_as_json()
     
-    def frame_shift(self, reg_channel: str, reg_mtd: str, img_ref: str, overwrite: bool=False)-> list[Experiment]:
-        return correct_frame_shift(self.exp_obj_lst,reg_channel,reg_mtd,img_ref,overwrite)
+    def frame_shift(self, reg_channel: str, reg_mtd: str, img_ref: str, overwrite: bool=False)-> None:
+        for exp_obj in self.exp_obj_lst:
+            if exp_obj.img_properties.n_frames==1:
+                print(f" --> Only one frame in the image, no frame shift needed")
+                continue
+            
+            # Activate the branch
+            exp_obj.preprocess.is_frame_reg = True
+            
+            # Already processed?
+            if is_processed(exp_obj.preprocess.frame_reg,overwrite=overwrite):
+                print(f" --> Frame shift was already applied to the images with {exp_obj.preprocess.frame_reg}")
+                continue
+            
+            # Get the images to register
+            img_fold_src,img_paths = img_list_src(exp_obj,'Images')
+            
+            # Apply the frame shift
+            correct_frame_shift(img_paths,reg_channel,reg_mtd,img_ref,overwrite,
+                                {'finterval':exp_obj.analysis.interval_sec,'um_per_pixel':exp_obj.analysis.um_per_pixel},
+                                exp_obj.img_properties.n_frames)
+            
+            # Save settings
+            exp_obj.preprocess.frame_reg = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}",f"img_ref={img_ref}",f"fold_src={img_fold_src}"]
+            exp_obj.save_as_json()
+            pass
+        
+        return
     
     def blur(self, kernel: tuple[int], sigma: int, img_fold_src: PathLike="", overwrite: bool=False)-> list[Experiment]:
         return blur_img(self.exp_obj_lst,kernel,sigma,img_fold_src,overwrite)
@@ -133,5 +205,5 @@ if __name__ == "__main__":
     
 
     img_path = '/home/Test_images/nd2/Run3'
-    obj = PreProcess(img_path,overwrite=True)
+    obj = PreProcessModule(img_path,overwrite=True)
     print(obj.exp_obj_lst)

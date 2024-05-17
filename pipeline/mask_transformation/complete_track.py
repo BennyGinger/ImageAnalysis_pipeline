@@ -1,6 +1,7 @@
 from __future__ import annotations
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
+from skimage.measure import regionprops_table
 from pipeline.mask_transformation.mask_warp import mask_warp
 from functools import partial
 
@@ -19,6 +20,19 @@ def complete_track(mask_stack: np.ndarray, mask_appear: int, copy_first_to_start
         np.ndarray: The morphed mask stack.
     """
     
+    # Split mask into complete and non-complete tracks
+    new_stack = mask_stack.copy()
+    incomplete_tracks = trim_incomplete_track(new_stack)
+    # If all tracks are complete, return the original mask
+    if incomplete_tracks.size == 0:
+        return mask_stack
+    
+    # If not all tracks are complete, remove the complete tracks from the mask stack
+    mask_stack -= new_stack
+    
+    # Get the region properties of the mask, and zip it: (label,(slice_f,slice_y,slice_x))
+    props: list[zip[tuple[int,tuple]]] = list(zip(*regionprops_table(mask_stack,properties=('label','slice')).values()))
+    
     # Generate input data
     print('  ---> Morphing missing masks')
     apply_filling_partial = partial(apply_filling, mask_stack=mask_stack, mask_appear=mask_appear, 
@@ -26,17 +40,19 @@ def complete_track(mask_stack: np.ndarray, mask_appear: int, copy_first_to_start
     
     # Apply morphing
     with ThreadPoolExecutor() as executor:
-        temp_masks = executor.map(apply_filling_partial, list(np.unique(mask_stack))[1:])
-        new_stack = np.zeros((mask_stack.shape))
-        # Combine the morphed masks
-        for obj, temp in zip(list(np.unique(mask_stack))[1:], temp_masks):
-            new_stack = new_stack + temp
-            # Trim any overlapping mask
-            if np.any(new_stack > obj):
-                new_stack[new_stack > obj] = new_stack[new_stack > obj] - obj
-        # Trim incomplete tracks, as complete tracks can be overwritten by incomplete tracks
-        if copy_first_to_start or copy_last_to_end:
-            new_stack = trim_incomplete_track(new_stack)
+        temp_masks = executor.map(apply_filling_partial, props)
+    
+    # Reconstruct original size mask
+    for slice_obj,temp in temp_masks:
+        # Get the array of the mask that are equals to zero
+        new_stack_zerro = new_stack[slice_obj] == 0
+        # Add the temp to the new_stack only where the new_stack is zero (leave the rest as is)
+        new_stack[slice_obj][new_stack_zerro] += temp[new_stack_zerro]
+    
+    # Trim incomplete tracks, as complete tracks can be overwritten by incomplete tracks
+    if copy_first_to_start or copy_last_to_end:
+        print('  ---> Trimming incomplete tracks')
+        trim_incomplete_track(new_stack)
     return new_stack.astype('uint16')
 
 ################## Helper functions ##################
@@ -48,7 +64,7 @@ def copy_first_last_mask(mask_stack: np.ndarray, copy_first_to_start: bool=True,
         copy_last_to_end (bool): Copy the last mask to the end of the stack.
     Returns:
         np.ndarray: Mask array with copied masks."""
-    # Check if any copy is needed
+    # Check no copy needed, skip
     if not copy_first_to_start and not copy_last_to_end:
         return mask_stack
     
@@ -72,16 +88,16 @@ def copy_first_last_mask(mask_stack: np.ndarray, copy_first_to_start: bool=True,
         mask_stack[idx+1:,...] = mask_stack[idx]
     return mask_stack
     
-def find_gaps(mask_stack: np.ndarray)-> list[tuple[int,int,int]]:
+def find_gaps(cropped_stack: np.ndarray)-> list[tuple[int,int,int]]:
     """Function to determine the gaps between masks in a stack.
     Args:
-        mask_stack (np.ndarray): 3D ndarray containing the mask stack.
+        cropped_stack (np.ndarray): Cropped 3D ndarray containing the mask stack. 
 
     Returns:
         list[tuple[int,int,int]]: List of tuples containing the last and first mask surrounding the gap, as well as the gap length."""
 
     # Convert array to bool, whether mask is present or not
-    is_masks = np.any(mask_stack,axis=(1,2))
+    is_masks = np.any(cropped_stack,axis=(1,2))
     
     # If no gap return empty list
     if np.all(is_masks):
@@ -100,43 +116,51 @@ def find_gaps(mask_stack: np.ndarray)-> list[tuple[int,int,int]]:
     gap_lst = list(zip(gap_starts, gap_ends))
     return [(start, end, end-start) for start, end in gap_lst]
     
-def fill_gaps(mask_stack: np.ndarray, copy_first_to_start: bool=True, copy_last_to_end: bool=True)-> np.ndarray:
+def fill_gaps(cropped_stack: np.ndarray, copy_first_to_start: bool=True, copy_last_to_end: bool=True)-> np.ndarray:
     """This function finds and fills the gaps in the mask stack by morphing the last mask of the track into the new one.
 
     Args:
-        stack (np.array): Mask array with missing frames. 
+        cropped_stack (np.array): Cropped mask array with potential missing frames. 
 
     Returns:
-        stack (np.array): Mask array with filled frames.
+        stack (np.array): Cropped mask array with filled frames.
     """
     # Copy the first and/or last masks to the ends of the stacks if empty
-    mask_stack = copy_first_last_mask(mask_stack, copy_first_to_start, copy_last_to_end)
+    cropped_stack = copy_first_last_mask(cropped_stack, copy_first_to_start, copy_last_to_end)
     # Get the indexes of the masks to morph (i.e. that suround empty frames)
-    masks_to_morph = find_gaps(mask_stack)
+    masks_to_morph = find_gaps(cropped_stack)
     # Morph and fill stack
     for id_start,id_end,gap in masks_to_morph:
-        n_masks = mask_warp(mask_stack[id_start-1],mask_stack[id_end],gap)
+        n_masks = mask_warp(cropped_stack[id_start-1],cropped_stack[id_end],gap)
         # fill the gaps
-        mask_stack[id_start:id_end,...] = n_masks
-    return mask_stack
+        cropped_stack[id_start:id_end,...] = n_masks
+    return cropped_stack
 
-def apply_filling(obj: int, mask_stack: np.ndarray, mask_appear: int,
-                  copy_first_to_start: bool, copy_last_to_end: bool)-> np.ndarray:
+def apply_filling(prop: tuple[int,tuple[slice]], mask_stack: np.ndarray, mask_appear: int,
+                  copy_first_to_start: bool, copy_last_to_end: bool)-> tuple[tuple[slice],np.ndarray]:
     """Intermediate function to apply the filling of the gaps in the mask stack in parallel."""
-    temp = mask_stack.copy()
+    # Unpack the properties
+    obj,slice_obj = prop
+    # Modify the crop slice, to include the whole stack
+    ref_f = slice(0,mask_stack.shape[0])
+    slice_obj=(ref_f, *(slice_obj[1:]))
+    temp = mask_stack[slice_obj].copy()
+    # Isolate mask obj
     temp[temp!=obj] = 0
     framenumber = len(np.unique(np.where(mask_stack == obj)[0]))
     # If any mask is missing and that the mask appear more than n_mask, fill the gaps
     if framenumber!=mask_stack.shape[0] and framenumber > mask_appear:
         temp = fill_gaps(temp,copy_first_to_start,copy_last_to_end)
-    return temp
+    return slice_obj,temp
 
 def trim_incomplete_track(array: np.ndarray)-> np.ndarray:
     """Function to trim the incomplete tracks from the mask stack.
+    Modifies the input array in place.
+    
     Args:
         array (np.ndarray): 3D Mask array in tyx format.
     Returns:
-        np.ndarray: Mask array with incomplete tracks removed."""
+        np.ndarray: The list of objects removed."""
     # Make a list of unique objects
     lst_obj = [np.unique(frame) for frame in array]
     lst_obj = np.concatenate(lst_obj) # Flatten the list
@@ -144,9 +168,10 @@ def trim_incomplete_track(array: np.ndarray)-> np.ndarray:
     obj,cnt = np.unique(lst_obj,return_counts=True)
     # Create a list of obj to remove
     obj_to_remove = obj[cnt!=array.shape[0]]
-    for obj in obj_to_remove:
-        array[array==obj] = 0
-    return array
+    array_to_remove = np.isin(array,obj_to_remove)
+    array[array_to_remove] = 0
+    return obj_to_remove
+
 
 if __name__ == "__main__":
     from os import listdir
@@ -154,7 +179,7 @@ if __name__ == "__main__":
     sys.path.append('/home/ImageAnalysis_pipeline/pipeline')
     from image_handeling.data_utility import load_stack
     from os.path import join
-    from tifffile import imwrite
+    from tifffile import imwrite, imread
     from mask_warp import mask_warp
     
     # mask_folder = '/home/Test_images/nd2/Run2/c2z25t23v1_nd2_s1/Masks_IoU_Track'
@@ -173,25 +198,31 @@ if __name__ == "__main__":
     # new_mask = morph_missing_mask(mask,5,True,True)
     # imwrite('/home/Test_images/masks/output.tif', new_mask.astype('uint16'))
     
-    from skimage.draw import disk
-    def mask_stack():
-        m1 = np.zeros((3, 100, 100), dtype=np.uint8)
-        rr, cc = disk((40, 50), 14)
-        m1[:,rr, cc] = 1
-        m2 = np.zeros((3, 100, 100), dtype=np.uint8)
-        rr, cc = disk((50, 50), 20)
-        m2[:,rr, cc] = 1
-        m3 = np.zeros((4, 100, 100), dtype=np.uint8)
-        rr, cc = disk((50, 60), 15)
-        m3[:,rr, cc] = 1
-        mask = np.concatenate((m1,m2,m3),axis=0)
-        return mask
+    # from skimage.draw import disk
+    # def mask_stack():
+    #     m1 = np.zeros((3, 100, 100), dtype=np.uint8)
+    #     rr, cc = disk((40, 50), 14)
+    #     m1[:,rr, cc] = 1
+    #     m2 = np.zeros((3, 100, 100), dtype=np.uint8)
+    #     rr, cc = disk((50, 50), 20)
+    #     m2[:,rr, cc] = 1
+    #     m3 = np.zeros((4, 100, 100), dtype=np.uint8)
+    #     rr, cc = disk((50, 60), 15)
+    #     m3[:,rr, cc] = 1
+    #     mask = np.concatenate((m1,m2,m3),axis=0)
+    #     return mask
     
-    mask = mask_stack()
-    imwrite('/home/Test_images/masks/expected.tif', mask.astype('uint16'))
+    # mask = mask_stack()
+    # imwrite('/home/Test_images/masks/expected.tif', mask.astype('uint16'))
     
-    mask[2:4, :, :] = 0
-    imwrite('/home/Test_images/masks/input.tif', mask.astype('uint16'))
+    # mask[2:4, :, :] = 0
+    # imwrite('/home/Test_images/masks/input.tif', mask.astype('uint16'))
     
-    new_mask = complete_track(mask,True,True)
-    imwrite('/home/Test_images/masks/output.tif', new_mask.astype('uint16'))
+    # new_mask = complete_track(mask,True,True)
+    # imwrite('/home/Test_images/masks/output.tif', new_mask.astype('uint16'))
+    mask_appear = 5
+    copy_first_to_start = True
+    copy_last_to_end = True
+    mask_stack = imread('/home/Test_images/masks/labeled_masks.tif')
+    mask = complete_track(mask_stack, mask_appear, copy_first_to_start, copy_last_to_end)
+    imwrite('/home/Test_images/masks/complete_mask.tif', mask.astype('uint16'))

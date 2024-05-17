@@ -43,7 +43,7 @@ def create_img_seq(img_path: PathLike, active_channel_list: list[str] = [], full
             continue
         
         # If images are not processed, extract imseq and initialize exp_set object
-        print(f" ---> Extracting images and converting to image sequence")
+        print(f"--> Extracting images and converting to image sequence")
         process_img(metadata)
     return metadatas
 

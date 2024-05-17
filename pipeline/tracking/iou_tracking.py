@@ -1,5 +1,6 @@
 from __future__ import annotations
 from os import sep, listdir, PathLike
+from typing import Iterable
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
 from os.path import join
@@ -9,9 +10,12 @@ from pipeline.mask_transformation.complete_track import complete_track
 from cellpose.utils import stitch3D
 from cellpose.metrics import _intersection_over_union
 from scipy.stats import mode
+from skimage.measure import regionprops_table
+from skimage.segmentation import relabel_sequential
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 from tifffile import imwrite
+from functools import partial
 
 def track_cells(masks: np.ndarray, stitch_threshold: float) -> np.ndarray:
     """
@@ -149,41 +153,17 @@ def check_mask_similarity(mask: np.ndarray, shape_thres_percent: float = 0.9) ->
     if mask.ndim != 3:
         raise TypeError(f"Input mask must contain 3 dimensions, {mask.ndim} dim were given")
 
-    # Go through all mask_obj
+    # Get the region properties of the mask, and zip it: (label,(slice_f,slice_y,slice_x))
+    props: zip[tuple[int,tuple]] = zip(*regionprops_table(mask,properties=('label','slice')).values())
     new_mask = np.zeros(shape=mask.shape)
-
-    def process_mask(obj):
-        # Isolate mask obj
-        temp = mask.copy()
-        temp[temp != obj] = 0
-        # Calculate dice coef
-        temp = calculate_dice_coef(temp, shape_thres_percent)
-        return temp
-
+    process_mask_partial = partial(process_mask, mask=mask, shape_thres_percent=shape_thres_percent)
     with ThreadPoolExecutor() as executor:
-        obj_list = list(np.unique(mask))[1:]
-        results = executor.map(process_mask, obj_list)
-
-        for result in results:
-            new_mask += result
-
-    return new_mask
+        temp_masks = executor.map(process_mask_partial, props)
+    # Reconstruct original size mask
+    for slice_obj,temp in temp_masks:
+        new_mask[slice_obj] += temp
+    return new_mask.astype('uint16')
         
-def reassign_mask_val(mask_stack: np.ndarray) -> np.ndarray:
-    """
-    Reassigns the values of the input mask stack to consecutive integers starting from 0.
-    
-    Args:
-        mask_stack (np.ndarray): The input mask stack.
-    
-    Returns:
-        np.ndarray: The mask stack with reassigned values.
-    """
-    print('  ---> Reassigning masks value')
-    for n, val in enumerate(list(np.unique(mask_stack))):
-        mask_stack[mask_stack == val] = n
-    return mask_stack
-
 def is_channel_in_lst(channel: str, img_paths: list[PathLike]) -> bool:
     """
     Check if a channel is in the list of image paths.
@@ -196,6 +176,16 @@ def is_channel_in_lst(channel: str, img_paths: list[PathLike]) -> bool:
         bool: True if the channel is in the list, False otherwise.
     """
     return any(channel in path for path in img_paths)
+
+def process_mask(prop: tuple[int,tuple[slice]], mask: np.ndarray, shape_thres_percent: float) -> tuple[tuple[slice],np.ndarray]:
+    # Crop stack to save memory
+    obj,slice_obj = prop
+    temp = mask[slice_obj].copy()
+    # Isolate mask obj
+    temp[temp != obj] = 0
+    # Calculate dice coef
+    temp = calculate_dice_coef(temp, shape_thres_percent)
+    return slice_obj,temp
 
 # # # # # # # # main functions # # # # # # # # # 
 def iou_tracking(exp_obj_lst: list[Experiment], channel_seg: str, mask_fold_src: str,
@@ -248,14 +238,16 @@ def iou_tracking(exp_obj_lst: list[Experiment], channel_seg: str, mask_fold_src:
         
         # Track masks
         mask_stack = track_cells(mask_stack,stitch_thres_percent)
+        
         # Check shape similarity to avoid false masks
         mask_stack = check_mask_similarity(mask_stack,shape_thres_percent)
         
-        # Re-assign the new value to the masks and obj. Previous step may have created dicontinuous masks
-        mask_stack = reassign_mask_val(mask_stack)
-        
         # Morph missing masks
         mask_stack = complete_track(mask_stack,mask_appear,copy_first_to_start,copy_last_to_end)
+        
+        # Re-assign the new value to the masks and obj. Previous step may have created dicontinuous masks
+        print('  ---> Reassigning masks value')
+        mask_stack,_,_ = relabel_sequential(mask_stack)
         
         # Save masks
         mask_src_list = [file for file in mask_src_list if file.__contains__('_z0001')]
@@ -272,7 +264,43 @@ def iou_tracking(exp_obj_lst: list[Experiment], channel_seg: str, mask_fold_src:
 
 
 if __name__ == "__main__":
-    folder = '/Users/benhome/BioTool/GitHub/cp_dev/Test_images/Run4/c4z1t91v1_s1/Masks_Cellpose'
-    mask_folder_src = [join(sep,folder+sep,file) for file in sorted(listdir(folder)) if file.endswith('.tif')]
-    mask_stack = load_stack(mask_folder_src,['RFP'],range(91))
-    print(type(mask_stack))
+    from tifffile import imread
+    from time import time
+    
+    folder = '/home/Test_images/bigy/HEKA_c1031_c1829_miniSOG_80%_435_2min_40min_002_Merged_s1/Masks_Cellpose'
+    mask_folder_src = [join(folder,file) for file in sorted(listdir(folder)) if file.endswith('.tif')]
+    mask_stack = load_stack(mask_folder_src,'RFP',range(126),True)
+    
+    stitch_thres_percent = 0.1
+    shape_thres_percent = 0.95
+    mask_appear = 5
+    copy_first_to_start = True
+    copy_last_to_end = True
+    
+    start = time()
+    mask_stack = track_cells(mask_stack,stitch_thres_percent)
+    imwrite('/home/Test_images/masks/tracked_masks.tif',mask_stack.astype('uint16'))
+    # Check shape similarity to avoid false masks
+    mask_stack = check_mask_similarity(mask_stack,shape_thres_percent)
+    imwrite('/home/Test_images/masks/similar_masks.tif',mask_stack.astype('uint16'))
+    
+    # Re-assign the new value to the masks and obj. Previous step may have created dicontinuous masks
+    print('  ---> Reassigning masks value')
+    mask_stack,_,_ = relabel_sequential(mask_stack)
+    imwrite('/home/Test_images/masks/labeled_masks.tif',mask_stack.astype('uint16'))
+    # Morph missing masks
+    # mask_stack = imread('/home/Test_images/masks/labeled_masks.tif')
+    mask_stack = complete_track(mask_stack,mask_appear,copy_first_to_start,copy_last_to_end)
+    imwrite('/home/Test_images/masks/complete_mask.tif', mask_stack.astype('uint16'))
+    start2 = time()
+    print(f"Time to process: {round(start2-start,ndigits=3)} sec\n")
+    # mask_stack = check_mask_similarity(mask_stack,shape_thres_percent)
+    # imwrite('/home/Test_images/masks/similar_masks2.tif',mask_stack.astype('uint16'))
+    # print('  ---> Reassigning masks value')
+    # mask_stack,_,_ = relabel_sequential(mask_stack)
+    # imwrite('/home/Test_images/masks/labeled_masks2.tif',mask_stack.astype('uint16'))
+    # mask_stack = complete_track(mask_stack,mask_appear,copy_first_to_start,copy_last_to_end)
+    # imwrite('/home/Test_images/masks/complete_mask2.tif', mask_stack.astype('uint16'))
+    # start3 = time()
+    # print(f"Time to process: {round(start3-start2,ndigits=3)} sec\n")
+    

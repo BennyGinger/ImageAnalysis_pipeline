@@ -1,43 +1,51 @@
 from __future__ import annotations
-from pipeline.image_handeling.Experiment_Classes import Experiment
-from concurrent.futures import ProcessPoolExecutor
+from os import PathLike, sep
+
+from concurrent.futures import ThreadPoolExecutor
 from tifffile import imread
 from smo import SMO
-from pipeline.image_handeling.data_utility import save_tif, is_processed
+from functools import partial
+from pipeline.image_handeling.data_utility import save_tif
 
 
 ################################## main function ###################################
-def background_sub(exp_obj_lst: list[Experiment], sigma: float=0.0, size: int=7, overwrite: bool=False)-> list[Experiment]:
+def background_sub(img_paths: list[PathLike], sigma: float=0.0, size: int=7, 
+                   um_per_pixel: tuple[float,float]=None, finterval: int=None)-> None:
     """For each experiment, apply a background substraction on the images and return a list of Settings objects"""
-    for exp_obj in exp_obj_lst:
-        # Activate the branch
-        exp_obj.preprocess.is_background_sub = True
-        # Already processed?
-        if is_processed(exp_obj.preprocess.background_sub,overwrite=overwrite):
-            print(f" --> Background substraction was already applied to the images with {exp_obj.preprocess.background_sub}")
-            continue
-        # Apply background substraction
-        print(f" --> Applying background substraction to the images with sigma={sigma} and size={size}")
-        # Generate input data
-        smo = SMO(shape=(exp_obj.img_properties.img_width,exp_obj.img_properties.img_length),sigma=sigma,size=size)
-        input_data = [{'img_path':path,
-                       'smo':smo,
-                       'metadata':{'um_per_pixel':exp_obj.analysis.um_per_pixel,
-                                   'finterval':exp_obj.analysis.interval_sec}}
-                      for path in exp_obj.ori_imgs_lst]
-        
-        with ProcessPoolExecutor() as executor:
-            executor.map(apply_bg_sub,input_data)
-            
-        exp_obj.preprocess.background_sub = (f"sigma={sigma}",f"size={size}","fold_src=Images")
-        exp_obj.save_as_json()
-    return exp_obj_lst
+    # Log
+    exp_name = img_paths[0].rsplit(sep,2)[0].rsplit(sep,1)[1]
+    print(f"--> Applying background substraction to {exp_name} with sigma={sigma} and size={size}")
+    # Generate input data
+    img_shape = imread(img_paths[0]).shape
+    smo = SMO(shape=img_shape,sigma=sigma,size=size) 
+    apply_bg_sub_partial = partial(apply_bg_sub,smo=smo,
+                                   metadata={'um_per_pixel':um_per_pixel,'finterval':finterval})
+    
+    # Apply background substraction
+    with ThreadPoolExecutor() as executor:
+        executor.map(apply_bg_sub_partial,img_paths)
+
 
 ################################ Satelite functions ################################
-def apply_bg_sub(input_dict: dict)-> None:
+def apply_bg_sub(img_path: PathLike, smo: SMO, metadata: dict)-> None:
+    # Read image
+    img_array = imread(img_path)
     # Initiate SMO
-    img = imread(input_dict['img_path'])
-    bg_img = input_dict['smo'].bg_corrected(img)
+    bg_img = smo.bg_corrected(img_array)
     # Reset neg val to 0
     bg_img[bg_img<0] = 0
-    save_tif(bg_img,input_dict['img_path'],**input_dict['metadata'])
+    save_tif(bg_img,img_path,**metadata)
+
+
+if __name__ == "__main__":
+    from os import listdir
+    from os.path import join
+    from time import time
+    # Test
+    
+    folder = '/home/Test_images/nd2/Run2/c2z25t23v1_nd2_s1/Images'
+    img_paths = [join(folder,file) for file in listdir(folder)]
+    start = time()
+    background_sub(img_paths)
+    end = time()
+    print(f"Time taken: {end-start}")
