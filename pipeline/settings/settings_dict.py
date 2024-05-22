@@ -17,7 +17,7 @@ settings = {
     "frame_shift": (True,
                 {"reg_channel": "BF",
                 "reg_mtd": "rigid_body",
-                "img_ref": "first",
+                "img_ref": "previous",
                 "overwrite": True}),
     
     "blur": (False,
@@ -51,7 +51,7 @@ settings = {
                    "copy_last_to_end": True,
                    "overwrite":True}),
     
-    "gnn_track": (True,                         #not working: Fluo-C2DL-Huh7
+    "gnn_track": (False,                         #not working: Fluo-C2DL-Huh7
                   {"channel_to_track":"RFP",
                    "img_fold_src": "",
                    "model":"PhC-C2DH-U373", #neutrophil, Fluo-N2DH-SIM+, Fluo-N2DL-HeLa, Fluo-N3DH-SIM+ (implement from server first!), PhC-C2DH-U373

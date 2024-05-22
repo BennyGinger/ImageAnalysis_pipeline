@@ -87,7 +87,7 @@ def apply_chan_shift(stackreg: StackReg, img_paths: list[PathLike], channels: li
 ############################## Frame shift correction ##############################
 ################################## main function ###################################
 def correct_frame_shift(img_paths: list[PathLike], reg_channel: str, reg_mtd: str, img_ref: str, overwrite: bool=False,
-                        metadata: dict={}, frames: int=None)-> list[Experiment]:
+                        metadata: dict={}, frames: int=None)-> None:
     """Main function to apply the frame shift correction to the images. Requires multiple frames.
     It will register all the frames to the first frame, the mean of all frames or the previous frame.
     If images have a z-stack, it will only register the maxIP of the images, but the transformation will 
@@ -108,6 +108,9 @@ def correct_frame_shift(img_paths: list[PathLike], reg_channel: str, reg_mtd: st
         
         frames (int, optional): The number of frames in the images. If None, it will get the number of frames from the img_paths. Defaults to None."""
     
+    # Log
+    print(f"\n--> Image Registration of exp {img_paths[0].rsplit(sep,1)[0]}")
+    
     # Check frames number
     if not frames:
         frames = len(set([get_frame_from_path(path) for path in img_paths]))
@@ -123,89 +126,33 @@ def correct_frame_shift(img_paths: list[PathLike], reg_channel: str, reg_mtd: st
     
     # Check if the frame shift was already applied
     if any(scandir(save_path)) and not overwrite:
-        print("---> Registration was already applied to the images")
+        print(" ---> Registration was already applied to the images")
         return
     
     # Initiate the stackreg object
     stackreg = select_reg_mtd(reg_mtd)
-    print(f" --> Registering images with '{img_ref}_image' reference and {reg_mtd} method")
+    print(f" ---> Registering images with '{img_ref}_image' reference and {reg_mtd} method")
     
     # Apply the frame shift correction
     apply_frame_shift(img_paths,stackreg,frames,reg_channel,img_ref,metadata)
     
 
 ################################ Satelite functions ################################
-def register_img(frame: int, img_paths: list[PathLike], reg_channel: str, stackreg: StackReg, img_ref: np.ndarray)-> dict[int,np.ndarray]:
-    img = load_stack(img_paths,reg_channel,frame,True)
-    return {frame: stackreg.register(img_ref,img)}
-
-def get_tmats_first(img_paths: list[str], frames: int, stackreg: StackReg, reg_channel: str)-> dict[int,np.ndarray]:
-    """Register all frames of the given channel compared to the first frame.
-    Output is a dict with the frame (excluding the first one) as key and the tmat np.ndarray (2D) as value."""
-    # Load ref image, that is the first frame
-    img_ref = load_stack(img_paths,reg_channel,0,True)
-    # Get the frame range, don't need to process the first frame
-    frame_range = range(1,frames) 
-    # Get all the tmats
-    partial_register_img = partial(register_img,reg_channel=reg_channel,stackreg=stackreg,img_ref=img_ref, img_paths=img_paths)
-    with ThreadPoolExecutor() as executor:
-        tmats = executor.map(partial_register_img,frame_range)
-    tmat_dict = {k:v for tmat in tmats for k,v in tmat.items()}
-    return tmat_dict
-
-def get_tmats_mean(img_paths: list[str], frames: int, stackreg: StackReg, reg_channel: str)-> dict[int,np.ndarray]:
-    """Register all frames of the given channel compared to the mean of all frames.
-    Output is a dict with the frame as key and the tmat np.ndarray (2D) as value."""
-    # Get the frame range, that is all the frames
-    frame_range = range(frames)
-    # Load ref image, that is the mean of the all frames
-    img_ref = np.mean(load_stack(img_paths,reg_channel,frame_range,True),axis=0)
-    # Get all the tmats
-    partial_register_img = partial(register_img,reg_channel=reg_channel,stackreg=stackreg,img_ref=img_ref,img_paths=img_paths)
-    with ThreadPoolExecutor() as executor:
-        tmats_dict = executor.map(partial_register_img,frame_range)
-    return {k:v for tmat_dict in tmats_dict for k,v in tmat_dict.items()}
-
-def get_tmats_previous(img_paths: list[str], frames: int, stackreg: StackReg, reg_channel: str)-> dict[int,np.ndarray]:
-    """Register all frames of the given channel compared to the previous frame.
-    Output is a dict with the frame (excluding the first one) as key and the tmat np.ndarray (2D) as value."""
-    tmats_dict = {}
-    for frame in range(1,frames):
-        # Load ref image
-        if frame==1: # For the second frame, use the first frame as ref
-            img_ref = load_stack(img_paths,reg_channel,frame-1,True)
-        else: # For the other frames, use the previous transformed image as ref
-            img_ref = tr_img 
-        # Load image to register
-        img = load_stack(img_paths,reg_channel,frame,True)
-        # Register and transform img
-        tr_img = stackreg.register_transform(img_ref,img)
-        # Save the tmat
-        tmats_dict[frame] = stackreg.get_matrix()
-    return tmats_dict
+def register_stack(img_paths: list[str], frames: int, stackreg: StackReg, reg_channel: str, img_ref: str)-> np.ndarray:
+    """Register all frames of the given channel depending on the img_ref ('previous','first','mean').
+    Output is a 3x3 array of the same length as the number of frames."""
     
-def copy_first_frame(img_path: list[str], folder_name_dst: str)-> None:
-    """Simple function to copy the first frame to the given folder name."""
-    for path in img_path: 
-        shutil.copyfile(path,path.replace('Images',folder_name_dst))
-
+    # Load the the stack
+    img_stack = load_stack(img_paths,reg_channel,range(frames),True)
+    
+    return stackreg.register_stack(img_stack,reference=img_ref)
+    
 def apply_frame_shift(img_paths: list[PathLike], stackreg: StackReg, frames: int,
                       reg_channel: str, img_ref: str, metadata: dict)-> None:
     """Apply the frame shift correction to the images depending on the img_ref (first, mean or previous)."""
-    # Load ref image
-    if img_ref=='first':
-        tmats_dict = get_tmats_first(img_paths,frames,stackreg,reg_channel)
-    elif img_ref=='mean':
-        tmats_dict = get_tmats_mean(img_paths,frames,stackreg,reg_channel)
-    elif img_ref=='previous':
-        tmats_dict = get_tmats_previous(img_paths,frames,stackreg,reg_channel)
-    
-    # Copy the first frame to the reg_folder, then remove it from the dict, as it doesn't need to be processed
-    if img_ref!='mean':
-        first_frames = [path for path in img_paths if '_f0001' in path]
-        copy_first_frame(first_frames,"Images_Registered") 
-        # Remove the first frame
-        img_paths = [path for path in img_paths if '_f0001' not in path]
+    # Get the tmats
+    tmats_arr = register_stack(img_paths,frames,stackreg,reg_channel,img_ref)
+    tmats_dict = {i:tmats_arr[i] for i in range(frames)}
     
     if not metadata:
         metadata = {'um_per_pixel':None,'finterval':None}
@@ -215,6 +162,11 @@ def apply_frame_shift(img_paths: list[PathLike], stackreg: StackReg, frames: int
     # Apply the transfo matrix to the images
     with ProcessPoolExecutor() as executor:
         executor.map(partial_apply_tmat,img_paths)
+
+def copy_first_frame(img_path: list[str], folder_name_dst: str)-> None:
+    """Simple function to copy the first frame to the given folder name."""
+    for path in img_path: 
+        shutil.copyfile(path,path.replace('Images',folder_name_dst))
 
 def get_channel_from_path(img_path: PathLike)-> str:
     """Get the channel name from the image path with the format 
