@@ -55,10 +55,11 @@ def get_tmats_chan(stackreg: StackReg, img_paths: list[PathLike], channels: list
     # Load ref image
     img_ref = load_stack(img_paths,reg_channel,0,True)
     # Get the list of channel to process
-    channels.remove(reg_channel)
+    channels_temp = channels.copy()
+    channels_temp.remove(reg_channel)
     # Get all the tmats
     tmats_dict = {}
-    for chan in channels:
+    for chan in channels_temp:
         img = load_stack(img_paths,chan,0,True)
         tmats_dict[chan] = stackreg.register(img_ref,img)
     return tmats_dict

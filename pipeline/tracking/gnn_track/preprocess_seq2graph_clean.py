@@ -14,7 +14,7 @@ warnings.filterwarnings("always")
 from pathlib import Path
 import re
 
-from tracking.gnn_track.modules.resnet_2d.resnet import set_model_architecture, MLP #src_metric_learning.modules.resnet_2d.resnet
+from pipeline.tracking.gnn_track.modules.resnet_2d.resnet import set_model_architecture, MLP #src_metric_learning.modules.resnet_2d.resnet
 from skimage.morphology import label
 
 
