@@ -92,8 +92,8 @@ class PreProcessModule(BaseModule):
     
     def bg_sub(self, sigma: float=0, size: int=7, overwrite: bool=False)-> None:
         """Method to apply background substraction to the images. 
-        The images are saved in the same folder as the original images."""
-        
+        The images are saved in the same folder as the original images.
+        """
         
         for exp_obj in self.exp_obj_lst:
             # Activate the branch
@@ -110,9 +110,9 @@ class PreProcessModule(BaseModule):
     
     def channel_shift(self, reg_channel: str, reg_mtd: str, overwrite: bool=False)-> None:
         """Method to apply channel shift to the images. Images are saved in the same folder as 
-        the original images."""
-        
-        
+        the original images.
+        """
+                
         for exp_obj in self.exp_obj_lst:
             if len(exp_obj.active_channel_list)==1:
                 print(f" --> Only one channel in the image, no channel shift needed")
@@ -137,6 +137,10 @@ class PreProcessModule(BaseModule):
             exp_obj.save_as_json()
     
     def frame_shift(self, reg_channel: str, reg_mtd: str, img_ref: str, overwrite: bool=False)-> None:
+        """Method to apply frame shift to the images. Images are saved in a separate folder,
+        named 'Images_Registered'.
+        """
+        
         for exp_obj in self.exp_obj_lst:
             if exp_obj.img_properties.n_frames==1:
                 print(f" --> Only one frame in the image, no frame shift needed")

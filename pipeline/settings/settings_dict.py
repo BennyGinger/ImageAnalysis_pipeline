@@ -1,20 +1,20 @@
 settings = {
-    "input_folder": '/home/Test_images/szimi',
-    "init":{"active_channel_list": 'BF',
-            'full_channel_list':'BF',
-            "overwrite": False},
+    "input_folder": '/home/Test_images/nd2/Run2_test',
+    "init":{"active_channel_list": ['GFP','RFP'],
+            'full_channel_list':['GFP','RFP'],
+            "overwrite": True},
     
-    "bg_sub": (False,
+    "bg_sub": (True,
                 {"sigma": 0.0,
                 "size": 7,
                 "overwrite": False}),
     
-    "chan_shift": (False,
+    "chan_shift": (True,
                     {"reg_channel": "RFP",
                     "reg_mtd": "rigid_body",
                     "overwrite": False}),
     
-    "frame_shift": (True,
+    "frame_shift": (False,
                 {"reg_channel": "BF",
                 "reg_mtd": "rigid_body",
                 "img_ref": "previous",
