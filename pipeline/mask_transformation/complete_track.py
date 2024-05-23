@@ -149,7 +149,7 @@ def apply_filling(prop: tuple[int,tuple[slice]], mask_stack: np.ndarray, mask_ap
     temp[temp!=obj] = 0
     framenumber = len(np.unique(np.where(mask_stack == obj)[0]))
     # If any mask is missing and that the mask appear more than n_mask, fill the gaps
-    if framenumber!=mask_stack.shape[0] and framenumber > mask_appear:
+    if framenumber!=mask_stack.shape[0] and framenumber >= mask_appear:
         temp = fill_gaps(temp,copy_first_to_start,copy_last_to_end)
     return slice_obj,temp
 
@@ -181,6 +181,8 @@ if __name__ == "__main__":
     from os.path import join
     from tifffile import imwrite, imread
     from mask_warp import mask_warp
+    from skimage.draw import disk
+    import matplotlib.pyplot as plt
     
     # mask_folder = '/home/Test_images/nd2/Run2/c2z25t23v1_nd2_s1/Masks_IoU_Track'
     # mask_lst = [join(mask_folder,img) for img in sorted(listdir(mask_folder))]
@@ -220,9 +222,18 @@ if __name__ == "__main__":
     
     # new_mask = complete_track(mask,True,True)
     # imwrite('/home/Test_images/masks/output.tif', new_mask.astype('uint16'))
-    mask_appear = 5
-    copy_first_to_start = True
-    copy_last_to_end = True
-    mask_stack = imread('/home/Test_images/masks/labeled_masks.tif')
-    mask = complete_track(mask_stack, mask_appear, copy_first_to_start, copy_last_to_end)
-    imwrite('/home/Test_images/masks/complete_mask.tif', mask.astype('uint16'))
+    # mask_appear = 5
+    # copy_first_to_start = True
+    # copy_last_to_end = True
+    # mask_stack = imread('/home/Test_images/masks/labeled_masks.tif')
+    # mask = complete_track(mask_stack, mask_appear, copy_first_to_start, copy_last_to_end)
+    # imwrite('/home/Test_images/masks/complete_mask.tif', mask.astype('uint16'))
+    
+    stack = np.zeros((5, 500, 500), dtype=np.uint8)
+    mask = np.zeros((500, 500), dtype=np.uint8)
+    rr,cc = disk((150,60), 50)
+    mask[rr,cc] = 1
+    stack[2] = mask
+    # stack[3] = mask
+    stack = complete_track(stack, 1, True, True)
+    imwrite('/home/Test_images/masks/input.tif', stack.astype('uint16'))

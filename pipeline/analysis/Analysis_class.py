@@ -104,7 +104,7 @@ class AnalysisModule(BaseModule):
             exp_obj.analysis.is_reference_masks = True
             img_flod_src, img_files = img_list_src(exp_obj,None)
             # Get metadata
-            metadata = {'um_per_pixel':exp_obj.img_properties.um_per_pixel,
+            metadata = {'um_per_pixel':exp_obj.analysis.um_per_pixel,
                         'finterval':exp_obj.analysis.interval_sec}
             # Draw
             draw_wound_mask(img_files,mask_label,channel_show,exp_obj.img_properties.n_frames,overwrite,metadata=metadata)

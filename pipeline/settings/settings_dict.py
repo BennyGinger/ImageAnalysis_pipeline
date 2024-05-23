@@ -2,7 +2,7 @@ settings = {
     "input_folder": '/home/Test_images/nd2/Run2_test',
     "init":{"active_channel_list": ['GFP','RFP'],
             'full_channel_list':['GFP','RFP'],
-            "overwrite": True},
+            "overwrite": False},
     
     "bg_sub": (True,
                 {"sigma": 0.0,
@@ -10,30 +10,30 @@ settings = {
                 "overwrite": False}),
     
     "chan_shift": (True,
-                    {"reg_channel": "RFP",
+                    {"reg_channel": "RFP", #BUG channel should be controlled if it exists in the channel list
                     "reg_mtd": "rigid_body",
                     "overwrite": False}),
     
-    "frame_shift": (False,
-                {"reg_channel": "BF",
+    "frame_shift": (True,
+                {"reg_channel": "RFP", #BUG channel should be controlled if it exists in the channel list
                 "reg_mtd": "rigid_body",
                 "img_ref": "previous",
-                "overwrite": True}),
+                "overwrite": False}),
     
     "blur": (False,
             {"kernel": (15,15),
             "sigma": 5,
             "overwrite": False}),
 
-    "cellpose": (False,
+    "cellpose": (True,
                 {"channel_to_seg":"RFP", #BUG channel should be controlled if it exists in the channel list
                 "model_type": "cyto2", #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
-                "diameter": 60.0,
+                "diameter": 30.0,
                 "flow_threshold": 0.5,
                 "cellprob_threshold":0,
                 "process_as_2D": True,
                 "save_as_npy": False,
-                "overwrite": True,}),
+                "overwrite": False,}),
     
     "threshold": (False,
                 {"channel_to_seg":"RFP",
@@ -41,7 +41,7 @@ settings = {
                 "img_fold_src": "",
                 "overwrite": False,}),
     
-    "iou_track": (False,
+    "iou_track": (True,
                   {"channel_to_track":"RFP", #BUG channel should be controlled if it exists in the channel list
                    "img_fold_src": "",
                    "stitch_thres_percent": 0.1,
@@ -49,7 +49,7 @@ settings = {
                    "mask_appear":5,
                    "copy_first_to_start": True, 
                    "copy_last_to_end": True,
-                   "overwrite":True}),
+                   "overwrite":False}),
     
     "gnn_track": (False,                         #not working: Fluo-C2DL-Huh7
                   {"channel_to_track":"RFP",
@@ -76,12 +76,12 @@ settings = {
                    "process_as_2D":True,
                    "overwrite":True}),
     
-    "draw_mask": (False,
+    "draw_mask": (True,
                   {"mask_label": "wound", # str or list[str]
                    "channel_show": "RFP",
                    "overwrite": True}),
     
-    "extract_data": (False,
+    "extract_data": (True,
                   {"img_fold_src": "",
                    "overwrite": True}),
 }
