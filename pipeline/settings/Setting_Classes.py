@@ -86,8 +86,8 @@ class TrackingSettings(BaseSettings):
 @dataclass
 class AnalysisSettings(BaseSettings):
     settings: dict
-    extract_data: dict = field(init=False)
     draw_mask: dict = field(init=False)
+    extract_data: dict = field(init=False)
     
 ################# main Class #################
 @dataclass

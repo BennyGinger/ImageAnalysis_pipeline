@@ -163,21 +163,37 @@ def dmap(mask_region: np.ndarray, intensity_image: np.ndarray)-> int:
 # # # # # # # # # Test
 if __name__ == "__main__":
     import time
-    from tifffile import imread
+    from os import listdir
+    from os.path import join 
+    from tifffile import imread, imwrite
+    from pipeline.image_handeling.data_utility import load_stack
+    from scipy.ndimage import distance_transform_edt
+    
     
     start = time.time()
-    img_path = "/home/Test_images/masks/MAX_Images.tif"
-    stack_path = "/home/Test_images/masks/MAX_Merged.tif"
-    mask_path = "/home/Test_images/masks/Masks_IoU_Track.tif"
-    mask_ref = '/home/Test_images/masks/mask_ref.tif'
-
-    img = imread(img_path)
-    stack = imread(stack_path)
-    stack = np.moveaxis(stack, [1], [-1])
-    mask = imread(mask_path)
-    ref_mask = {'wound':(imread(mask_ref)[0],0.322),'NTC':(imread(mask_ref)[0],0.322)}
+    img_path = "/home/New_test/control/c2z25t23v1_s1/Images_Registered"
+    img_files = [join(img_path,file) for file in sorted(listdir(img_path))]
+    img = load_stack(img_files,["GFP","RFP"],range(23),True)
     
-    master_df = extract_data(stack, mask, ['RFP','GFP'], '/home/Test_images/masks',ref_masks=None,overwrite=True)
+    mask_path = "/home/New_test/control/c2z25t23v1_s1/Masks_IoU_Track"
+    mask_files = [join(mask_path,file) for file in sorted(listdir(mask_path))]
+    mask = load_stack(mask_files ,["RFP"],range(23),True)
+    
+    save_path = '/home/New_test/test'
+    ref_path = '/home/New_test/control/c2z25t23v1_s1/Masks_wound'
+    ref_files = [join(ref_path,file) for file in sorted(listdir(ref_path))]
+    ref = load_stack(ref_files ,["RFP"],range(23),True)
+    ref = distance_transform_edt(np.logical_not(ref))
+    imwrite(join(save_path,'ref.tif'),ref.astype('uint16'))
+    ref_dict = {'wound':(ref,0.322),'NTC':(ref,0.322)}
+    
+    # img = imread(img_path)
+    # stack = imread(stack_path)
+    # stack = np.moveaxis(stack, [1], [-1])
+    # mask = imread(mask_path)
+    # ref_mask = {'wound':(imread(mask_ref)[0],0.322),'NTC':(imread(mask_ref)[0],0.322)}
+    
+    master_df = extract_data(img, mask, ['RFP','GFP'], save_path,ref_masks=ref_dict,overwrite=True)
     end = time.time()
     print(f"Processing time: {end-start}")
 

@@ -1,9 +1,10 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from os import PathLike, sep, remove
+from os import PathLike, sep, remove, listdir
 from os.path import join, exists
 import numpy as np
 import pandas as pd
+from scipy.ndimage import distance_transform_edt
 # from concurrent.futures import ProcessPoolExecutor
 # from functools import partial
 from pipeline.image_handeling.Base_Module_Class import BaseModule
@@ -15,7 +16,7 @@ from pipeline.analysis.wound_mask import draw_wound_mask
 
 TRACKING_MASKS = ['iou_tracking','manual_tracking','gnn_tracking']
 SEGMENTATION_MASKS = ['cellpose_seg','threshold_seg']
-REFERENCE_MASKS = [] # TODO: Add reference masks
+REFERENCE_MASKS = [] #TODO: Add reference masks
 
 @dataclass
 class AnalysisModule(BaseModule):
@@ -45,11 +46,8 @@ class AnalysisModule(BaseModule):
         self.save_as_json()
         return master_df
         
-    def create_master_df(self, img_fold_src: PathLike = "", channel_show:str=None, drawing_label: str|list = None, overwrite: bool=False)-> pd.DataFrame:
+    def create_master_df(self, img_fold_src: PathLike = "", channel_show:str=None, overwrite: bool=False)-> pd.DataFrame:
         all_dfs = []
-        
-        if drawing_label:
-            draw_wound_mask(exp_obj_lst=self.exp_obj_lst, mask_label=drawing_label, channel_show=channel_show, overwrite=overwrite)
         
         for exp_obj in self.exp_obj_lst:
             # extract the data
@@ -99,6 +97,9 @@ class AnalysisModule(BaseModule):
         return exp_df
 
     def draw_wound_mask(self, mask_label: str | list[str], channel_show: str=None, overwrite: bool=False)-> None:
+        if isinstance(mask_label, str):
+            mask_label=[mask_label]
+        
         for exp_obj in self.exp_obj_lst:
             # Activate branch and get imgage files
             exp_obj.analysis.is_reference_masks = True
@@ -164,16 +165,19 @@ def _load_mask(exp_obj: Experiment)-> dict[str,np.ndarray]:
     return masks_arrays
 
 def _load_ref_masks(exp_obj: Experiment)-> dict[str,tuple[np.ndarray,float]]:
-    mask_files = exp_obj.analysis.reference_masks
+    mask_files = exp_obj.analysis.reference_masks.copy()
     exp_path = exp_obj.exp_path
-    channel = mask_files['channel_show']
     resolution = exp_obj.analysis.um_per_pixel[0]
     # if empty, then return
     if not mask_files:
         return {}
     # Get mask paths
     for mask_fold in mask_files.keys():
-        mask_paths = join(exp_path,mask_fold)
+        folder_path = join(exp_path,f"Masks_{mask_fold}")
+        mask_paths = [join(folder_path,file) for file in sorted(listdir(folder_path))]
+        channel = mask_files[mask_fold]['channel_show']
         mask_array = load_stack(mask_paths,channel,range(exp_obj.img_properties.n_frames),True)
+        # Apply the dmap
+        mask_array = distance_transform_edt(np.logical_not(mask_array))
         mask_files[mask_fold] = (mask_array,resolution)
     return mask_files

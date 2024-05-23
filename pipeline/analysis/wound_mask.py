@@ -242,6 +242,7 @@ def draw_wound_mask(img_files: list[PathLike], mask_label: list[str] | str, chan
             raise AttributeError('No mask drawn!')
         mask_stack = polygon_into_mask(frames,poly_dict,img_stack.shape[1:-1])
         mask_stack = complete_track(mask_stack,mask_appear=1,copy_first_to_start=True,copy_last_to_end=True)
+        
         if kwargs and 'metadata' in kwargs:
             metadata = kwargs['metadata']
         else:
@@ -249,9 +250,10 @@ def draw_wound_mask(img_files: list[PathLike], mask_label: list[str] | str, chan
         
         # Save the masks
         # Get the name of the image and reconstruct the frame numbers
-        mask_name = img_files[0].rsplit('/',1)[-1].rsplit('_',2)[0::2]
+        channel_files = [file for file in img_files if channel_show in file]
+        mask_name = channel_files[0].rsplit('/',1)[-1].rsplit('_',2)[0::2]
         for frame, mask in enumerate(mask_stack):
-            save_path = join(label_path, f"{mask_name[0]}_f{frame+1:04d}_{mask_name[1]}.tif")
+            save_path = join(label_path, f"{mask_name[0]}_f{frame+1:04d}_{mask_name[1]}")
             save_tif(mask,save_path,**metadata)
   
             
@@ -260,13 +262,13 @@ if __name__ == "__main__":
     from os import listdir, sep
     from os.path import join
     
-    fold_path = '/home/Fabian/ImageData/240502-minoSOG_mito_L10/HEKA_c1031_c1829_miniSOG_80%_435_2min_40min_002_Merged_s1/Images_Registered'
+    fold_path = '/home/New_test/stimulated/c2z25t23v1_nd2_s1/Images_Registered'
     img_files = [join(fold_path,file) for file in sorted(listdir(fold_path)) if file.endswith('.tif')]
     mask_label = 'wound'
-    channel = 'YFP'
-    frames = 126
+    channel = 'RFP'
+    frames = 23
     
-    draw_wound_mask(img_files,mask_label,channel,frames, True)
+    draw_wound_mask(img_files,mask_label,channel,frames,True)
            
                 
             
