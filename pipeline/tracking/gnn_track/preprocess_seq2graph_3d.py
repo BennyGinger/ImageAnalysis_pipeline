@@ -13,7 +13,7 @@ warnings.filterwarnings("ignore")
 from pathlib import Path
 import re
 
-from tracking.gnn_track.modules.resnet_3d.resnet import set_model_architecture, MLP
+from pipeline.tracking.gnn_track.modules.resnet_3d.resnet import set_model_architecture, MLP
 
 import torch
 from skimage.morphology import label

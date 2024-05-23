@@ -6,12 +6,12 @@ from torch import Tensor
 import torch.nn.functional as F
 from torch.nn import ModuleList, ReLU
 
-from tracking.gnn_track.src.models.modules.pdn_conv import PDNConv
+from pipeline.tracking.gnn_track.src.models.modules.pdn_conv import PDNConv
 from torch_geometric.nn.models.jumping_knowledge import JumpingKnowledge
 
 from torch_geometric.typing import Adj
 
-from tracking.gnn_track.src.models.modules.mlp import MLP
+from pipeline.tracking.gnn_track.src.models.modules.mlp import MLP
 
 """
 Our implementation is based on the BasicGNN - An abstract class for implementing basic GNN models.
