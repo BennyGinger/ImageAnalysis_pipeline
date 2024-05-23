@@ -5,7 +5,6 @@ set_start_method("spawn",force=True)
 from time import time
 import pandas as pd
 from pipeline.pre_process.PreProcess_Class import PreProcessModule
-from pipeline.settings.settings_dict import settings
 from pipeline.segmentation.Segmentation_Class import SegmentationModule
 from pipeline.tracking.Tracking_Class import TrackingModule
 from pipeline.analysis.Analysis_class import AnalysisModule
@@ -19,6 +18,7 @@ def run_pipeline(settings: dict)-> pd.DataFrame:
     return master_df
 
 if __name__ == "__main__":
+    from pipeline.settings.settings_dict import settings
 
     t1 = time()
     # exp_list = PreProcess(INPUT_FOLDER,**settings['init']).process_from_settings(settings)

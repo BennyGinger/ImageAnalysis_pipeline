@@ -149,7 +149,7 @@ def apply_filling(prop: tuple[int,tuple[slice]], mask_stack: np.ndarray, mask_ap
     temp[temp!=obj] = 0
     framenumber = len(np.unique(np.where(mask_stack == obj)[0]))
     # If any mask is missing and that the mask appear more than n_mask, fill the gaps
-    if framenumber!=mask_stack.shape[0] and framenumber > mask_appear:
+    if framenumber!=mask_stack.shape[0] and framenumber >= mask_appear:
         temp = fill_gaps(temp,copy_first_to_start,copy_last_to_end)
     return slice_obj,temp
 

@@ -4,7 +4,7 @@ from dataclasses import dataclass, field, fields
 PREPROCESS_KEYS = ["bg_sub","chan_shift","frame_shift","blur"]
 SEGMENTATION_KEYS = ["cellpose","threshold"]
 TRACKING_KEYS = ["iou_track", "gnn_track", "man_track"]
-ANALYSIS_KEYS = ['extract_data']
+ANALYSIS_KEYS = ['extract_data','draw_mask']
 
 @dataclass
 class BaseSettings:
@@ -86,8 +86,8 @@ class TrackingSettings(BaseSettings):
 @dataclass
 class AnalysisSettings(BaseSettings):
     settings: dict
-    extract_data: dict = field(init=False)
     draw_mask: dict = field(init=False)
+    extract_data: dict = field(init=False)
     
 ################# main Class #################
 @dataclass
