@@ -10,8 +10,10 @@ from pipeline.tracking.Tracking_Class import TrackingModule
 from pipeline.analysis.Analysis_class import AnalysisModule
 
 def run_pipeline(settings: dict)-> pd.DataFrame:
+    
     input_folder = settings['input_folder']
-    exp_list = PreProcessModule(input_folder,**settings['init']).process_from_settings(settings)
+    exp_list = PreProcessModule(input_folder,
+                                **settings['init']).process_from_settings(settings)
     exp_list = SegmentationModule(input_folder,exp_list).segment_from_settings(settings)
     exp_list = TrackingModule(input_folder,exp_list).track_from_settings(settings)
     master_df = AnalysisModule(input_folder,exp_list).analyze_from_settings(settings)
@@ -20,6 +22,7 @@ def run_pipeline(settings: dict)-> pd.DataFrame:
 if __name__ == "__main__":
     from pipeline.settings.settings_dict import settings
 
+    
     t1 = time()
     # exp_list = PreProcess(INPUT_FOLDER,**settings['init']).process_from_settings(settings)
     # exp_list = Segmentation(INPUT_FOLDER,exp_list).segment_from_settings(settings)
