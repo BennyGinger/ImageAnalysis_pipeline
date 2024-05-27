@@ -6,7 +6,7 @@ from re import search
 from importlib.metadata import version
 
 from pipeline.pre_process.image_sequence import create_img_seq, MetaData_Handler
-from pipeline.pre_process.image_blur import blur_img
+from pipeline.pre_process.image_blur import blur_images
 from pipeline.pre_process.background_sub import background_sub
 from pipeline.pre_process.image_registration import correct_frame_shift, correct_channel_shift
 from pipeline.settings.Setting_Classes import Settings
@@ -86,7 +86,7 @@ class PreProcessModule(BaseModule):
         if hasattr(sets,'frame_shift'):
             self.frame_shift(**sets.frame_shift)
         if hasattr(sets,'blur'):
-            self.exp_obj_lst = self.blur(**sets.blur)
+            self.blur(**sets.blur)
         self.save_as_json()
         return self.exp_obj_lst
     
@@ -169,8 +169,22 @@ class PreProcessModule(BaseModule):
         
         return
     
-    def blur(self, kernel: tuple[int], sigma: int, img_fold_src: PathLike="", overwrite: bool=False)-> list[Experiment]:
-        return blur_img(self.exp_obj_lst,kernel,sigma,img_fold_src,overwrite)
+    def blur(self, sigma: int, img_fold_src: PathLike="", kernel: tuple[int,int]=(15,15), overwrite: bool=False)-> None:
+        
+        for exp_obj in self.exp_obj_lst:
+            # Activate the branch
+            exp_obj.preprocess.is_img_blured = True
+            
+            # Get the images to blur and the metadata
+            img_fold_src,img_paths = img_list_src(exp_obj,img_fold_src)
+            metadata = {'um_per_pixel':exp_obj.analysis.um_per_pixel,'finterval':exp_obj.analysis.interval_sec}
+            
+            # Apply the blur
+            blur_images(img_paths,sigma,kernel,metadata,overwrite)
+            
+            # Save settings
+            exp_obj.preprocess.img_blured = [f"blur_kernel={kernel}",f"blur_sigma={sigma}",f"fold_src={img_fold_src}"]
+            exp_obj.save_as_json() 
 
     def get_labels(self, exp_obj: Experiment)-> list[str]:
         # Get the path of upstream of the input folder, i.e. minus the folder name 
