@@ -41,8 +41,14 @@ def get_tif_meta(img_path: PathLike) -> dict:
     tiff_meta['file_type'] = '.tif'
     return tiff_meta
 
-def calculate_um_per_pixel(meta_dict: dict) -> tuple[float,float]:
+def calculate_um_per_pixel(meta_dict: dict) -> tuple[float,float] | None:
     """Calculate the um per pixel from the metadata of a tiff file. Output axes = (x,y)"""
+    # Check if resolution was extracted
+    if 'XResolution' not in meta_dict or 'YResolution' not in meta_dict:
+        print("Warning: Resolution not found in metadata. Defaulting to None")
+        return None
+    
+    # Calculate um per pixel
     x_um_per_pix = round(1/meta_dict['XResolution'],ndigits=3)
     y_um_per_pix = round(1/meta_dict['YResolution'],ndigits=3)
     return x_um_per_pix,y_um_per_pix
@@ -121,6 +127,7 @@ def update_channel_names(meta_dict: dict, active_channel_list: list=[], full_cha
 # # # # # # # # main functions # # # # # # # # # 
 def get_metadata(img_path: PathLike, active_channel_list: list=[], full_channel_list: list=[])-> dict:
     """Gather metadata from all image files (.nd2 and/or .tif) and is attributed to its own experiment folder"""
+    
     print(f"\nExtracting metadata from {img_path}")
     if img_path.endswith('.nd2'):
         meta_dict = get_ND2_meta(img_path)
@@ -159,22 +166,33 @@ def get_metadata(img_path: PathLike, active_channel_list: list=[], full_channel_
 
 if __name__ == '__main__':
     from time import time
+    from pathlib import Path
+    
     # Test
-    img_path = '/home/Test_images/nd2/Run3/c3z1t1v3.nd2'
-    active_channel_list = ['GFP','DAPI']
-    full_channel_list = ['GFP','RFP','DAPI']
     t1 = time()
-    img_meta = get_metadata(img_path,active_channel_list,full_channel_list)
+    img_paths = list(Path("/home/Test_images/szimi/MET/20240515-fMLF_diffusion").glob("**/*.tif"))
+    img_paths = [str(p) for p in img_paths]
+    
+    for path in img_paths:
+        metadata = get_metadata(path)
+        print(metadata['um_per_pixel'])
+    
+    # with TiffFile(img_paths[0]) as tif:
+    #     imagej_meta = tif.imagej_metadata
+    #     imagej_meta['axes'] = tif.series[0].axes
+    #     for page in tif.pages: # Add additional meta
+    #         print(page.tags)
+    #         for tag in page.tags:
+    #             print(tag)
+    #             if tag.name in ['ImageWidth','ImageLength',]:
+    #                 imagej_meta[tag.name] = tag.value
+    #             if tag.name in ['XResolution','YResolution']:
+    #                 imagej_meta[tag.name] = tag.value[0]/tag.value[1]
+    # print(imagej_meta)
+    
+    
     t2 = time()
-    print(f"Time to get meta: {t2-t1}")
-    print(img_meta)
-
-    # img_path2 = '/Users/benhome/BioTool/GitHub/cp_dev/c3z1t1v3.nd2'
-    # t1 = time()
-    # img_meta2 = get_metadata(img_path2,active_channel_list=active_channel_list)
-    # t2 = time()
-    # print(f"Time to get meta: {t2-t1}")
-    # print(img_meta2)
+    print(f"Time to process: {round(t2-t1,ndigits=3)} sec\n")
 
 
 

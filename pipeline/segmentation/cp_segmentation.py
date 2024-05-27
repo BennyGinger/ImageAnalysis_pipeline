@@ -10,6 +10,8 @@ from os import PathLike, sep, listdir
 from os.path import isfile, join
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pipeline.image_handeling.data_utility import load_stack, create_save_folder, save_tif
+from threading import Lock
+from time import sleep
 
 #TODO: replace imwrite with save_tif
 MODEL_SETTINGS = {'gpu':core.use_gpu(),
@@ -105,17 +107,18 @@ def cellpose_segmentation(img_paths: list[PathLike], channel_seg: str, model_typ
     cellpose_eval = cellpose_setup.eval_settings(diameter,flow_threshold,cellprob_threshold,**kwargs)
     model,model_settings = cellpose_setup.setup_model(model_type)
     
-    # Run Cellpose
+    # Run Cellpose, using a lock on saving the masks to ensure no conflicts
+    lock = Lock()
     run_cellpose_partial = partial(run_cellpose,metadata=metadata,img_paths=img_paths,channels=channels,
                                    process_as_2D=process_as_2D,model=model,cellpose_eval=cellpose_eval,
-                                   save_as_npy=save_as_npy)
+                                   save_as_npy=save_as_npy,lock=lock)
     parallel_executor(run_cellpose_partial,frames,model_settings['gpu'],cellpose_eval['z_axis'])
     return model_settings,cellpose_eval
     
 
 #################### Helper functions ####################
 def run_cellpose(frame: int, img_paths: list[PathLike], channels: list[str], process_as_2D: bool,
-                 model: models.CellposeModel, cellpose_eval: dict, save_as_npy: bool, metadata: dict)-> None:
+                 model: models.CellposeModel, cellpose_eval: dict, save_as_npy: bool, metadata: dict, lock: Lock)-> None:
     """Function that runs the cellpose segmentation on a single frame of a stack."""
     # Load image/stack and model
     img = load_stack(img_paths,channels,frame,process_as_2D)
@@ -127,7 +130,8 @@ def run_cellpose(frame: int, img_paths: list[PathLike], channels: list[str], pro
     # Run Cellpose
     masks, flows, _ = model.eval(img,**cellpose_eval)
     # Save
-    save_mask(img,masks,flows,model.diam_mean,mask_path,save_as_npy,metadata)
+    with lock:
+        save_mask(img,masks,flows,model.diam_mean,mask_path,save_as_npy,metadata)
 
 def save_mask(img: np.ndarray | list[np.ndarray], mask: np.ndarray | list[np.ndarray], flows: list[np.ndarray] | list[list],
               diameter: float, mask_path: PathLike, as_npy: bool, metadata: dict)-> None:
@@ -224,10 +228,14 @@ class CellposeSetup:
                           or provide a path to a pretrained model.")
 
 def parallel_executor(func: Callable, frames: int, gpu: bool, z_axis: int)-> None:
+    # Adding max_workers=10 to avoid GPU memory issues
     if gpu and z_axis==None: # If GPU and 2D images: parallelization
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=10) as executor:
             executor.map(func,range(frames))
         return
+        # for frame in range(frames):
+        #     func(frame)
+        # return
     
     if gpu and z_axis==0: # If GPU and 3D images: no parallelization
         for frame in range(frames):
@@ -294,21 +302,27 @@ def unpack_kwargs(kwargs: dict, channel_seg: str)-> tuple[str,list[str],dict]:
 
 #################### Test ####################
 if __name__ == "__main__":
-    from os import listdir
+    from os import listdir, cpu_count
     from os.path import join
+    from pathlib import Path
     
-    folder = '/home/Test_images/bigy/HEKA_c1031_c1829_miniSOG_80%_435_2min_40min_002_Merged_s1/Images'
-    img_paths = [join(folder,file) for file in sorted(listdir(folder)) if file.endswith('.tif')]
-    
-    channel = "RFP"
+    channel = "YFP"
     model_type = "cyto2" #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
     diameter = 30.0
-    flow_threshold = 0.5
+    flow_threshold = 0.4
     cellprob_threshold = 0
     process_as_2D = True
     overwrite = True
     
-    cellpose_segmentation(img_paths,channel,model_type,diameter,flow_threshold,cellprob_threshold,overwrite,process_as_2D)
+    parent_fold = '/home/Test_images/szimi/MET/20240515_mini_fluo_merged'
+    img_folds = list(Path(parent_fold).glob('**/*_s1'))
+    # print(cpu_count())
+    for img_fold in img_folds:
+        img_paths = list(Path(img_fold).glob('Images_Registered/*.tif'))
+        img_paths = [str(path) for path in img_paths]
+        cellpose_segmentation(img_paths,channel,model_type,diameter,flow_threshold,cellprob_threshold,overwrite,process_as_2D)
+    
+    # cellpose_segmentation(img_paths,channel,model_type,diameter,flow_threshold,cellprob_threshold,overwrite,process_as_2D)
 
 
 # # # # # # # # main functions # # # # # # # # # 
