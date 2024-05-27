@@ -201,7 +201,9 @@ def draw_polygons(img, frames):
 def polygon_into_mask(frames: int, poly_dict:dict, img_shape: tuple[int,int])->np.array:
     mask_stack = np.zeros((frames,*img_shape),dtype=('uint8'))
     for frame, polygon in poly_dict.items():
-        tempmask =  polygon2mask(img_shape,polygon[0]).astype('uint8')
+        # Invert the x,y to y,x
+        polygon = [[y,x] for x,y in polygon[0]]
+        tempmask =  polygon2mask(img_shape,polygon).astype('uint8')
         mask_stack[frame] = tempmask
     return mask_stack
 
