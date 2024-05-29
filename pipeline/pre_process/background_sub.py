@@ -1,5 +1,6 @@
 from __future__ import annotations
 from os import PathLike, sep
+from pathlib import Path
 
 from concurrent.futures import ThreadPoolExecutor
 from tifffile import imread
@@ -13,14 +14,14 @@ def background_sub(img_paths: list[PathLike], sigma: float=0.0, size: int=7,
                    um_per_pixel: tuple[float,float]=None, finterval: int=None)-> None:
     """For each experiment, apply a background substraction on the images and return a list of Settings objects"""
     # Log
-    exp_name = img_paths[0].rsplit(sep,2)[0].rsplit(sep,1)[1]
+    exp_name = Path(img_paths[0]).parent.parent.name
     print(f"--> Applying background substraction to {exp_name} with sigma={sigma} and size={size}")
     # Generate input data
     img_shape = imread(img_paths[0]).shape
     smo = SMO(shape=img_shape,sigma=sigma,size=size) 
     apply_bg_sub_partial = partial(apply_bg_sub,smo=smo,
                                    metadata={'um_per_pixel':um_per_pixel,'finterval':finterval})
-    
+    smo.bg_mask
     # Apply background substraction
     with ThreadPoolExecutor() as executor:
         executor.map(apply_bg_sub_partial,img_paths)
@@ -43,8 +44,10 @@ if __name__ == "__main__":
     from time import time
     # Test
     
-    folder = '/home/Test_images/nd2/Run2/c2z25t23v1_nd2_s1/Images'
-    img_paths = [join(folder,file) for file in listdir(folder)]
+    folder = '/home/Test_images/szimi/Cellsorter/control/control_001_s1/Images'
+    
+    img_paths = list(Path(folder).glob('*.tif'))
+    
     start = time()
     background_sub(img_paths)
     end = time()

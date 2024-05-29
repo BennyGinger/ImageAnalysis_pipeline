@@ -4,8 +4,9 @@ from os.path import join
 from os import sep, walk, PathLike
 from re import search
 from importlib.metadata import version
+from pathlib import Path
 
-from pipeline.pre_process.image_sequence import create_img_seq, MetaData_Handler
+from pipeline.pre_process.image_sequence import create_img_seq
 from pipeline.pre_process.image_blur import blur_images
 from pipeline.pre_process.background_sub import background_sub
 from pipeline.pre_process.image_registration import correct_frame_shift, correct_channel_shift
@@ -28,7 +29,6 @@ class PreProcessModule(BaseModule):
     def __post_init__(self)-> None:
         super().__post_init__()
         exp_files = self.search_exp_files()
-        print('done')
         # Check if the channel lists are strings, if so convert them to lists
         if isinstance(self.active_channel_list,str):
             self.active_channel_list = [self.active_channel_list]
@@ -44,7 +44,8 @@ class PreProcessModule(BaseModule):
             
     def search_exp_files(self)-> list[PathLike]:
         # look through the folder and collect all image files
-        print(f"\n... Searching for {EXTENTION} files in {self.input_folder} ...")
+        print("\nExtracting images =====")
+        print(f"... Searching for {EXTENTION} files in {self.input_folder} ...")
         # Get the path of all the nd2 files in all subsequent folders/subfolders and exp_dict if available
         if isinstance(self.input_folder,str):
             return get_img_path(self.input_folder)
@@ -57,7 +58,7 @@ class PreProcessModule(BaseModule):
     
     def extract_img_seq(self, img_path_list: list[PathLike])-> list[Experiment]:
         # Extract the image sequence from the image files, return metadata dict for each exp (i.e. each serie in the image file)
-        metadata_lst: list[MetaData_Handler] = []
+        metadata_lst: list[PathLike | dict] = []
         for img_path in img_path_list:
             metadata_lst.extend(create_img_seq(img_path,self.active_channel_list,self.full_channel_list,self.overwrite))
         
@@ -74,11 +75,12 @@ class PreProcessModule(BaseModule):
         # Process the images based on the settings
         sets = Settings(settings)
         if not hasattr(sets,'preprocess'):
-            print("No preprocess settings found")
+            print("\nNo preprocess settings found =====")
             self.save_as_json()
             return self.exp_obj_lst
         sets = sets.preprocess
         # Run the different pre-process functions
+        print("\nPreprocessing images =====")
         if hasattr(sets,'bg_sub'):
             self.bg_sub(**sets.bg_sub)
         if hasattr(sets,'chan_shift'):
@@ -87,6 +89,7 @@ class PreProcessModule(BaseModule):
             self.frame_shift(**sets.frame_shift)
         if hasattr(sets,'blur'):
             self.blur(**sets.blur)
+        print("\nPreprocess done =====")
         self.save_as_json()
         return self.exp_obj_lst
     
@@ -94,7 +97,7 @@ class PreProcessModule(BaseModule):
         """Method to apply background substraction to the images. 
         The images are saved in the same folder as the original images.
         """
-        
+        print("\n-> Removing background from images")
         for exp_obj in self.exp_obj_lst:
             # Activate the branch
             exp_obj.preprocess.is_background_sub = True
@@ -112,17 +115,18 @@ class PreProcessModule(BaseModule):
         """Method to apply channel shift to the images. Images are saved in the same folder as 
         the original images.
         """
-                
+        print("\n-> Correcting channel shift in images")   
         for exp_obj in self.exp_obj_lst:
+            exp_name = Path(exp_obj.exp_path).stem
             if len(exp_obj.active_channel_list)==1:
-                print(f" --> Only one channel in the image, no channel shift needed")
+                print(f" --> Only one channel in {exp_name}, no channel shift correction needed")
                 continue
             
             # Activate the branch
             exp_obj.preprocess.is_channel_reg = True
             
             if is_processed(exp_obj.preprocess.channel_reg,overwrite=overwrite):
-                print(f" --> Channel shift was already applied to the images with {exp_obj.preprocess.channel_reg}")
+                print(f" --> Channel shift correction was already applied to {exp_name} with {exp_obj.preprocess.channel_reg}")
                 continue
             
             # Get the images to register
@@ -140,10 +144,11 @@ class PreProcessModule(BaseModule):
         """Method to apply frame shift to the images. Images are saved in a separate folder,
         named 'Images_Registered'.
         """
-        
+        print("\n-> Correcting frame shift in images")
         for exp_obj in self.exp_obj_lst:
+            exp_name = Path(exp_obj.exp_path).stem
             if exp_obj.img_properties.n_frames==1:
-                print(f" --> Only one frame in the image, no frame shift needed")
+                print(f" --> Only one frame in {exp_name}, no frame shift correction needed")
                 continue
             
             # Activate the branch
@@ -151,16 +156,14 @@ class PreProcessModule(BaseModule):
             
             # Already processed?
             if is_processed(exp_obj.preprocess.frame_reg,overwrite=overwrite):
-                print(f" --> Frame shift was already applied to the images with {exp_obj.preprocess.frame_reg}")
+                print(f" --> Frame shift correction was already applied to {exp_name} with {exp_obj.preprocess.frame_reg}")
                 continue
             
             # Get the images to register
             img_fold_src,img_paths = img_list_src(exp_obj,'Images')
             
             # Apply the frame shift
-            correct_frame_shift(img_paths,reg_channel,reg_mtd,img_ref,overwrite,
-                                {'finterval':exp_obj.analysis.interval_sec,'um_per_pixel':exp_obj.analysis.um_per_pixel},
-                                exp_obj.img_properties.n_frames)
+            correct_frame_shift(img_paths,reg_channel,reg_mtd,img_ref,overwrite,{'finterval':exp_obj.analysis.interval_sec,'um_per_pixel':exp_obj.analysis.um_per_pixel},exp_obj.img_properties.n_frames)
             
             # Save settings
             exp_obj.preprocess.frame_reg = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}",f"img_ref={img_ref}",f"fold_src={img_fold_src}"]
@@ -170,14 +173,14 @@ class PreProcessModule(BaseModule):
         return
     
     def blur(self, sigma: int, img_fold_src: PathLike="", kernel: tuple[int,int]=(15,15), overwrite: bool=False)-> None:
-        
+        print("\n-> Blurring images")
         for exp_obj in self.exp_obj_lst:
-            # Activate the branch
-            exp_obj.preprocess.is_img_blured = True
-            
             # Get the images to blur and the metadata
             img_fold_src,img_paths = img_list_src(exp_obj,img_fold_src)
             metadata = {'um_per_pixel':exp_obj.analysis.um_per_pixel,'finterval':exp_obj.analysis.interval_sec}
+            
+            # Activate the branch, after checking if the images are already processed
+            exp_obj.preprocess.is_img_blured = True
             
             # Apply the blur
             blur_images(img_paths,sigma,kernel,metadata,overwrite)
@@ -204,15 +207,14 @@ def get_img_path(folder: PathLike)-> list[PathLike]:
                 imgS_path.append(join(root,f))
     return sorted(imgS_path) 
 
-def init_exp_obj(metadata: MetaData_Handler)-> Experiment:
+def init_exp_obj(metadata: PathLike | str | dict)-> Experiment:
     """Initialize Experiment object from json file if exists, else from the metadata dict. 
     Return the Experiment object."""
     
-    meta = metadata.metadata
-    if metadata.is_json:
-        exp_obj = init_from_json(meta)
-    else:
-        exp_obj = init_from_dict(meta)
+    if isinstance(metadata,str):
+        exp_obj = init_from_json(metadata)
+    elif isinstance(metadata,dict):
+        exp_obj = init_from_dict(metadata)
         
     # Set all the branch to inactive
     exp_obj.init_to_inactive()

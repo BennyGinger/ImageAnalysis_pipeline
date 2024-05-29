@@ -12,11 +12,11 @@ class BaseModule:
     
     def __post_init__(self)-> None:
         if self.exp_obj_lst:
-            print(f"\nLoading the {self.__class__.__name__} Module")
+            print(f"\n===== Loading the {self.__class__.__name__} Module =====")
             return
         
         # Initialize the experiment list
-        print(f"\nInitializing the {self.__class__.__name__} Module")
+        print(f"\n===== Initializing the {self.__class__.__name__} Module =====")
     
     def change_attribute(self, attribute: str, value: any)-> list[Experiment]:
         for exp_obj in self.exp_obj_lst:

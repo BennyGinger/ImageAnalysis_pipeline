@@ -25,6 +25,7 @@ def get_tif_meta(img_path: PathLike) -> dict:
 
     if 'finterval' not in imagej_meta: 
         imagej_meta['finterval'] = None
+        print("Warning: No frame interval found in metadata. Defaulting to None")
     else:
         imagej_meta['finterval'] = int(imagej_meta['finterval'])
 
@@ -128,7 +129,7 @@ def update_channel_names(meta_dict: dict, active_channel_list: list=[], full_cha
 def get_metadata(img_path: PathLike, active_channel_list: list=[], full_channel_list: list=[])-> dict:
     """Gather metadata from all image files (.nd2 and/or .tif) and is attributed to its own experiment folder"""
     
-    print(f"\nExtracting metadata from {img_path}")
+    print(f"\n-> Extracting metadata from {img_path}")
     if img_path.endswith('.nd2'):
         meta_dict = get_ND2_meta(img_path)
     elif img_path.endswith(('.tif','.tiff')):

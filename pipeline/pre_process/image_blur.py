@@ -18,14 +18,14 @@ def blur_images(img_paths: list[PathLike], sigma: int, kernel: tuple[int,int]=(1
     
     # Already processed
     exp_path = str(Path(img_paths[0]).parent).rsplit(sep,1)[0]
-    print(f"\n--> Bluring images in {exp_path}")
+    print(f" --> Bluring images in {exp_path}")
     save_path = create_save_folder(exp_path,'Images_Blured')
     if any(scandir(save_path)) and not overwrite:
-        print(f" ---> Images are already blured with kernel={kernel} and sigma={sigma}")
+        print(f"  ---> Images are already blured with kernel={kernel} and sigma={sigma}")
         return
 
     # Apply blur
-    print(f" ---> Bluring images using a kernel of {kernel} and sigma of {sigma}")
+    print(f"  ---> Bluring images using a kernel of {kernel} and sigma of {sigma}")
     if not metadata: 
         metadata = {'um_per_pixel':None,'finterval':None}
     blur_partial = partial(apply_blur,sigma=sigma,kernel=kernel,metadata=metadata)

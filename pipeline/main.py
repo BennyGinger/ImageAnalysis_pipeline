@@ -29,34 +29,34 @@ if __name__ == "__main__":
     
     t1 = time()
     input_folder = settings['input_folder']
-    exp_list = PreProcessModule(input_folder,
-                                **settings['init']).process_from_settings(settings)
+    # exp_list = PreProcessModule(input_folder,
+    #                             **settings['init']).process_from_settings(settings)
     
-    exp_list = SegmentationModule(input_folder,exp_list).segment_from_settings(settings)
+    # exp_list = SegmentationModule(input_folder,exp_list).segment_from_settings(settings)
     
-    exp_list = TrackingModule(input_folder,exp_list).track_from_settings(settings)
+    # exp_list = TrackingModule(input_folder,exp_list).track_from_settings(settings)
     
-    # Manually created the wound masks
-    parent_fold = '/home/Test_images/szimi/MET/20240515-fMLF_diffusion'
-    img_folds = list(Path(parent_fold).glob('**/*_s1'))
-    mask = imread('/home/Test_images/szimi/MET/Mask.tif')
-    # print(cpu_count())
-    for img_fold in img_folds:
-        with open(join(str(img_fold),"exp_settings.json"),'r') as file:
-            exp_set = json.load(file)
-        frames = exp_set['img_properties']['n_frames']
-        save_path = join(str(img_fold),"Masks_wound")
-        Path(save_path).mkdir(exist_ok=True)
-        for i in range(frames):
-            mask_name = f"{save_path}/YFP_s01_f{i+1:04d}_z0001.tif"
-            imwrite(mask_name, mask.astype('uint16'))
-        exp_set['analysis']["is_reference_masks"] = True
-        exp_set['analysis']["reference_masks"] = {"wound":{'fold_src':"Images_Registered",'channel_show':"YFP"}}
-        exp_set['analysis']['um_per_pixel'] = (0.649,0.649)
-        with open(join(str(img_fold),"exp_settings.json"), 'w') as fp:
-            json.dump(exp_set, fp, indent=4)
+    # # Manually created the wound masks
+    # parent_fold = '/home/Test_images/szimi/MET/20240515-fMLF_diffusion'
+    # img_folds = list(Path(parent_fold).glob('**/*_s1'))
+    # mask = imread('/home/Test_images/szimi/MET/Mask.tif')
+    # # print(cpu_count())
+    # for img_fold in img_folds:
+    #     with open(join(str(img_fold),"exp_settings.json"),'r') as file:
+    #         exp_set = json.load(file)
+    #     frames = exp_set['img_properties']['n_frames']
+    #     save_path = join(str(img_fold),"Masks_wound")
+    #     Path(save_path).mkdir(exist_ok=True)
+    #     for i in range(frames):
+    #         mask_name = f"{save_path}/YFP_s01_f{i+1:04d}_z0001.tif"
+    #         imwrite(mask_name, mask.astype('uint16'))
+    #     exp_set['analysis']["is_reference_masks"] = True
+    #     exp_set['analysis']["reference_masks"] = {"wound":{'fold_src':"Images_Registered",'channel_show':"YFP"}}
+    #     exp_set['analysis']['um_per_pixel'] = (0.649,0.649)
+    #     with open(join(str(img_fold),"exp_settings.json"), 'w') as fp:
+    #         json.dump(exp_set, fp, indent=4)
     
-    master_df = AnalysisModule(input_folder,exp_list).analyze_from_settings(settings)
+    # master_df = AnalysisModule(input_folder,exp_list).analyze_from_settings(settings)
     master_df = run_pipeline(settings)
     
     t2 = time()

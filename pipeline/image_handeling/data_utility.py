@@ -1,6 +1,7 @@
 from __future__ import annotations
-from os import sep, mkdir, remove, PathLike
-from os.path import isdir, join
+from os import sep, remove, PathLike
+from os.path import join
+from pathlib import Path
 from pipeline.image_handeling.Experiment_Classes import Experiment
 from typing import Iterable
 import numpy as np
@@ -136,14 +137,17 @@ def is_processed(process_settings: dict | list, channel_seg: str = None, overwri
         return False
     return True
 
-def create_save_folder(exp_path: PathLike, folder_name: str)-> PathLike:
-    save_folder = join(sep,exp_path+sep,folder_name)
-    if not isdir(save_folder):
-        print(f" ---> Creating saving folder: {save_folder}")
-        mkdir(save_folder)
-        return save_folder
-    print(f" ---> Saving folder already exists: {save_folder}")
-    return save_folder
+def create_save_folder(exp_path: PathLike | Path, folder_name: str)-> PathLike:
+    if isinstance(exp_path, str):
+        exp_path = Path(exp_path)
+    save_folder = exp_path.joinpath(folder_name)
+    log_path = join(exp_path.stem,folder_name)
+    if not save_folder.exists():
+        print(f"  ---> Creating saving folder: {log_path}")
+        save_folder.mkdir(exist_ok=True)
+        return str(save_folder)
+    print(f"  ---> Saving folder already exists: {log_path}")
+    return str(save_folder)
 
 def delete_old_masks(class_setting_dict: dict, channel_seg: str, mask_files_list: list[PathLike], overwrite: bool=False)-> None:
     """Check if old masks exists, if the case, the delete old masks. Only

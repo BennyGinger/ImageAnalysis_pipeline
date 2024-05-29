@@ -1,15 +1,15 @@
 settings = {
-    "input_folder": '/home/Test_images/szimi/MET/20240515-fMLF_diffusion',
+    "input_folder": '/home/Test_images/szimi/Cellsorter',
     "init":{"active_channel_list": "YFP",
             'full_channel_list':"YFP",
-            "overwrite": False},
+            "overwrite": True},
     
     "bg_sub": (True,
                 {"sigma": 0.0,
                 "size": 7,
-                "overwrite": False}),
+                "overwrite": True}),
     
-    "chan_shift": (False,
+    "chan_shift": (True,
                     {"reg_channel": "RFP",
                     "reg_mtd": "rigid_body",
                     "overwrite": False}),
@@ -20,12 +20,11 @@ settings = {
                 "img_ref": "previous",
                 "overwrite": False}),
     
-    "blur": (False,
-            {"kernel": (15,15),
-            "sigma": 5,
+    "blur": (True,
+            {"sigma": 5,
             "overwrite": True}),
 
-    "cellpose": (True,
+    "cellpose": (False,
                 {"channel_to_seg":"YFP", #BUG channel should be controlled if it exists in the channel list
                 "model_type": "cyto2", #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
                 "diameter": 30.0,
@@ -41,7 +40,7 @@ settings = {
                 "img_fold_src": "",
                 "overwrite": False,}),
     
-    "iou_track": (True,
+    "iou_track": (False,
                   {"channel_to_track":"YFP", #BUG channel should be controlled if it exists in the channel list
                    "img_fold_src": "",
                    "stitch_thres_percent": 0.5,
@@ -76,12 +75,12 @@ settings = {
                    "process_as_2D":True,
                    "overwrite":True}),
     
-    "draw_mask": (True,
+    "draw_mask": (False,
                   {"mask_label": "wound", # str or list[str]
                    "channel_show": "YFP",
                    "overwrite": False}),
     
-    "extract_data": (True,
+    "extract_data": (False,
                   {"img_fold_src": "",
                    "overwrite": True}),
 }

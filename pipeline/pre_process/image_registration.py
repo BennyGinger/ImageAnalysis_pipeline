@@ -1,6 +1,7 @@
 from __future__ import annotations
 from functools import partial
 from os import PathLike, scandir, sep, listdir
+from pathlib import Path
 import shutil
 from tifffile import imread
 import numpy as np
@@ -37,12 +38,12 @@ def correct_channel_shift(img_paths: list[PathLike], reg_mtd: str, reg_channel: 
     
     # Check if only one channel is detected
     if len(channels)==1:
-        print(f" --> Only one channel detected in the img_paths, no need to apply channel shift")
+        print(f" --> Only one channel detected in the img_paths, no need to apply channel shift correction")
         return
     
     # Initiate the stackreg object
     stackreg = select_reg_mtd(reg_mtd)
-    print(f"--> Applying channel shift correction on the images with '{reg_channel}' as reference and {reg_mtd} methods")
+    print(f" --> Applying channel shift correction on the images with '{reg_channel}' as reference and {reg_mtd} methods")
     
     # Apply the channel shift correction
     apply_chan_shift(stackreg,img_paths,channels,reg_channel,metadata)
@@ -110,7 +111,8 @@ def correct_frame_shift(img_paths: list[PathLike], reg_channel: str, reg_mtd: st
         frames (int, optional): The number of frames in the images. If None, it will get the number of frames from the img_paths. Defaults to None."""
     
     # Log
-    print(f"\n--> Image Registration of exp {img_paths[0].rsplit(sep,1)[0]}")
+    exp_path: Path = Path(img_paths[0]).parent.parent
+    print(f" --> Image Registration of exp {exp_path.stem}")
     
     # Check frames number
     if not frames:
@@ -118,21 +120,20 @@ def correct_frame_shift(img_paths: list[PathLike], reg_channel: str, reg_mtd: st
     
     # Check if only one frame is detected
     if frames==1:
-        print(f" ---> Only one frame detected in the img_paths, no need to apply frame shift")
+        print(f" --> Only one frame detected in the {exp_path.stem}, no need to apply frame shift correction")
         return
     
     # Set up the saving folder
-    exp_path: PathLike = img_paths[0].rsplit(sep,2)[0]
     save_path = create_save_folder(exp_path,'Images_Registered')
     
     # Check if the frame shift was already applied
     if any(scandir(save_path)) and not overwrite:
-        print(" ---> Registration was already applied to the images")
+        print(f" --> Registration was already applied to {exp_path.stem}")
         return
     
     # Initiate the stackreg object
     stackreg = select_reg_mtd(reg_mtd)
-    print(f" ---> Registering images with '{img_ref}_image' reference and {reg_mtd} method")
+    print(f"  ---> Registering with '{img_ref}_image' reference and {reg_mtd} method")
     
     # Apply the frame shift correction
     apply_frame_shift(img_paths,stackreg,frames,reg_channel,img_ref,metadata)
