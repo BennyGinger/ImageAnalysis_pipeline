@@ -1,15 +1,15 @@
 settings = {
-    "input_folder": '/home/Test_images/szimi/Cellsorter',
+    "input_folder": '/home/Test_images/szimi/Cellpose_test',
     "init":{"active_channel_list": "YFP",
             'full_channel_list':"YFP",
-            "overwrite": True},
+            "overwrite": False},
     
     "bg_sub": (True,
                 {"sigma": 0.0,
                 "size": 7,
-                "overwrite": True}),
+                "overwrite": False}),
     
-    "chan_shift": (True,
+    "chan_shift": (False,
                     {"reg_channel": "RFP",
                     "reg_mtd": "rigid_body",
                     "overwrite": False}),
@@ -17,14 +17,14 @@ settings = {
     "frame_shift": (True,
                 {"reg_channel": "YFP",
                 "reg_mtd": "rigid_body",
-                "img_ref": "previous",
+                "img_ref": "first",
                 "overwrite": False}),
     
-    "blur": (True,
+    "blur": (False,
             {"sigma": 5,
             "overwrite": True}),
 
-    "cellpose": (False,
+    "cellpose": (True,
                 {"channel_to_seg":"YFP", #BUG channel should be controlled if it exists in the channel list
                 "model_type": "cyto2", #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
                 "diameter": 30.0,

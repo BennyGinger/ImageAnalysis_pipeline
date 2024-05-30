@@ -2,11 +2,12 @@ from __future__ import annotations
 from functools import partial
 from os import PathLike, scandir
 from os.path import join, getsize, exists
+from threading import Lock
 from nd2 import ND2File
 from tifffile import imread
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
-from pipeline.image_handeling.data_utility import save_tif, create_save_folder
+from pipeline.image_handeling.data_utility import save_tif, create_save_folder, run_multithread
 from pipeline.pre_process.metadata import get_metadata
 
 
@@ -75,7 +76,6 @@ def get_img_params_lst(meta_dict: dict)-> list[tuple]:
         for f in range(meta_dict['n_frames']):
             for z in range(meta_dict['n_slices']):
                 for chan in meta_dict['active_channel_list']:
-                    # img_name_list.append(chan+'_s%02d'%(serie+1)+'_f%04d'%(f+1)+'_z%04d'%(z+1))
                     chan_idx = meta_dict['full_channel_list'].index(chan)
                     img_params_lst.append((chan,(f,serie,z,chan_idx)))
     return img_params_lst
@@ -104,11 +104,11 @@ def process_img_array(array: np.ndarray, meta_dict: dict, save_folder: PathLike)
     # Adjust array with missing dimension
     array = expand_array_dim(array,meta_dict['axes'])
     # Get the metadata
-    metadata = {'um_per_pixel':meta_dict['um_per_pixel'],'finterval':meta_dict['interval_sec']}
-    # Write the images
-    write_array = partial(_write_array,array=array,save_folder=save_folder,metadata=metadata)
-    with ThreadPoolExecutor() as executor:
-        executor.map(write_array,img_params_lst)
+    fixed_args = {'array':array,
+                  'save_folder':save_folder,
+                  'metadata':{'um_per_pixel':meta_dict['um_per_pixel'],
+                              'finterval':meta_dict['interval_sec']}}
+    run_multithread(_write_array,img_params_lst,fixed_args)
    
 def _write_array(img_param: tuple, array: np.ndarray, save_folder: PathLike, metadata: dict)-> None:
     """Function to write the image to the save path within multithreading."""
@@ -129,14 +129,13 @@ def process_img_obj(meta_dict: dict, save_folder: PathLike)-> None:
     # Create all the names for the images+metadata
     img_params_lst = get_img_params_lst(meta_dict)
     # Get the metadata
-    metadata = {'um_per_pixel':meta_dict['um_per_pixel'],'interval_sec':meta_dict['interval_sec']}
-    # Generate input_data
-    nd_obj = ND2File(meta_dict['img_path'])
-    # Run multi-processing
-    write_nd2 = partial(_write_nd2_obj,nd_obj=nd_obj,save_folder=save_folder,metadata=metadata)
-    with ThreadPoolExecutor() as executor:
-        executor.map(write_nd2,img_params_lst)
-    nd_obj.close()
+    with ND2File(meta_dict['img_path']) as nd_obj:
+        fixed_args = {'nd_obj':nd_obj,
+                    'save_folder':save_folder,
+                    'metadata':{'um_per_pixel':meta_dict['um_per_pixel'],
+                                'finterval':meta_dict['interval_sec']}}
+        # Run multi-processing
+        run_multithread(_write_nd2_obj,img_params_lst,fixed_args)
 
 def _write_nd2_obj(img_param: tuple, nd_obj: ND2File, save_folder: PathLike, metadata: dict)-> None:
     # Unpack input data
@@ -144,13 +143,23 @@ def _write_nd2_obj(img_param: tuple, nd_obj: ND2File, save_folder: PathLike, met
     frame,serie,z,chan_idx = array_slice
     img_name = chan+'_s%02d'%(serie+1)+'_f%04d'%(frame+1)+'_z%04d'%(z+1)+'.tif'
     # Get the image
-    index = get_frame(nd_obj,frame,serie,z)
+    index = get_frame(nd_obj,frame,serie,z,)
     img = nd_obj.read_frame(index)
     # Create save path and write the image
     save_path = join(save_folder,img_name)
-    save_tif(img[chan_idx],save_path,**metadata)
+    if img.ndim == 3:
+        save_tif(img[chan_idx],save_path,**metadata)
+    else:
+        save_tif(img,save_path,**metadata)
 
-def get_frame(nd_obj: ND2File, frame:int, serie:int, z_slice:int)-> int:
+def get_frame(nd_obj: ND2File, frame:int, serie:int, z_slice:int, metadata: dict)-> int:
+    """To extract the index of a specific image from ND2File obj, if run in multithreading, use the lock to limit access to the save function."""
+    if 'lock' in metadata:
+        with metadata['lock']:
+            return _get_frame(nd_obj,frame,serie,z_slice)
+    return _get_frame(nd_obj,frame,serie,z_slice)
+
+def _get_frame(nd_obj: ND2File, frame:int, serie:int, z_slice:int)-> int:
     """Extract index of a specfic image from ND2File obj"""
     for entry in nd_obj.events():
         # Add missing axes
@@ -169,5 +178,8 @@ if __name__ == "__main__":
     # Test tif image
     # img_path = '/home/Test_images/tiff/Run2/c2z25t23v1_tif.tif'
     # Test nd2 image
-    img_path = '/home/Test_images/szimi/Cellsorter/control/control_001.tif'
+    # img_path = '/home/Test_images/nd2/Run1/c1z25t25v1_nd2.nd2'
+    # img_path = '/home/Test_images/nd2/Run2/c2z25t23v1_nd2.nd2'
+    img_path = '/home/Test_images/tiff/Run1/c1z25t25v1_tif.tif'
     fold_paths = create_img_seq(img_path,active_channel_list=['YFP'],full_channel_list=['YFP'],overwrite=True)
+    # fold_paths = create_img_seq(img_path,active_channel_list=['GFP','RFP'],full_channel_list=['GFP','RFP'],overwrite=True)

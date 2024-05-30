@@ -26,22 +26,21 @@ class SegmentationModule(BaseModule):
     def segment_from_settings(self, settings: dict)-> list[Experiment]:
         sets = Settings(settings)
         if not hasattr(sets,'segmentation'):
-            print("No segmentation settings found")
+            print("\nNo segmentation settings found =====")
             self.save_as_json()
             return self.exp_obj_lst
         sets = sets.segmentation
+        # Run the segmentation processes
+        print("\nSegmentation process started =====")
         if hasattr(sets,'cellpose'):
             self.cellpose(**sets.cellpose)
         if hasattr(sets,'threshold'):
             self.exp_obj_lst = self.thresholding(**sets.threshold)
+        print("\nSegmentation done =====")
         self.save_as_json()
         return self.exp_obj_lst
     
-    def cellpose(self, channel_to_seg: str | list[str], model_type: str | PathLike = 'cyto3', 
-                 diameter: float = 60, flow_threshold: float = 0.4, 
-                 cellprob_threshold: float = 0, overwrite: bool = False, 
-                 img_fold_src: str = "", process_as_2D: bool = False, 
-                 save_as_npy: bool = False,**kwargs: Any)-> None:
+    def cellpose(self, channel_to_seg: str | list[str], model_type: str | PathLike = 'cyto3', diameter: float = 60, flow_threshold: float = 0.4, cellprob_threshold: float = 0, overwrite: bool = False, img_fold_src: str = "", process_as_2D: bool = False, save_as_npy: bool = False,**kwargs)-> None:
         if isinstance(channel_to_seg,str):
             for exp_obj in self.exp_obj_lst:
                 # Activate branch

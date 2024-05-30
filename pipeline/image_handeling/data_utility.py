@@ -2,8 +2,13 @@ from __future__ import annotations
 from os import sep, remove, PathLike
 from os.path import join
 from pathlib import Path
+
+from tqdm import tqdm
 from pipeline.image_handeling.Experiment_Classes import Experiment
-from typing import Iterable
+from typing import Iterable, Iterator, Any, Callable
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from functools import partial
+from threading import Lock
 import numpy as np
 from tifffile import imread, imwrite
 
@@ -168,8 +173,17 @@ def get_resolution(um_per_pixel: tuple[float,float])-> tuple[float,float]:
     x_umpixel,y_umpixel = um_per_pixel
     return 1/x_umpixel,1/y_umpixel
 
-def save_tif(array: np.ndarray, save_path: PathLike, um_per_pixel: tuple[float,float], finterval: int)-> None:
-    """Save array as tif with metadata"""
+def save_tif(array: np.ndarray, save_path: PathLike, um_per_pixel: tuple[float,float], finterval: int, lock: Lock=None)-> None:
+    """Save array as tif with metadata. If lock is provided, use it to limit access to the save function."""
+    if not lock:
+        _save_tif(array,save_path,um_per_pixel,finterval)
+        return
+    # If lock is provided, use it to limit access to the save function
+    with lock:
+        _save_tif(array,save_path,um_per_pixel,finterval)
+
+def _save_tif(array: np.ndarray, save_path: PathLike, um_per_pixel: tuple[float,float], finterval: int)-> None:
+    """Actual save function for tif with metadata. If no metadata provided, save the array as tif without metadata"""
     # If no metadata provided
     if not finterval or not um_per_pixel:
         imwrite(save_path,array.astype(np.uint16))
@@ -200,3 +214,27 @@ def gen_input_data(exp_set: Experiment, img_sorted_frames: dict[str,list], chann
                   for frame in range(exp_set.img_properties.n_frames)]
     return input_data
 
+def run_multithread(func: Callable, input_data: Iterable, fixed_args: dict={})-> Iterator:
+    """Run a function in multi-threading."""
+    
+    # Create lock to limit access to the save function, and ensure all frames are saved
+    lock = Lock()
+    # Run cellpose in threads
+    with ThreadPoolExecutor() as executor:
+        with tqdm(total=len(input_data),desc="Processing") as pbar:
+            fixed_args['metadata']['lock'] = lock
+            results = executor.map(partial(func,**fixed_args),input_data)
+            # Update the pbar
+            [pbar.update() for _ in results]
+    return results
+
+def run_multiprocess(func: Callable, input_data: Iterable, fixed_args: dict={})-> Iterator:
+    """Run a function in multi-processing."""
+    
+    # Run cellpose in threads
+    with ProcessPoolExecutor() as executor:
+        with tqdm(total=len(input_data),desc="Processing") as pbar:
+            results = executor.map(partial(func,**fixed_args),input_data)
+            # Update the pbar
+            [pbar.update() for _ in results]
+    return results
