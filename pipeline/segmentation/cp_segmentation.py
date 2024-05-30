@@ -1,17 +1,12 @@
 from __future__ import annotations
-from functools import partial
 import json
 import re
-from typing import Callable
 import numpy as np
 from cellpose import models, core
 from cellpose.io import logger_setup, masks_flows_to_seg
 from os import PathLike
 from pathlib import Path
 from os.path import isfile
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from threading import Lock
-from tqdm import tqdm
 
 from pipeline.image_handeling.data_utility import load_stack, create_save_folder, save_tif, run_multithread, run_multiprocess
 
@@ -58,10 +53,7 @@ IN_HOUSE_MODELS = []
 
 
 # # # # # # # # main functions # # # # # # # # # 
-def cellpose_segmentation(img_paths: list[PathLike], channel_seg: str, model_type: str | PathLike ='cyto2',
-                          diameter: float=60., flow_threshold: float=0.4, cellprob_threshold: float=0.0,
-                          overwrite: bool=False, process_as_2D: bool=False,
-                          save_as_npy: bool=False, **kwargs)-> tuple[dict,dict]:
+def cellpose_segmentation(img_paths: list[PathLike], channel_seg: str, model_type: str | PathLike ='cyto2', diameter: float=60., flow_threshold: float=0.4, cellprob_threshold: float=0.0, overwrite: bool=False, process_as_2D: bool=False, save_as_npy: bool=False, **kwargs)-> tuple[dict,dict]:
     """Function to run cellpose segmentation. See https://github.com/MouseLand/cellpose for more details.
     Takes a list of image paths, with names that match the pattern [C]_[S/d{4}]_[F/d{4}]_[Z/d{4}].
     With C the channel name, S the serie number, F the frame number and Z the z_slice number, followed by
@@ -113,10 +105,13 @@ def cellpose_segmentation(img_paths: list[PathLike], channel_seg: str, model_typ
     model,model_settings = cellpose_setup.setup_model(model_type)
     
     # Get the fixed arguments for run_cellpose()
-    fixed_args = {'metadata':metadata,'img_paths':img_paths,'channels':channels,
-                              'process_as_2D':process_as_2D,'model':model,'cellpose_eval':cellpose_eval,
-                              'save_as_npy':save_as_npy}
-    
+    fixed_args = {'metadata':metadata,
+                  'img_paths':img_paths,
+                  'channels':channels,
+                  'process_as_2D':process_as_2D,
+                  'model':model,
+                  'cellpose_eval':cellpose_eval,
+                  'save_as_npy':save_as_npy}
     
     parallel_executor(frames,model_settings['gpu'],cellpose_eval['z_axis'],fixed_args)
     
@@ -124,7 +119,7 @@ def cellpose_segmentation(img_paths: list[PathLike], channel_seg: str, model_typ
     
 
 #################### Helper functions ####################
-def run_cellpose(frame: int, img_paths: list[PathLike], channels: list[str], process_as_2D: bool,model: models.CellposeModel, cellpose_eval: dict, save_as_npy: bool, metadata: dict)-> None:
+def run_cellpose(frame: int, img_paths: list[PathLike], channels: list[str], process_as_2D: bool, model: models.CellposeModel, cellpose_eval: dict, save_as_npy: bool, metadata: dict)-> None:
     """Function that runs the cellpose segmentation on a single frame of a stack."""
     # Load image/stack and model
     img = load_stack(img_paths,channels,frame,process_as_2D)
@@ -262,10 +257,10 @@ def load_metadata(exp_path: Path, channel_to_seg: str)-> tuple[dict,dict]:
     # Check if metadata exists, if not return empty settings
     setting_path = exp_path.joinpath('exp_settings.json')
     if not setting_path.exists():
-        print(f" ---> No metadata found for the '{channel_to_seg}' channel.")
+        print(f"  ---> No metadata found for the '{channel_to_seg}' channel.")
         return {},{}
     # Load metadata
-    print(f" ---> Loading metadata for the '{channel_to_seg}' channel.")    
+    print(f"  ---> Loading metadata for the '{channel_to_seg}' channel.")    
     with open(setting_path,'r') as fp:
         meta = json.load(fp)
     model_settings = meta['segmentation']['cellpose_seg'][channel_to_seg]['model_settings']

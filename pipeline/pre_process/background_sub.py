@@ -1,12 +1,9 @@
 from __future__ import annotations
-from os import PathLike, sep
+from os import PathLike
 from pathlib import Path
-
-from concurrent.futures import ThreadPoolExecutor
 from tifffile import imread
 from smo import SMO
-from functools import partial
-from pipeline.image_handeling.data_utility import save_tif
+from pipeline.image_handeling.data_utility import save_tif, run_multithread
 
 
 ################################## main function ###################################
@@ -18,13 +15,12 @@ def background_sub(img_paths: list[PathLike], sigma: float=0.0, size: int=7,
     print(f"--> Applying background substraction to {exp_name} with sigma={sigma} and size={size}")
     # Generate input data
     img_shape = imread(img_paths[0]).shape
-    smo = SMO(shape=img_shape,sigma=sigma,size=size) 
-    apply_bg_sub_partial = partial(apply_bg_sub,smo=smo,
-                                   metadata={'um_per_pixel':um_per_pixel,'finterval':finterval})
-    smo.bg_mask
+    fixed_args = {'smo':SMO(shape=img_shape,sigma=sigma,size=size),
+                  'metadata':{'um_per_pixel':um_per_pixel,
+                              'finterval':finterval}}
+    
     # Apply background substraction
-    with ThreadPoolExecutor() as executor:
-        executor.map(apply_bg_sub_partial,img_paths)
+    run_multithread(apply_bg_sub,img_paths,fixed_args)
 
 
 ################################ Satelite functions ################################

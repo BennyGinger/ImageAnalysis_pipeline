@@ -214,19 +214,22 @@ def gen_input_data(exp_set: Experiment, img_sorted_frames: dict[str,list], chann
                   for frame in range(exp_set.img_properties.n_frames)]
     return input_data
 
-def run_multithread(func: Callable, input_data: Iterable, fixed_args: dict={})-> Iterator:
+def run_multithread(func: Callable, input_data: Iterable, fixed_args: dict={})-> list:
     """Run a function in multi-threading."""
     
     # Create lock to limit access to the save function, and ensure all frames are saved
     lock = Lock()
     # Run cellpose in threads
+    outputs = []
     with ThreadPoolExecutor() as executor:
         with tqdm(total=len(input_data),desc="Processing") as pbar:
             fixed_args['metadata']['lock'] = lock
             results = executor.map(partial(func,**fixed_args),input_data)
             # Update the pbar
-            [pbar.update() for _ in results]
-    return results
+            for output in results:
+                pbar.update()
+                outputs.append(output)
+    return outputs
 
 def run_multiprocess(func: Callable, input_data: Iterable, fixed_args: dict={})-> Iterator:
     """Run a function in multi-processing."""

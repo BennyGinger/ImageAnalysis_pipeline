@@ -106,7 +106,7 @@ class PreProcessModule(BaseModule):
                 print(f" --> Background substraction was already applied to the images with {exp_obj.preprocess.background_sub}")
                 continue
             # Apply background substraction
-            background_sub(exp_obj.ori_imgs_lst,sigma,size,overwrite)
+            background_sub(exp_obj.ori_imgs_lst,sigma,size,exp_obj.analysis.um_per_pixel,exp_obj.analysis.interval_sec)
             # Save the settings
             exp_obj.preprocess.background_sub = (f"sigma={sigma}",f"size={size}","fold_src=Images")
             exp_obj.save_as_json()
@@ -131,10 +131,11 @@ class PreProcessModule(BaseModule):
             
             # Get the images to register
             img_fold_src,img_paths = img_list_src(exp_obj,'Images')
+            um_per_pixel = exp_obj.analysis.um_per_pixel
+            finterval = exp_obj.analysis.interval_sec
             
             # Apply the channel shift
-            correct_channel_shift(img_paths,reg_mtd,reg_channel,exp_obj.active_channel_list,
-                                  {'finterval':exp_obj.analysis.interval_sec,'um_per_pixel':exp_obj.analysis.um_per_pixel})
+            correct_channel_shift(img_paths,reg_mtd,reg_channel,exp_obj.active_channel_list,um_per_pixel,finterval)
             
             # Save the settings
             exp_obj.preprocess.channel_reg = [f"reg_mtd={reg_mtd}",f"reg_channel={reg_channel}",f"fold_src={img_fold_src}"]
@@ -161,9 +162,12 @@ class PreProcessModule(BaseModule):
             
             # Get the images to register
             img_fold_src,img_paths = img_list_src(exp_obj,'Images')
+            um_per_pixel = exp_obj.analysis.um_per_pixel
+            finterval = exp_obj.analysis.interval_sec
+            frames = exp_obj.img_properties.n_frames
             
             # Apply the frame shift
-            correct_frame_shift(img_paths,reg_channel,reg_mtd,img_ref,overwrite,{'finterval':exp_obj.analysis.interval_sec,'um_per_pixel':exp_obj.analysis.um_per_pixel},exp_obj.img_properties.n_frames)
+            correct_frame_shift(img_paths,reg_channel,reg_mtd,img_ref,overwrite,um_per_pixel,finterval,frames)
             
             # Save settings
             exp_obj.preprocess.frame_reg = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}",f"img_ref={img_ref}",f"fold_src={img_fold_src}"]
@@ -177,13 +181,12 @@ class PreProcessModule(BaseModule):
         for exp_obj in self.exp_obj_lst:
             # Get the images to blur and the metadata
             img_fold_src,img_paths = img_list_src(exp_obj,img_fold_src)
-            metadata = {'um_per_pixel':exp_obj.analysis.um_per_pixel,'finterval':exp_obj.analysis.interval_sec}
             
             # Activate the branch, after checking if the images are already processed
             exp_obj.preprocess.is_img_blured = True
             
             # Apply the blur
-            blur_images(img_paths,sigma,kernel,metadata,overwrite)
+            blur_images(img_paths,sigma,kernel,exp_obj.analysis.um_per_pixel,exp_obj.analysis.interval_sec,overwrite)
             
             # Save settings
             exp_obj.preprocess.img_blured = [f"blur_kernel={kernel}",f"blur_sigma={sigma}",f"fold_src={img_fold_src}"]

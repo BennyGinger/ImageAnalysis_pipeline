@@ -1,7 +1,7 @@
 settings = {
-    "input_folder": '/home/Test_images/szimi/Cellpose_test',
-    "init":{"active_channel_list": "YFP",
-            'full_channel_list':"YFP",
+    "input_folder": '/home/Test_images/nd2/Run2',
+    "init":{"active_channel_list": ["GFP","RFP"],
+            'full_channel_list':["GFP","RFP"],
             "overwrite": False},
     
     "bg_sub": (True,
@@ -9,23 +9,23 @@ settings = {
                 "size": 7,
                 "overwrite": False}),
     
-    "chan_shift": (False,
+    "chan_shift": (True,
                     {"reg_channel": "RFP",
                     "reg_mtd": "rigid_body",
                     "overwrite": False}),
     
     "frame_shift": (True,
-                {"reg_channel": "YFP",
+                {"reg_channel": "RFP",
                 "reg_mtd": "rigid_body",
                 "img_ref": "first",
                 "overwrite": False}),
     
-    "blur": (False,
+    "blur": (True,
             {"sigma": 5,
             "overwrite": True}),
 
     "cellpose": (True,
-                {"channel_to_seg":"YFP", #BUG channel should be controlled if it exists in the channel list
+                {"channel_to_seg":"RFP", #BUG channel should be controlled if it exists in the channel list
                 "model_type": "cyto2", #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
                 "diameter": 30.0,
                 "flow_threshold": 0.4,
@@ -34,7 +34,7 @@ settings = {
                 "save_as_npy": False,
                 "overwrite": False,}),
     
-    "threshold": (False,
+    "threshold": (True,
                 {"channel_to_seg":"RFP",
                 "manual_threshold": None,
                 "img_fold_src": "",

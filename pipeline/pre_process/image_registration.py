@@ -1,21 +1,17 @@
 from __future__ import annotations
-from functools import partial
 from os import PathLike, scandir, sep, listdir
 from pathlib import Path
 import shutil
 from tifffile import imread
 import numpy as np
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pystackreg import StackReg
-from pipeline.image_handeling.Experiment_Classes import Experiment
-from pipeline.image_handeling.data_utility import load_stack, create_save_folder, save_tif, is_processed
+from pipeline.image_handeling.data_utility import load_stack, create_save_folder, save_tif, run_multiprocess
 
 
 ####################################################################################
 ############################# Channel shift correction #############################
 ################################## main function ###################################
-def correct_channel_shift(img_paths: list[PathLike], reg_mtd: str, reg_channel: str, 
-                          channels: list[str]=[], metadata: dict={})-> None:
+def correct_channel_shift(img_paths: list[PathLike], reg_mtd: str, reg_channel: str, channels: list[str]=[], um_per_pixel: tuple[float,float]=None, finterval: int=None)-> None:
     """Main function to apply the channel shift correction to the images. Requires multiple channels.
     It will register only the first frames of all channels to the reg_channel. If images have a z-stack, 
     it will only register the maxIP of the images, but the transformation will be applied to all images.
@@ -41,8 +37,9 @@ def correct_channel_shift(img_paths: list[PathLike], reg_mtd: str, reg_channel: 
         print(f" --> Only one channel detected in the img_paths, no need to apply channel shift correction")
         return
     
-    # Initiate the stackreg object
+    # Initiate the stackreg object and metadata
     stackreg = select_reg_mtd(reg_mtd)
+    metadata = {'um_per_pixel':um_per_pixel,'finterval':finterval}
     print(f" --> Applying channel shift correction on the images with '{reg_channel}' as reference and {reg_mtd} methods")
     
     # Apply the channel shift correction
@@ -65,8 +62,7 @@ def get_tmats_chan(stackreg: StackReg, img_paths: list[PathLike], channels: list
         tmats_dict[chan] = stackreg.register(img_ref,img)
     return tmats_dict
 
-def apply_chan_shift(stackreg: StackReg, img_paths: list[PathLike], channels: list[str], 
-                     reg_channel: str, metadata: dict)-> None:
+def apply_chan_shift(stackreg: StackReg, img_paths: list[PathLike], channels: list[str], reg_channel: str, metadata: dict)-> None:
     """Apply the channel shift correction to the images."""
     # Get all the tmats
     tmats_dict = get_tmats_chan(stackreg,img_paths,channels,reg_channel)
@@ -75,21 +71,19 @@ def apply_chan_shift(stackreg: StackReg, img_paths: list[PathLike], channels: li
     img_paths = [path for path in img_paths if reg_channel not in path]
     
     # Generate input data for parallel processing
-    if not metadata:
-        metadata = {'um_per_pixel':None,'finterval':None}
+    fixed_args = {'stackreg':stackreg,
+                  'tmats_dict':tmats_dict,
+                  'metadata':metadata,
+                  'save_fold':'Images'}
     
-    partial_apply_tmat = partial(apply_tmat_to_img,stackreg=stackreg,tmats_dict=tmats_dict,
-                                 metadata=metadata,save_fold='Images')
-    
-    with ProcessPoolExecutor() as executor:
-        executor.map(partial_apply_tmat,img_paths)
+    # Apply the transformation to the images
+    run_multiprocess(apply_tmat_to_img,img_paths,fixed_args)
 
 
 ####################################################################################
 ############################## Frame shift correction ##############################
 ################################## main function ###################################
-def correct_frame_shift(img_paths: list[PathLike], reg_channel: str, reg_mtd: str, img_ref: str, overwrite: bool=False,
-                        metadata: dict={}, frames: int=None)-> None:
+def correct_frame_shift(img_paths: list[PathLike], reg_channel: str, reg_mtd: str, img_ref: str, overwrite: bool=False,um_per_pixel: tuple[float,float]=None, finterval: int=None, frames: int=None)-> None:
     """Main function to apply the frame shift correction to the images. Requires multiple frames.
     It will register all the frames to the first frame, the mean of all frames or the previous frame.
     If images have a z-stack, it will only register the maxIP of the images, but the transformation will 
@@ -133,6 +127,7 @@ def correct_frame_shift(img_paths: list[PathLike], reg_channel: str, reg_mtd: st
     
     # Initiate the stackreg object
     stackreg = select_reg_mtd(reg_mtd)
+    metadata = {'um_per_pixel':um_per_pixel,'finterval':finterval} 
     print(f"  ---> Registering with '{img_ref}_image' reference and {reg_mtd} method")
     
     # Apply the frame shift correction
@@ -149,21 +144,20 @@ def register_stack(img_paths: list[str], frames: int, stackreg: StackReg, reg_ch
     
     return stackreg.register_stack(img_stack,reference=img_ref)
     
-def apply_frame_shift(img_paths: list[PathLike], stackreg: StackReg, frames: int,
-                      reg_channel: str, img_ref: str, metadata: dict)-> None:
+def apply_frame_shift(img_paths: list[PathLike], stackreg: StackReg, frames: int,reg_channel: str, img_ref: str, metadata: dict)-> None:
     """Apply the frame shift correction to the images depending on the img_ref (first, mean or previous)."""
     # Get the tmats
     tmats_arr = register_stack(img_paths,frames,stackreg,reg_channel,img_ref)
     tmats_dict = {i:tmats_arr[i] for i in range(frames)}
     
-    if not metadata:
-        metadata = {'um_per_pixel':None,'finterval':None}
-    partial_apply_tmat = partial(apply_tmat_to_img,stackreg=stackreg,tmats_dict=tmats_dict,
-                                 metadata=metadata, save_fold='Images_Registered')
+    # Generate input data for parallel processing
+    fixed_args = {'stackreg':stackreg,
+                  'tmats_dict':tmats_dict,
+                  'metadata':metadata,
+                  'save_fold':'Images_Registered'}
     
     # Apply the transfo matrix to the images
-    with ProcessPoolExecutor() as executor:
-        executor.map(partial_apply_tmat,img_paths)
+    run_multiprocess(apply_tmat_to_img,img_paths,fixed_args)
 
 def copy_first_frame(img_path: list[str], folder_name_dst: str)-> None:
     """Simple function to copy the first frame to the given folder name."""
@@ -224,9 +218,9 @@ if __name__ == "__main__":
     
     folder = '/home/Test_images/tiff/Run2/c2z25t23v1_tif_s1/Images'
     img_paths = [join(folder,file) for file in sorted(listdir(folder))]
-    start = time()
-    # correct_channel_shift(img_paths,'rigid_body','RFP')
-    end = time()
+    # start = time()
+    # # correct_channel_shift(img_paths,'rigid_body','RFP')
+    # end = time()
     # print(f"Time taken: {end-start}")
     start = time()
     correct_frame_shift(img_paths,'RFP','rigid_body','previous',True)
