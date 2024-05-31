@@ -1,6 +1,5 @@
 from __future__ import annotations
 import json
-import re
 import numpy as np
 from cellpose import models, core
 from cellpose.io import logger_setup, masks_flows_to_seg
@@ -8,7 +7,7 @@ from os import PathLike
 from pathlib import Path
 from os.path import isfile
 
-from pipeline.image_handeling.data_utility import load_stack, create_save_folder, save_tif, run_multithread, run_multiprocess
+from pipeline.image_handeling.data_utility import load_stack, create_save_folder, save_tif, run_multithread, run_multiprocess, get_img_prop
 
 
 #TODO: replace imwrite with save_tif
@@ -236,18 +235,6 @@ def parallel_executor(frames: int, gpu: bool, z_axis: int, fixed_args: dict)-> N
     # If CPU 2D or 3D: multi-processing
     else:
         run_multiprocess(run_cellpose,range(frames),fixed_args)
-
-def get_img_prop(img_paths: list[PathLike])-> tuple[int,int]:
-    """Function that returns the number of frames and z_slices of a folder containing images.
-    The names of those images must match the pattern [C]_[S/d{1}]_[F/d{4}]_[Z/d{4}],
-    where C is a label of the channel name (str), S the serie number followed by 2 digits,
-    F the frames followed by 4 digits and Z the z_slices followed by 4 digits"""
-    # Gather all frames and all z_slice
-    frames = [re.search('_f\d{4}', path).group() 
-                     for path in img_paths if re.search('_f\d{4}', path)]
-    z_slices = [re.search('_z\d{4}', path).group() 
-                     for path in img_paths if re.search('_z\d{4}', path)]
-    return len(set(frames)),len(set(z_slices))
 
 def load_metadata(exp_path: Path, channel_to_seg: str)-> tuple[dict,dict]:
     """Function to load the metadata from the json file if it exists. Experiment obj are saved as json files,

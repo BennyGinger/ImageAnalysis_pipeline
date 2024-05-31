@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from os import PathLike
 from pipeline.image_handeling.Base_Module_Class import BaseModule
 from pipeline.image_handeling.Experiment_Classes import Experiment, init_from_json
+from pipeline.image_handeling.data_utility import seg_mask_lst_src
 from pipeline.tracking.iou_tracking import iou_tracking
 from pipeline.tracking.gnn_tracking import gnn_tracking
 from pipeline.tracking.man_tracking import man_tracking
@@ -31,8 +32,7 @@ class TrackingModule(BaseModule):
         sets = sets.tracking
 
         if hasattr(sets,'iou_track'):
-            self.exp_obj_lst = self.iou_tracking(**sets.iou_track)
-            self.save_as_json()
+            self.iou_tracking(**sets.iou_track)
             return self.exp_obj_lst
     
         if hasattr(sets,'gnn_track'):
@@ -45,18 +45,36 @@ class TrackingModule(BaseModule):
             self.save_as_json()
             return self.exp_obj_lst
     
-    def iou_tracking(self, channel_to_track: str | list[str], img_fold_src: PathLike = "", stitch_thres_percent: float=0.75, shape_thres_percent: float=0.2,
-                 overwrite: bool=False, mask_appear: int=5, copy_first_to_start: bool=True, copy_last_to_end: bool=True)-> list[Experiment]:
+    def iou_tracking(self, channel_to_track: str | list[str], mask_fold_src: PathLike = "", stitch_thres_percent: float=0.75, shape_thres_percent: float=0.2, overwrite: bool=False, mask_appear: int=5, copy_first_to_start: bool=True, copy_last_to_end: bool=True)-> list[Experiment]:
         if isinstance(channel_to_track, str):
-            return iou_tracking(self.exp_obj_lst,channel_to_track,img_fold_src,stitch_thres_percent,shape_thres_percent,overwrite,mask_appear,copy_first_to_start,copy_last_to_end)
+            print(f"\n-> Tracking images with IOU")
+            for exp_obj in self.exp_obj_lst:
+                # Activate branch
+                exp_obj.tracking.is_iou_track = True
+                # Get the mask paths and metadata
+                mask_fold_src,mask_paths = seg_mask_lst_src(exp_obj,mask_fold_src)
+                um_per_pixel = exp_obj.analysis.um_per_pixel
+                finterval = exp_obj.analysis.interval_sec
+            
+            # Run IOU tracking
+            iou_tracking(mask_paths,channel_to_track,stitch_thres_percent,shape_thres_percent,
+                         overwrite,mask_appear,copy_first_to_start,copy_last_to_end,
+                         um_per_pixel=um_per_pixel,finterval=finterval)
+            
+            # Save settings
+            exp_obj.tracking.iou_track[channel_to_track] = {'fold_src':mask_fold_src,
+                                                           'stitch_thres_percent':stitch_thres_percent,
+                                                           'shape_thres_percent':shape_thres_percent,
+                                                           'mask_appear':mask_appear}
+            exp_obj.save_as_json()
+            return 
         
         if isinstance(channel_to_track,list):
             for channel in channel_to_track:
-                self.exp_obj_lst = self.iou_tracking(channel,img_fold_src,stitch_thres_percent,shape_thres_percent,overwrite,mask_appear,copy_first_to_start,copy_last_to_end)
+                self.exp_obj_lst = self.iou_tracking(channel,mask_fold_src,stitch_thres_percent,shape_thres_percent,overwrite,mask_appear,copy_first_to_start,copy_last_to_end)
             return self.exp_obj_lst
         
-    def gnn_tracking(self, channel_to_track: str | list[str], max_travel_dist: int,img_fold_src: PathLike ="", model: str='neutrophil', mask_fold_src: PathLike ="", morph: bool=False,
-                     decision_threshold: float=0.5, mask_appear: int=2, manual_correct: bool=False, overwrite: bool=False) -> list[Experiment]:
+    def gnn_tracking(self, channel_to_track: str | list[str], max_travel_dist: int,img_fold_src: PathLike ="", model: str='neutrophil', mask_fold_src: PathLike ="", morph: bool=False, decision_threshold: float=0.5, mask_appear: int=2, manual_correct: bool=False, overwrite: bool=False) -> list[Experiment]:
         if isinstance(channel_to_track, str):
             return gnn_tracking(self.exp_obj_lst,channel_to_track,model, max_travel_dist,overwrite,img_fold_src,mask_fold_src,morph,mask_appear,decision_threshold, manual_correct)
         

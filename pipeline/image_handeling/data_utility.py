@@ -2,10 +2,10 @@ from __future__ import annotations
 from os import sep, remove, PathLike
 from os.path import join
 from pathlib import Path
-
+import re
 from tqdm import tqdm
 from pipeline.image_handeling.Experiment_Classes import Experiment
-from typing import Iterable, Iterator, Any, Callable
+from typing import Iterable, Iterator, Callable
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from functools import partial
 from threading import Lock
@@ -216,16 +216,18 @@ def gen_input_data(exp_set: Experiment, img_sorted_frames: dict[str,list], chann
 
 def run_multithread(func: Callable, input_data: Iterable, fixed_args: dict={})-> list:
     """Run a function in multi-threading."""
-    
-    # Create lock to limit access to the save function, and ensure all frames are saved
-    lock = Lock()
-    # Run cellpose in threads
+    # Run callable in threads
     outputs = []
     with ThreadPoolExecutor() as executor:
-        with tqdm(total=len(input_data),desc="Processing") as pbar:
-            fixed_args['metadata']['lock'] = lock
+        with tqdm(total=len(input_data)) as pbar:
+            # Add lock to fixed_args
+            if 'metadata' in fixed_args:
+                fixed_args['metadata']['lock'] = Lock()
+            else:
+                fixed_args['lock'] = Lock()
+            # Run function
             results = executor.map(partial(func,**fixed_args),input_data)
-            # Update the pbar
+            # Update the pbar and get outputs
             for output in results:
                 pbar.update()
                 outputs.append(output)
@@ -241,3 +243,15 @@ def run_multiprocess(func: Callable, input_data: Iterable, fixed_args: dict={})-
             # Update the pbar
             [pbar.update() for _ in results]
     return results
+
+def get_img_prop(img_paths: list[PathLike])-> tuple[int,int]:
+    """Function that returns the number of frames and z_slices of a folder containing images.
+    The names of those images must match the pattern [C]_[S/d{1}]_[F/d{4}]_[Z/d{4}],
+    where C is a label of the channel name (str), S the serie number followed by 2 digits,
+    F the frames followed by 4 digits and Z the z_slices followed by 4 digits"""
+    # Gather all frames and all z_slice
+    frames = [re.search('_f\d{4}', path).group() 
+                     for path in img_paths if re.search('_f\d{4}', path)]
+    z_slices = [re.search('_z\d{4}', path).group() 
+                     for path in img_paths if re.search('_z\d{4}', path)]
+    return len(set(frames)),len(set(z_slices))
