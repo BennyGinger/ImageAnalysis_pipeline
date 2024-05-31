@@ -1,6 +1,7 @@
 from __future__ import annotations
 from os import PathLike, scandir, sep
 from pathlib import Path
+from time import sleep
 from pipeline.image_handeling.data_utility import create_save_folder, save_tif, run_multithread
 from tifffile import imread
 from cv2 import GaussianBlur
@@ -15,10 +16,11 @@ def blur_images(img_paths: list[PathLike], sigma: int, kernel: tuple[int,int]=(1
     
     # Already processed
     exp_path = str(Path(img_paths[0]).parent).rsplit(sep,1)[0]
-    print(f" --> Bluring images in {exp_path}")
+    print(f" --> Bluring images in \033[94m{exp_path}\033[0m")
     save_path = create_save_folder(exp_path,'Images_Blured')
     if any(scandir(save_path)) and not overwrite:
         print(f"  ---> Images are already blured with kernel={kernel} and sigma={sigma}")
+        sleep(0.1)
         return
 
     # Get the metadata and fixed parameters

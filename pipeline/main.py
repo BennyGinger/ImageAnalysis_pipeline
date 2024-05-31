@@ -4,8 +4,8 @@ from multiprocessing import set_start_method
 set_start_method("spawn",force=True)
 from time import time
 import pandas as pd
-from pipeline.pre_process.PreProcess_Class import PreProcessModule
-from pipeline.segmentation.Segmentation_Class import SegmentationModule
+from ImageAnalysis_pipeline.pipeline.pre_process.PreProcess_Module import PreProcessModule
+from ImageAnalysis_pipeline.pipeline.segmentation.Segmentation_Module import SegmentationModule
 from pipeline.tracking.Tracking_Class import TrackingModule
 from pipeline.analysis.Analysis_class import AnalysisModule
 
@@ -29,6 +29,11 @@ if __name__ == "__main__":
     
     t1 = time()
     input_folder = settings['input_folder']
+    master_df = run_pipeline(settings)
+    
+    t2 = time()
+    if t2-t1<60: print(f"Time to process: {round(t2-t1,ndigits=3)} sec\n")
+    else: print(f"Time to process: {round((t2-t1)/60,ndigits=1)} min\n")
     # exp_list = PreProcessModule(input_folder,
     #                             **settings['init']).process_from_settings(settings)
     
@@ -57,8 +62,3 @@ if __name__ == "__main__":
     #         json.dump(exp_set, fp, indent=4)
     
     # master_df = AnalysisModule(input_folder,exp_list).analyze_from_settings(settings)
-    master_df = run_pipeline(settings)
-    
-    t2 = time()
-    if t2-t1<60: print(f"Time to process: {round(t2-t1,ndigits=3)} sec\n")
-    else: print(f"Time to process: {round((t2-t1)/60,ndigits=1)} min\n")

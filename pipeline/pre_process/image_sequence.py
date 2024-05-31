@@ -17,7 +17,7 @@ def create_img_seq(img_path: PathLike, active_channel_list: list[str] = [], full
     # Process each image series
     metadatas: list[PathLike | dict] = []
     for exp_path in metadata['exp_path_list']:
-        print(f" --> Creating image sequence for {exp_path}")
+        print(f" --> Creating image sequence for \033[94m{exp_path}\033[0m")
         
         # If exp has been processed but removed
         if exists(join(exp_path,'REMOVED_EXP.txt')):

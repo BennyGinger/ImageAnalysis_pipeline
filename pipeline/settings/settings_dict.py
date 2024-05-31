@@ -1,13 +1,12 @@
 settings = {
-    "input_folder": '/home/Test_images/nd2/Run2',
+    "input_folder": '/home/Test_images/nd2/Run2_test',
+    
     "init":{"active_channel_list": ["GFP","RFP"],
             'full_channel_list':["GFP","RFP"],
-            "overwrite": False},
+            "overwrite": True},
     
     "bg_sub": (True,
-                {"sigma": 0.0,
-                "size": 7,
-                "overwrite": False}),
+                {"overwrite": False}),
     
     "chan_shift": (True,
                     {"reg_channel": "RFP",
@@ -22,10 +21,10 @@ settings = {
     
     "blur": (True,
             {"sigma": 5,
-            "overwrite": True}),
+            "overwrite": False}),
 
-    "cellpose": (True,
-                {"channel_to_seg":"RFP", #BUG channel should be controlled if it exists in the channel list
+    "cellpose": (False,
+                {"channel_to_seg":"RFP", 
                 "model_type": "cyto2", #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
                 "diameter": 30.0,
                 "flow_threshold": 0.4,
@@ -34,14 +33,14 @@ settings = {
                 "save_as_npy": False,
                 "overwrite": False,}),
     
-    "threshold": (True,
+    "threshold": (False,
                 {"channel_to_seg":"RFP",
                 "manual_threshold": None,
                 "img_fold_src": "",
                 "overwrite": False,}),
     
     "iou_track": (False,
-                  {"channel_to_track":"YFP", #BUG channel should be controlled if it exists in the channel list
+                  {"channel_to_track":"RFP", 
                    "img_fold_src": "",
                    "stitch_thres_percent": 0.5,
                    "shape_thres_percent": 0.95,

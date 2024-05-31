@@ -7,7 +7,7 @@ import warnings
 from tqdm import tqdm
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
 from os.path import join
-from pipeline.image_handeling.data_utility import load_stack, create_save_folder, run_multithread, get_img_prop, save_tif
+from pipeline.image_handeling.data_utility import load_stack, create_save_folder, run_multithread, get_img_prop, save_tif, is_channel_in_lst
 from pipeline.mask_transformation.complete_track import complete_track
 from cellpose.utils import stitch3D
 from cellpose.metrics import _intersection_over_union
@@ -25,13 +25,13 @@ def iou_tracking(img_paths: list[PathLike], channel_track: str, stitch_thres_per
     Args:
         exp_obj_lst (list[Experiment]): List of Experiment objects to perform tracking on.
         channel_seg (str): Channel name for segmentation.
-        mask_fold_src (str): Source folder path for masks.
         stitch_thres_percent (float, optional): Stitching threshold percentage. Defaults to 0.5. Higher values will result in more strict tracking (excluding more cells)
         shape_thres_percent (float, optional): Shape threshold percentage. Defaults to 0.9. Lower values will result in tracks with more differences in shape between frames.
         overwrite (bool, optional): Flag to overwrite existing tracking results. Defaults to False.
         mask_appear (int, optional): Number of times a mask should appear to be considered valid. Defaults to 5.
         copy_first_to_start (bool, optional): Flag to copy the first mask to the start. Defaults to True.
         copy_last_to_end (bool, optional): Flag to copy the last mask to the end. Defaults to True.
+        kwargs: Additional keyword arguments, especially for metadata.
     
     Returns:
         list[Experiment]: List of Experiment objects with updated tracking information.
@@ -235,19 +235,6 @@ def check_mask_similarity(mask: np.ndarray, shape_thres_percent: float = 0.9) ->
         new_mask[slice_obj] += temp
     return new_mask.astype('uint16')
         
-def is_channel_in_lst(channel: str, img_paths: list[PathLike]) -> bool:
-    """
-    Check if a channel is in the list of image paths.
-
-    Args:
-        channel (str): The channel name.
-        img_paths (list[PathLike]): The list of image paths.
-
-    Returns:
-        bool: True if the channel is in the list, False otherwise.
-    """
-    return any(channel in path for path in img_paths)
-
 def process_mask(prop: tuple[int,tuple[slice]], mask: np.ndarray, shape_thres_percent: float, lock: Lock) -> tuple[tuple[slice],np.ndarray]:
     # Crop stack to save memory
     obj,slice_obj = prop
@@ -299,7 +286,7 @@ if __name__ == "__main__":
     copy_last_to_end = True
     
     start = time()
-    iou_tracking(mask_folder_src,'RFP',stitch_thres_percent,shape_thres_percent,True,mask_appear,copy_first_to_start,copy_last_to_end)
+    iou_tracking(mask_folder_src,'YFP',stitch_thres_percent,shape_thres_percent,True,mask_appear,copy_first_to_start,copy_last_to_end)
     
     
     # mask_stack = track_cells(mask_stack,stitch_thres_percent)

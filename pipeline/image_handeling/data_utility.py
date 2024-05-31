@@ -214,8 +214,11 @@ def gen_input_data(exp_set: Experiment, img_sorted_frames: dict[str,list], chann
                   for frame in range(exp_set.img_properties.n_frames)]
     return input_data
 
-def run_multithread(func: Callable, input_data: Iterable, fixed_args: dict={})-> list:
+def run_multithread(func: Callable, input_data: Iterable, fixed_args: dict=None)-> list:
     """Run a function in multi-threading."""
+    if not fixed_args:
+        fixed_args = {}
+    
     # Run callable in threads
     outputs = []
     with ThreadPoolExecutor() as executor:
@@ -233,12 +236,14 @@ def run_multithread(func: Callable, input_data: Iterable, fixed_args: dict={})->
                 outputs.append(output)
     return outputs
 
-def run_multiprocess(func: Callable, input_data: Iterable, fixed_args: dict={})-> Iterator:
+def run_multiprocess(func: Callable, input_data: Iterable, fixed_args: dict=None)-> Iterator:
     """Run a function in multi-processing."""
+    if not fixed_args:
+        fixed_args = {}
     
     # Run cellpose in threads
     with ProcessPoolExecutor() as executor:
-        with tqdm(total=len(input_data),desc="Processing") as pbar:
+        with tqdm(total=len(input_data)) as pbar:
             results = executor.map(partial(func,**fixed_args),input_data)
             # Update the pbar
             [pbar.update() for _ in results]
@@ -255,3 +260,16 @@ def get_img_prop(img_paths: list[PathLike])-> tuple[int,int]:
     z_slices = [re.search('_z\d{4}', path).group() 
                      for path in img_paths if re.search('_z\d{4}', path)]
     return len(set(frames)),len(set(z_slices))
+
+def is_channel_in_lst(channel: str, img_paths: list[PathLike]) -> bool:
+    """
+    Check if a channel is in the list of image paths.
+
+    Args:
+        channel (str): The channel name.
+        img_paths (list[PathLike]): The list of image paths.
+
+    Returns:
+        bool: True if the channel is in the list, False otherwise.
+    """
+    return any(channel in path for path in img_paths)

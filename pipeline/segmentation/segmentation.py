@@ -5,7 +5,7 @@ from pathlib import Path
 import cv2
 from skimage.morphology import remove_small_objects, remove_small_holes
 import numpy as np
-from pipeline.image_handeling.data_utility import load_stack, create_save_folder, save_tif, run_multithread, get_img_prop
+from pipeline.image_handeling.data_utility import load_stack, create_save_folder, save_tif, run_multithread, get_img_prop, is_channel_in_lst
 
 
 ############################# main functions ######################################
@@ -15,7 +15,11 @@ def threshold(img_paths: list[PathLike], channel_seg: str, overwrite: bool=False
     print(f" --> Segmenting object in {exp_path}")
     save_path: Path = Path(create_save_folder(exp_path,'Masks_Threshold'))
     
-    # Check if exist
+    # Check if channel is in the list
+    if not is_channel_in_lst(img_paths,channel_seg):
+        raise ValueError(f"Channel '{channel_seg}' not found in the image files.")
+    
+    # Already segmented?
     if any(file.match(f"*{channel_seg}*") for file in save_path.glob('*.tif')) and not overwrite:
         # Log
         print(f"  ---> Object has already been segmented for the channel {channel_seg}")

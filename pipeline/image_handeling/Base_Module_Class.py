@@ -2,6 +2,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from os import PathLike, walk
 from os.path import join
+from typing import Callable
+
+from tqdm import tqdm
 from .Experiment_Classes import Experiment
 
 
@@ -12,11 +15,11 @@ class BaseModule:
     
     def __post_init__(self)-> None:
         if self.exp_obj_lst:
-            print(f"\n===== Loading the {self.__class__.__name__} Module =====")
+            print(f"\n\033[92m===== Loading the {self.__class__.__name__} Module =====\033[0m")
             return
         
         # Initialize the experiment list
-        print(f"\n===== Initializing the {self.__class__.__name__} Module =====")
+        print(f"\n\033[92m===== Initializing the {self.__class__.__name__} Module =====\033[0m")
     
     def change_attribute(self, attribute: str, value: any)-> list[Experiment]:
         for exp_obj in self.exp_obj_lst:
@@ -28,27 +31,36 @@ class BaseModule:
         print(f"\nSearching for 'exp_settings.json' files in {self.input_folder}")
         # Get the path of all the json files in all subsequent folders/subfolders
         if isinstance(self.input_folder,str):
-            return get_json_path(self.input_folder)
+            return self.get_json_path(self.input_folder)
         
         if isinstance(self.input_folder,list):
             jsons_path = []
             for folder in self.input_folder:
-                jsons_path.extend(get_json_path(folder))
+                jsons_path.extend(self.get_json_path(folder))
             return jsons_path
     
     def save_as_json(self)-> None:
         for exp_obj in self.exp_obj_lst:
             exp_obj.save_as_json()
+    
+    def _loop_over_exp(self, func: Callable, **kwargs)-> None:
+        # Loop over all the experiments and apply the function
+        for exp_obj in tqdm(self.exp_obj_lst,
+                            desc="\033[94mExperiments\033[0m",
+                            colour='blue'):
+            print("\n")
+            func(exp_obj,**kwargs)
        
-def get_json_path(folder: str)-> list[str]:
-    # Get the path of all the nd2 files in all subsequent folders/subfolders and exp_dict if available
-    jsons_path = []
-    for root , _, files in walk(folder):
-        for f in files:
-            # Look for all files with selected extension and that are not already processed 
-            if f == 'exp_settings.json':
-                jsons_path.append(join(root,f))
-    return sorted(jsons_path)
+    @staticmethod
+    def get_json_path(folder: str)-> list[str]:
+        # Get the path of all the nd2 files in all subsequent folders/subfolders and exp_dict if available
+        jsons_path = []
+        for root , _, files in walk(folder):
+            for f in files:
+                # Look for all files with selected extension and that are not already processed 
+                if f == 'exp_settings.json':
+                    jsons_path.append(join(root,f))
+        return sorted(jsons_path)
 
 
 

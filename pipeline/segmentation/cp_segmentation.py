@@ -7,10 +7,9 @@ from os import PathLike
 from pathlib import Path
 from os.path import isfile
 
-from pipeline.image_handeling.data_utility import load_stack, create_save_folder, save_tif, run_multithread, run_multiprocess, get_img_prop
+from pipeline.image_handeling.data_utility import load_stack, create_save_folder, save_tif, run_multithread, run_multiprocess, get_img_prop, is_channel_in_lst
 
 
-#TODO: replace imwrite with save_tif
 MODEL_SETTINGS = {'gpu':core.use_gpu(),
                   'model_type': 'cyto2',
                   'pretrained_model':False,
@@ -84,7 +83,11 @@ def cellpose_segmentation(img_paths: list[PathLike], channel_seg: str, model_typ
     print(f" --> Segmenting cells in {exp_path}")
     save_path: Path = Path(create_save_folder(exp_path,'Masks_Cellpose'))
     
-    # Check if exist
+    # Check if the channel to segment is in the image paths
+    if not is_channel_in_lst(img_paths,channel_seg):
+        raise ValueError(f" --> Channel '{channel_seg}' not found in the provided images.")
+    
+    # Already segmented?
     if any(file.match(f"*{channel_seg}*") for file in save_path.glob('*.tif') if file.suffix==file_type) and not overwrite:
         # Log
         print(f"  ---> Cells have already been segmented with cellpose as {file_type} for the '{channel_seg}' channel.")
