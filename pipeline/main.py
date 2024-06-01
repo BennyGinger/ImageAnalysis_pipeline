@@ -4,16 +4,17 @@ from multiprocessing import set_start_method
 set_start_method("spawn",force=True)
 from time import time
 import pandas as pd
-from ImageAnalysis_pipeline.pipeline.pre_process.PreProcess_Module import PreProcessModule
-from ImageAnalysis_pipeline.pipeline.segmentation.Segmentation_Module import SegmentationModule
+from pipeline.image_extraction.ImageExtract_Module import ImageExtractionModule
+from pipeline.pre_process.PreProcess_Module import PreProcessModule
+from pipeline.segmentation.Segmentation_Module import SegmentationModule
 from pipeline.tracking.Tracking_Class import TrackingModule
 from pipeline.analysis.Analysis_class import AnalysisModule
 
 def run_pipeline(settings: dict)-> pd.DataFrame:
     
     input_folder = settings['input_folder']
-    exp_list = PreProcessModule(input_folder,
-                                **settings['init']).process_from_settings(settings)
+    exp_list = ImageExtractionModule(input_folder,**settings['init']).extract_img_seq()
+    exp_list = PreProcessModule(input_folder,exp_list).process_from_settings(settings)
     exp_list = SegmentationModule(input_folder,exp_list).segment_from_settings(settings)
     exp_list = TrackingModule(input_folder,exp_list).track_from_settings(settings)
     master_df = AnalysisModule(input_folder,exp_list).analyze_from_settings(settings)

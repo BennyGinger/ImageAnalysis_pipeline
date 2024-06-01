@@ -1,5 +1,5 @@
 settings = {
-    "input_folder": '/home/Test_images/nd2/Run2_test',
+    "input_folder": '/home/Test_images/nd2/Run2',
     
     "init":{"active_channel_list": ["GFP","RFP"],
             'full_channel_list':["GFP","RFP"],
@@ -8,18 +8,18 @@ settings = {
     "bg_sub": (True,
                 {"overwrite": False}),
     
-    "chan_shift": (True,
+    "chan_shift": (False,
                     {"reg_channel": "RFP",
                     "reg_mtd": "rigid_body",
                     "overwrite": False}),
     
-    "frame_shift": (True,
+    "frame_shift": (False,
                 {"reg_channel": "RFP",
                 "reg_mtd": "rigid_body",
                 "img_ref": "first",
                 "overwrite": False}),
     
-    "blur": (True,
+    "blur": (False,
             {"sigma": 5,
             "overwrite": False}),
 

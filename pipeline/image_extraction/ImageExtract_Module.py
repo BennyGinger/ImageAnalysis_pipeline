@@ -1,15 +1,10 @@
 from __future__ import annotations
-
-
-
 from dataclasses import dataclass, field
 from importlib.metadata import version
 from os import PathLike, sep, walk
 from os.path import join
 from re import search
-
 from tqdm import tqdm
-
 from pipeline.pre_process.image_sequence import create_img_seq
 from pipeline.image_handeling.Experiment_Classes import Experiment, init_from_dict, init_from_json
 from pipeline.image_handeling.Base_Module_Class import BaseModule
@@ -25,23 +20,17 @@ class ImageExtractionModule(BaseModule):
     active_channel_list: list[str] | str = field(default_factory=list)
     full_channel_list: list[str] | str = field(default_factory=list)
     overwrite: bool = False
+    exp_img_paths: list[PathLike] = field(init=False)
     
     def __post_init__(self) -> None:
         super().__post_init__()
-        exp_files = self.search_exp_files()
+        self.exp_img_paths = self.search_exp_files()
         # Check if the channel lists are strings, if so convert them to lists
         if isinstance(self.active_channel_list,str):
             self.active_channel_list = [self.active_channel_list]
         if isinstance(self.full_channel_list,str):
             self.full_channel_list = [self.full_channel_list]
-        
-        ## Convert the images to img_seq
-        self.exp_obj_lst = self.extract_img_seq(exp_files)
-        
-        # Update the tags
-        for exp_obj in self.exp_obj_lst:
-            exp_obj.analysis.labels = self.get_labels(exp_obj)
-    
+               
     def search_exp_files(self)-> list[PathLike]:
         # look through the folder and collect all image files
         print("\n\033[93mExtracting images =====\033[0m")
@@ -56,10 +45,10 @@ class ImageExtractionModule(BaseModule):
                 exp_files.extend(self.get_img_path(folder))
             return exp_files
     
-    def extract_img_seq(self, img_path_list: list[PathLike])-> list[Experiment]:
+    def extract_img_seq(self)-> list[Experiment]:
         # Extract the image sequence from the image files, return metadata dict for each exp (i.e. each serie in the image file)
         metadata_lst: list[PathLike | dict] = []
-        for img_path in tqdm(img_path_list,desc="\033[94mExperiments\033[0m",colour='blue'):
+        for img_path in tqdm(self.exp_img_paths,desc="\033[94mExperiments\033[0m",colour='blue'):
             print("\n")
             metadata_lst.extend(create_img_seq(img_path,self.active_channel_list,self.full_channel_list,self.overwrite))
         
@@ -69,6 +58,8 @@ class ImageExtractionModule(BaseModule):
         for exp_obj in exp_objs:
             # Add the version of the pipeline
             exp_obj.version = version('ImageAnalysis')
+            # Add the labels
+            exp_obj.analysis.labels = self.get_labels(exp_obj)
             exp_obj.save_as_json()
         return exp_objs
     
