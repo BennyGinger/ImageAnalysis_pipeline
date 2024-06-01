@@ -104,42 +104,24 @@ class Settings:
             self.overwrite = True
         
         # Unpack the settings
-        pre_dict = {k:v[1] for k,v in self.settings.items() if k in PREPROCESS_KEYS and v[0]}
-        if pre_dict:
-            self.preprocess = PreProcessSettings(pre_dict)
-            # If upstream process have overwrite then update the overwrite of the segmentation
-            if self.overwrite:
-                self.preprocess.update_overwrite(overwrite_all=True)
-            # If any of the preprocess has overwrite then set the overwrite to True for downstream applications
-            if any(self.preprocess.get_current_overwrite):
-                self.overwrite = True
+        self.process_settings(PREPROCESS_KEYS, 'preprocess', PreProcessSettings)
+        self.process_settings(SEGMENTATION_KEYS, 'segmentation', SegmentationSettings)
+        self.process_settings(TRACKING_KEYS, 'tracking', TrackingSettings)
+        self.process_settings(ANALYSIS_KEYS, 'analysis', AnalysisSettings)
                 
-        seg_dict = {k:v[1] for k,v in self.settings.items() if k in SEGMENTATION_KEYS and v[0]}
-        if seg_dict:
-            self.segmentation = SegmentationSettings(seg_dict)
-            # If upstream process have overwrite then update the overwrite of the segmentation
+    def process_settings(self, keys, attr_name, settings_class):
+        settings_dict = {k:v[1] for k,v in self.settings.items() if k in keys and v[0]}
+        if settings_dict:
+            setattr(self, attr_name, settings_class(settings_dict))
+            # If upstream process have overwrite then update the overwrite of the settings
             if self.overwrite:
-                self.segmentation.update_overwrite(overwrite_all=True)
-            # If any of the segmentation has overwrite then set the overwrite to True for downstream applications
-            if any(self.segmentation.get_current_overwrite):
+                getattr(self, attr_name).update_overwrite(overwrite_all=True)
+            # If any of the settings has overwrite then set the overwrite to True for downstream applications
+            if any(getattr(self, attr_name).get_current_overwrite):
                 self.overwrite = True
-        
-        track_dict = {k:v[1] for k,v in self.settings.items() if k in TRACKING_KEYS and v[0]}
-        if track_dict:
-            self.tracking = TrackingSettings(track_dict)
-            # If upstream process have overwrite then update the overwrite of the tracking
-            if self.overwrite:
-                self.tracking.update_overwrite(overwrite_all=True)
-            # If any of the tracking has overwrite then set the overwrite to True for downstream applications
-            if any(self.tracking.get_current_overwrite):
-                self.overwrite = True
-        
-        analysis_dict = {k:v[1] for k,v in self.settings.items() if k in ANALYSIS_KEYS and v[0]}
-        if analysis_dict:
-            self.analysis = AnalysisSettings(analysis_dict)
-            # If upstream process have overwrite then update the overwrite of the analysis
-            if self.overwrite:
-                self.analysis.update_overwrite(overwrite_all=True)
+
+
+
             
         
     

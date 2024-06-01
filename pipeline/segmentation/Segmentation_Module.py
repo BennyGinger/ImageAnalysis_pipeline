@@ -61,30 +61,34 @@ class SegmentationModule(BaseModule):
     def cellpose(self, channel_to_seg: str | list[str], model_type: str | PathLike = 'cyto2', diameter: float = 60, flow_threshold: float = 0.4, cellprob_threshold: float = 0, overwrite: bool = False, img_fold_src: str = "", process_as_2D: bool = False, save_as_npy: bool = False,**kwargs)-> None:
         if isinstance(channel_to_seg,str):
             print(f"\n-> Segmenting images with cellpose")
-            self._loop_over_exp(self._cellpose,channel_to_seg,model_type,diameter,flow_threshold,cellprob_threshold,overwrite,img_fold_src,process_as_2D,save_as_npy,**kwargs)
+            
+            self._loop_over_exp(self._cellpose,channel_to_seg=channel_to_seg,model_type=model_type,diameter=diameter,flow_threshold=flow_threshold,cellprob_threshold=cellprob_threshold,overwrite=overwrite,img_fold_src=img_fold_src,process_as_2D=process_as_2D,save_as_npy=save_as_npy,**kwargs)
         
         if isinstance(channel_to_seg,list):
             for channel in channel_to_seg:
                 self.cellpose(channel,model_type,diameter,flow_threshold,cellprob_threshold,
                               overwrite,img_fold_src,process_as_2D,save_as_npy,**kwargs)
-            return
        
+    @staticmethod
+    def _thresholding(exp_obj: Experiment, channel_to_seg: str, overwrite: bool, manual_threshold: int, img_fold_src: str)-> None:
+        # Activate branch
+        exp_obj.segmentation.is_threshold = True
+        # Get the image paths and metadata
+        img_fold_src,img_paths = img_list_src(exp_obj,img_fold_src)
+        um_per_pixel = exp_obj.analysis.um_per_pixel
+        finterval = exp_obj.analysis.interval_sec
+        
+        # Run thresholding
+        exp_obj.segmentation.threshold_seg[channel_to_seg] = threshold(img_paths,channel_to_seg,overwrite,manual_threshold,um_per_pixel,finterval)
+        exp_obj.save_as_json()
+        return
+    
     def thresholding(self, channel_to_seg: str | list[str], overwrite: bool=False, manual_threshold: int=None, img_fold_src: str="")-> None:
         
         if isinstance(channel_to_seg,str):
             print(f"\n-> Thresholding images")
-            for exp_obj in self.exp_obj_lst:
-                # Activate branch
-                exp_obj.segmentation.is_threshold = True
-                # Get the image paths and metadata
-                img_fold_src,img_paths = img_list_src(exp_obj,img_fold_src)
-                um_per_pixel = exp_obj.analysis.um_per_pixel
-                finterval = exp_obj.analysis.interval_sec
-                
-                # Run thresholding
-                exp_obj.segmentation.threshold_seg[channel_to_seg] = threshold(img_paths,channel_to_seg,overwrite,manual_threshold,um_per_pixel,finterval)
-                exp_obj.save_as_json()
-                return
+            
+            self._loop_over_exp(self._thresholding,channel_to_seg=channel_to_seg,overwrite=overwrite,manual_threshold=manual_threshold,img_fold_src=img_fold_src)
         
         if isinstance(channel_to_seg,list):
             for channel in channel_to_seg:

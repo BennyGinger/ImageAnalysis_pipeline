@@ -23,7 +23,7 @@ settings = {
             {"sigma": 5,
             "overwrite": False}),
 
-    "cellpose": (False,
+    "cellpose": (True,
                 {"channel_to_seg":"RFP", 
                 "model_type": "cyto2", #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
                 "diameter": 30.0,
@@ -39,7 +39,7 @@ settings = {
                 "img_fold_src": "",
                 "overwrite": False,}),
     
-    "iou_track": (False,
+    "iou_track": (True,
                   {"channel_to_track":"RFP", 
                    "img_fold_src": "",
                    "stitch_thres_percent": 0.5,
