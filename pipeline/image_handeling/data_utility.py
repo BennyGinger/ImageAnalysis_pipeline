@@ -1,8 +1,14 @@
 from __future__ import annotations
-from os import sep, mkdir, remove, PathLike
-from os.path import isdir, join
+from os import sep, remove, PathLike
+from os.path import join
+from pathlib import Path
+import re
+from tqdm import tqdm
 from pipeline.image_handeling.Experiment_Classes import Experiment
-from typing import Iterable
+from typing import Iterable, Iterator, Callable
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from functools import partial
+from threading import Lock
 import numpy as np
 from tifffile import imread, imwrite
 
@@ -136,14 +142,17 @@ def is_processed(process_settings: dict | list, channel_seg: str = None, overwri
         return False
     return True
 
-def create_save_folder(exp_path: PathLike, folder_name: str)-> PathLike:
-    save_folder = join(sep,exp_path+sep,folder_name)
-    if not isdir(save_folder):
-        print(f" ---> Creating saving folder: {save_folder}")
-        mkdir(save_folder)
-        return save_folder
-    print(f" ---> Saving folder already exists: {save_folder}")
-    return save_folder
+def create_save_folder(exp_path: PathLike | Path, folder_name: str)-> PathLike:
+    if isinstance(exp_path, str):
+        exp_path = Path(exp_path)
+    save_folder = exp_path.joinpath(folder_name)
+    log_path = join(exp_path.stem,folder_name)
+    if not save_folder.exists():
+        print(f"  ---> Creating saving folder: {log_path}")
+        save_folder.mkdir(exist_ok=True)
+        return str(save_folder)
+    print(f"  ---> Saving folder already exists: {log_path}")
+    return str(save_folder)
 
 def delete_old_masks(class_setting_dict: dict, channel_seg: str, mask_files_list: list[PathLike], overwrite: bool=False)-> None:
     """Check if old masks exists, if the case, the delete old masks. Only
@@ -164,8 +173,17 @@ def get_resolution(um_per_pixel: tuple[float,float])-> tuple[float,float]:
     x_umpixel,y_umpixel = um_per_pixel
     return 1/x_umpixel,1/y_umpixel
 
-def save_tif(array: np.ndarray, save_path: PathLike, um_per_pixel: tuple[float,float], finterval: int)-> None:
-    """Save array as tif with metadata"""
+def save_tif(array: np.ndarray, save_path: PathLike, um_per_pixel: tuple[float,float], finterval: int, lock: Lock=None)-> None:
+    """Save array as tif with metadata. If lock is provided, use it to limit access to the save function."""
+    if not lock:
+        _save_tif(array,save_path,um_per_pixel,finterval)
+        return
+    # If lock is provided, use it to limit access to the save function
+    with lock:
+        _save_tif(array,save_path,um_per_pixel,finterval)
+
+def _save_tif(array: np.ndarray, save_path: PathLike, um_per_pixel: tuple[float,float], finterval: int)-> None:
+    """Actual save function for tif with metadata. If no metadata provided, save the array as tif without metadata"""
     # If no metadata provided
     if not finterval or not um_per_pixel:
         imwrite(save_path,array.astype(np.uint16))
@@ -196,3 +214,62 @@ def gen_input_data(exp_set: Experiment, img_sorted_frames: dict[str,list], chann
                   for frame in range(exp_set.img_properties.n_frames)]
     return input_data
 
+def run_multithread(func: Callable, input_data: Iterable, fixed_args: dict=None)-> list:
+    """Run a function in multi-threading."""
+    if not fixed_args:
+        fixed_args = {}
+    
+    # Run callable in threads
+    outputs = []
+    with ThreadPoolExecutor() as executor:
+        with tqdm(total=len(input_data)) as pbar:
+            # Add lock to fixed_args
+            if 'metadata' in fixed_args:
+                fixed_args['metadata']['lock'] = Lock()
+            else:
+                fixed_args['lock'] = Lock()
+            # Run function
+            results = executor.map(partial(func,**fixed_args),input_data)
+            # Update the pbar and get outputs
+            for output in results:
+                pbar.update()
+                outputs.append(output)
+    return outputs
+
+def run_multiprocess(func: Callable, input_data: Iterable, fixed_args: dict=None)-> Iterator:
+    """Run a function in multi-processing."""
+    if not fixed_args:
+        fixed_args = {}
+    
+    # Run cellpose in threads
+    with ProcessPoolExecutor() as executor:
+        with tqdm(total=len(input_data)) as pbar:
+            results = executor.map(partial(func,**fixed_args),input_data)
+            # Update the pbar
+            [pbar.update() for _ in results]
+    return results
+
+def get_img_prop(img_paths: list[PathLike])-> tuple[int,int]:
+    """Function that returns the number of frames and z_slices of a folder containing images.
+    The names of those images must match the pattern [C]_[S/d{1}]_[F/d{4}]_[Z/d{4}],
+    where C is a label of the channel name (str), S the serie number followed by 2 digits,
+    F the frames followed by 4 digits and Z the z_slices followed by 4 digits"""
+    # Gather all frames and all z_slice
+    frames = [re.search('_f\d{4}', path).group() 
+                     for path in img_paths if re.search('_f\d{4}', path)]
+    z_slices = [re.search('_z\d{4}', path).group() 
+                     for path in img_paths if re.search('_z\d{4}', path)]
+    return len(set(frames)),len(set(z_slices))
+
+def is_channel_in_lst(channel: str, img_paths: list[PathLike]) -> bool:
+    """
+    Check if a channel is in the list of image paths.
+
+    Args:
+        channel (str): The channel name.
+        img_paths (list[PathLike]): The list of image paths.
+
+    Returns:
+        bool: True if the channel is in the list, False otherwise.
+    """
+    return any(channel in path for path in img_paths)

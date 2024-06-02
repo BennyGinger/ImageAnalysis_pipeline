@@ -1,19 +1,17 @@
 from __future__ import annotations
-from functools import partial
 import json
-import re
-from typing import Callable
 import numpy as np
 from cellpose import models, core
 from cellpose.io import logger_setup, masks_flows_to_seg
-from os import PathLike, sep, listdir
-from os.path import isfile, join
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from pipeline.image_handeling.data_utility import load_stack, create_save_folder, save_tif
+from os import PathLike
+from pathlib import Path
+from os.path import isfile
 
-#TODO: replace imwrite with save_tif
+from pipeline.image_handeling.data_utility import load_stack, create_save_folder, save_tif, run_multithread, run_multiprocess, get_img_prop, is_channel_in_lst
+
+
 MODEL_SETTINGS = {'gpu':core.use_gpu(),
-                  'model_type': 'cyto3',
+                  'model_type': 'cyto2',
                   'pretrained_model':False,
                   'device':None,
                   'diam_mean':30.,
@@ -53,10 +51,7 @@ IN_HOUSE_MODELS = []
 
 
 # # # # # # # # main functions # # # # # # # # # 
-def cellpose_segmentation(img_paths: list[PathLike], channel_seg: str, model_type: str | PathLike ='cyto3',
-                          diameter: float=60., flow_threshold: float=0.4, cellprob_threshold: float=0.0,
-                          overwrite: bool=False, process_as_2D: bool=False,
-                          save_as_npy: bool=False, **kwargs)-> tuple[dict,dict]:
+def cellpose_segmentation(img_paths: list[PathLike], channel_seg: str, model_type: str | PathLike ='cyto2', diameter: float=60., flow_threshold: float=0.4, cellprob_threshold: float=0.0, overwrite: bool=False, process_as_2D: bool=False, save_as_npy: bool=False, **kwargs)-> tuple[dict,dict]:
     """Function to run cellpose segmentation. See https://github.com/MouseLand/cellpose for more details.
     Takes a list of image paths, with names that match the pattern [C]_[S/d{4}]_[F/d{4}]_[Z/d{4}].
     With C the channel name, S the serie number, F the frame number and Z the z_slice number, followed by
@@ -81,20 +76,26 @@ def cellpose_segmentation(img_paths: list[PathLike], channel_seg: str, model_typ
         model_settings: dict = model settings
         cellpose_eval: dict = cellpose evaluation settings"""
 
+    
     # Set up the segmentation saving folder
     file_type = '.npy' if save_as_npy else '.tif'
-    exp_path: PathLike = img_paths[0].rsplit(sep,2)[0]
-    save_path = create_save_folder(exp_path,'Masks_Cellpose')
+    exp_path: Path = Path(img_paths[0]).parent.parent
+    print(f" --> Segmenting cells in {exp_path}")
+    save_path: Path = Path(create_save_folder(exp_path,'Masks_Cellpose'))
     
-    # Check if exist
-    if any(channel_seg in file for file in sorted(listdir(save_path)) if file.endswith(file_type)) and not overwrite:
+    # Check if the channel to segment is in the image paths
+    if not is_channel_in_lst(channel_seg,img_paths):
+        raise ValueError(f" --> Channel '{channel_seg}' not found in the provided images.")
+    
+    # Already segmented?
+    if any(file.match(f"*{channel_seg}*") for file in save_path.glob('*.tif') if file.suffix==file_type) and not overwrite:
         # Log
-        print(f" --> Cells have already been segmented with cellpose as {file_type} for the '{channel_seg}' channel.")
+        print(f"  ---> Cells have already been segmented with cellpose as {file_type} for the '{channel_seg}' channel.")
         model,model_settings = load_metadata(exp_path,channel_seg)
         return model,model_settings
     
     # Else run cellpose
-    print(f" --> Segmenting cells as {file_type} for the '{channel_seg}' channel")
+    print(f"  ---> Segmenting cells as {file_type} for the '{channel_seg}' channel")
     
     # Get image property
     frames, z_slices = get_img_prop(img_paths)
@@ -105,45 +106,47 @@ def cellpose_segmentation(img_paths: list[PathLike], channel_seg: str, model_typ
     cellpose_eval = cellpose_setup.eval_settings(diameter,flow_threshold,cellprob_threshold,**kwargs)
     model,model_settings = cellpose_setup.setup_model(model_type)
     
-    # Run Cellpose
-    run_cellpose_partial = partial(run_cellpose,metadata=metadata,img_paths=img_paths,channels=channels,
-                                   process_as_2D=process_as_2D,model=model,cellpose_eval=cellpose_eval,
-                                   save_as_npy=save_as_npy)
-    parallel_executor(run_cellpose_partial,frames,model_settings['gpu'],cellpose_eval['z_axis'])
+    # Get the fixed arguments for run_cellpose()
+    fixed_args = {'metadata':metadata,
+                  'img_paths':img_paths,
+                  'channels':channels,
+                  'process_as_2D':process_as_2D,
+                  'model':model,
+                  'cellpose_eval':cellpose_eval,
+                  'save_as_npy':save_as_npy}
+    
+    parallel_executor(frames,model_settings['gpu'],cellpose_eval['z_axis'],fixed_args)
+    
     return model_settings,cellpose_eval
     
 
 #################### Helper functions ####################
-def run_cellpose(frame: int, img_paths: list[PathLike], channels: list[str], process_as_2D: bool,
-                 model: models.CellposeModel, cellpose_eval: dict, save_as_npy: bool, metadata: dict)-> None:
+def run_cellpose(frame: int, img_paths: list[PathLike], channels: list[str], process_as_2D: bool, model: models.CellposeModel, cellpose_eval: dict, save_as_npy: bool, metadata: dict)-> None:
     """Function that runs the cellpose segmentation on a single frame of a stack."""
     # Load image/stack and model
     img = load_stack(img_paths,channels,frame,process_as_2D)
     # Save path
     path_name = [path for path in sorted(img_paths) if f'_f{frame+1:04d}' in path and channels[0] in path][0]
     mask_path = path_name.replace('Images','Masks_Cellpose').replace('_Registered','').replace('_Blured','')
-    # log
-    print(f"  ---> Processing frame {frame}")
     # Run Cellpose
     masks, flows, _ = model.eval(img,**cellpose_eval)
     # Save
     save_mask(img,masks,flows,model.diam_mean,mask_path,save_as_npy,metadata)
-
-def save_mask(img: np.ndarray | list[np.ndarray], mask: np.ndarray | list[np.ndarray], flows: list[np.ndarray] | list[list],
-              diameter: float, mask_path: PathLike, as_npy: bool, metadata: dict)-> None:
+        
+def save_mask(img: np.ndarray | list[np.ndarray], mask: np.ndarray | list[np.ndarray], flows: list[np.ndarray] | list[list], diameter: float, mask_path: PathLike, as_npy: bool, metadata: dict)-> None:
     if as_npy:
         if img.ndim==3:
             mask_path = mask_path.replace("_z0001","_allz")
         masks_flows_to_seg(img,mask,flows,mask_path,diameter)
-        return
     
-    if mask.ndim==3:
+    # Save as tif
+    elif mask.ndim==3:
         for z_silce in range(mask.shape[0]):
             split_name = mask_path.split("_z")
             mask_path = f"{split_name[0]}_z{z_silce+1:04d}.tif"
             save_tif(mask[z_silce,...].astype('uint16'),mask_path,**metadata)
-        return
-    save_tif(mask.astype('uint16'),mask_path,**metadata)
+    else:
+        save_tif(mask.astype('uint16'),mask_path,**metadata)
     
 class CellposeSetup:
     """Class that handles the setup of the cellpose model and eval settings.
@@ -196,7 +199,7 @@ class CellposeSetup:
             self.cellpose_eval['anisotropy'] = 2.0
         return self.cellpose_eval
     
-    def setup_model(self, model_type: str | PathLike ='cyto3', **kwargs)-> tuple[models.CellposeModel,dict]:
+    def setup_model(self, model_type: str | PathLike ='cyto2', **kwargs)-> tuple[models.CellposeModel,dict]:
         # Setup log
         logger_setup()
         # Unpack kwargs
@@ -223,45 +226,32 @@ class CellposeSetup:
                           Please choose one of the following: {BUILD_IN_MODELS}\
                           or provide a path to a pretrained model.")
 
-def parallel_executor(func: Callable, frames: int, gpu: bool, z_axis: int)-> None:
-    if gpu and z_axis==None: # If GPU and 2D images: parallelization
-        with ThreadPoolExecutor() as executor:
-            executor.map(func,range(frames))
+def parallel_executor(frames: int, gpu: bool, z_axis: int, fixed_args: dict)-> None:
+    """Function to determine how to run cellpose."""
+    # If GPU and 2D images: multi-threading
+    if gpu and z_axis==None: 
+        run_multithread(run_cellpose,range(frames),fixed_args)
+    # If GPU and 3D images: no parallelization
+    elif gpu and z_axis==0: 
+        [run_cellpose(frame,**fixed_args) for frame in range(frames)]
         return
-    
-    if gpu and z_axis==0: # If GPU and 3D images: no parallelization
-        for frame in range(frames):
-            func(frame)
-        return
-    # If CPU 2D or 3D: parallelization
-    with ProcessPoolExecutor() as executor:
-        executor.map(func,range(frames))
+    # If CPU 2D or 3D: multi-processing
+    else:
+        run_multiprocess(run_cellpose,range(frames),fixed_args)
 
-def get_img_prop(img_paths: list[PathLike])-> tuple[int,int]:
-    """Function that returns the number of frames and z_slices of a folder containing images.
-    The names of those images must match the pattern [C]_[S/d{1}]_[F/d{4}]_[Z/d{4}],
-    where C is a label of the channel name (str), S the serie number followed by 2 digits,
-    F the frames followed by 4 digits and Z the z_slices followed by 4 digits"""
-    # Gather all frames and all z_slice
-    frames = [re.search('_f\d{4}', path).group() 
-                     for path in img_paths if re.search('_f\d{4}', path)]
-    z_slices = [re.search('_z\d{4}', path).group() 
-                     for path in img_paths if re.search('_z\d{4}', path)]
-    return len(set(frames)),len(set(z_slices))
-
-def load_metadata(file_path: PathLike, channel_to_seg: str)-> tuple[dict,dict]:
+def load_metadata(exp_path: Path, channel_to_seg: str)-> tuple[dict,dict]:
     """Function to load the metadata from the json file if it exists. Experiment obj are saved as json files,
     which contains the metadata for the experiment. The metadata contains the model settings and the cellpose 
     evaluation settings."""
     
     # Check if metadata exists, if not return empty settings
-    file_path = join(file_path,"exp_settings.json")
-    if not isfile(file_path):
-        print(f" ---> No metadata found for the '{channel_to_seg}' channel.")
+    setting_path = exp_path.joinpath('exp_settings.json')
+    if not setting_path.exists():
+        print(f"  ---> No metadata found for the '{channel_to_seg}' channel.")
         return {},{}
     # Load metadata
-    print(f" ---> Loading metadata for the '{channel_to_seg}' channel.")    
-    with open(file_path,'r') as fp:
+    print(f"  ---> Loading metadata for the '{channel_to_seg}' channel.")    
+    with open(setting_path,'r') as fp:
         meta = json.load(fp)
     model_settings = meta['segmentation']['cellpose_seg'][channel_to_seg]['model_settings']
     cellpose_eval = meta['segmentation']['cellpose_seg'][channel_to_seg]['cellpose_eval']
@@ -293,58 +283,27 @@ def unpack_kwargs(kwargs: dict, channel_seg: str)-> tuple[str,list[str],dict]:
         
 
 #################### Test ####################
+import multiprocessing as mp
 if __name__ == "__main__":
-    from os import listdir
+    from os import listdir, cpu_count
     from os.path import join
+    from pathlib import Path
+    mp.set_start_method('spawn')  # set the start method to 'spawn'
     
-    folder = '/home/Test_images/bigy/HEKA_c1031_c1829_miniSOG_80%_435_2min_40min_002_Merged_s1/Images'
-    img_paths = [join(folder,file) for file in sorted(listdir(folder)) if file.endswith('.tif')]
-    
-    channel = "RFP"
+    channel = "YFP"
     model_type = "cyto2" #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
     diameter = 30.0
-    flow_threshold = 0.5
+    flow_threshold = 0.4
     cellprob_threshold = 0
     process_as_2D = True
     overwrite = True
     
-    cellpose_segmentation(img_paths,channel,model_type,diameter,flow_threshold,cellprob_threshold,overwrite,process_as_2D)
-
-
-# # # # # # # # main functions # # # # # # # # # 
-# def cellpose_segmentation(exp_obj_lst: list[Experiment], channel_seg: str, model_type: str | PathLike ='cyto3',
-#                           diameter: float=60., flow_threshold: float=0.4, cellprob_threshold: float=0.0,
-#                           overwrite: bool=False, img_fold_src: PathLike="", process_as_2D: bool=False,
-#                           save_as_npy: bool=False, nuclear_marker: str="", **kwargs)-> list[Experiment]:
-#     """Function to run cellpose segmentation. See https://github.com/MouseLand/cellpose for more details."""
-
-#     for exp_obj in exp_obj_lst:
-#         # Activate branch
-#         exp_obj.segmentation.is_cellpose_seg = True
-#         # Set file type
-#         file_type = '.npy' if save_as_npy else '.tif'
-#         # Check if exist
-#         if is_processed(exp_obj.segmentation.cellpose_seg,channel_seg,overwrite):
-#             # Log
-#             print(f" --> Cells have already been segmented with cellpose as {file_type} for the '{channel_seg}' channel.")
-#             continue
-        
-#         # Else run cellpose
-#         print(f" --> Segmenting cells as {file_type} for the '{channel_seg}' channel")
-#         create_save_folder(exp_obj.exp_path,'Masks_Cellpose')
-#         delete_old_masks(exp_obj.segmentation.cellpose_seg,channel_seg,exp_obj.cellpose_masks_lst,overwrite)
-        
-#         # Setup model and eval settings
-#         cellpose_setup = CellposeSetup(exp_obj,channel_seg,nuclear_marker,process_as_2D,save_as_npy)
-#         cellpose_eval = cellpose_setup.eval_settings(diameter,flow_threshold,cellprob_threshold,**kwargs)
-#         model_settings = cellpose_setup.setup_model(model_type)
-#         input_data,fold_src = cellpose_setup.gen_input_data(img_fold_src)
-        
-#         # Run Cellpose
-#         parallel_executor(run_cellpose,input_data,model_settings['gpu'],cellpose_eval['z_axis'])
-        
-#         # Save settings
-#         exp_obj.segmentation.cellpose_seg[channel_seg] = {'fold_src':fold_src,'model_settings':model_settings,'cellpose_eval':cellpose_eval}
-#         exp_obj.save_as_json()
-#     return exp_obj_lst
-
+    folder_input = Path('/home/Test_images/szimi/Cellpose_test')
+    img_folds = list(Path(folder_input).glob('**/*_s1'))
+    # print(cpu_count())
+    for img_fold in img_folds:
+        img_paths = list(Path(img_fold).glob('Images/*.tif'))
+        img_paths = [str(path) for path in img_paths]
+        cellpose_segmentation(img_paths,channel,model_type,diameter,flow_threshold,cellprob_threshold,overwrite,process_as_2D)
+    
+    # cellpose_segmentation(img_paths,channel,model_type,diameter,flow_threshold,cellprob_threshold,overwrite,process_as_2D)

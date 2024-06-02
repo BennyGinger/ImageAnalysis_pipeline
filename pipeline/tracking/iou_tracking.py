@@ -1,11 +1,13 @@
 from __future__ import annotations
 from os import sep, listdir, PathLike
+from pathlib import Path
 from typing import Iterable
 import warnings
+
+from tqdm import tqdm
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
 from os.path import join
-from pipeline.image_handeling.Experiment_Classes import Experiment
-from pipeline.image_handeling.data_utility import is_processed, seg_mask_lst_src, load_stack, create_save_folder, delete_old_masks
+from pipeline.image_handeling.data_utility import load_stack, create_save_folder, run_multithread, get_img_prop, save_tif, is_channel_in_lst
 from pipeline.mask_transformation.complete_track import complete_track
 from cellpose.utils import stitch3D
 from cellpose.metrics import _intersection_over_union
@@ -13,10 +15,74 @@ from scipy.stats import mode
 from skimage.measure import regionprops_table
 from skimage.segmentation import relabel_sequential
 import numpy as np
-from concurrent.futures import ThreadPoolExecutor
-from tifffile import imwrite
-from functools import partial
+from threading import Lock
 
+
+############################ Main function ############################
+def iou_tracking(img_paths: list[PathLike], channel_track: str, stitch_thres_percent: float=0.5, shape_thres_percent: float=0.9, overwrite: bool=False, mask_appear: int=5, copy_first_to_start: bool=True, copy_last_to_end: bool=True, **kwargs)-> None | ValueError:
+    """Perform IoU (Intersection over Union) based cell tracking on a list of experiments.
+
+    Args:
+        exp_obj_lst (list[Experiment]): List of Experiment objects to perform tracking on.
+        channel_seg (str): Channel name for segmentation.
+        stitch_thres_percent (float, optional): Stitching threshold percentage. Defaults to 0.5. Higher values will result in more strict tracking (excluding more cells)
+        shape_thres_percent (float, optional): Shape threshold percentage. Defaults to 0.9. Lower values will result in tracks with more differences in shape between frames.
+        overwrite (bool, optional): Flag to overwrite existing tracking results. Defaults to False.
+        mask_appear (int, optional): Number of times a mask should appear to be considered valid. Defaults to 5.
+        copy_first_to_start (bool, optional): Flag to copy the first mask to the start. Defaults to True.
+        copy_last_to_end (bool, optional): Flag to copy the last mask to the end. Defaults to True.
+        kwargs: Additional keyword arguments, especially for metadata.
+    
+    Returns:
+        list[Experiment]: List of Experiment objects with updated tracking information.
+    """
+    
+    # Set up tracking
+    frames, _ = get_img_prop(img_paths)
+    exp_path: Path = Path(img_paths[0]).parent.parent
+    print(f" --> Tracking cells in {exp_path}")
+    save_path: Path = Path(create_save_folder(exp_path,'Masks_IoU_Track'))
+    
+    # Check if time sequence and if channel was segmented
+    if frames == 1:
+        print(f" --> '{exp_path}' is not a time sequence")
+        return
+    if not is_channel_in_lst(channel_track,img_paths):
+        raise ValueError(f" --> Channel '{channel_track}' not found in the provided masks")
+        
+    # Already processed?
+    if any(file.match(f"*{channel_track}*") for file in save_path.glob('*.tif')) and not overwrite:
+        # Log
+        print(f"  ---> Cells have already been tracked for the '{channel_track}' channel")
+        return
+    
+    # Load masks and track images
+    print(f"  ---> Tracking cells for the '{channel_track}' channel")
+    mask_stack = load_stack(img_paths,channel_track,range(frames),True)
+    
+    # Track masks
+    mask_stack = track_cells(mask_stack,stitch_thres_percent)
+    
+    # Check shape similarity to avoid false masks
+    mask_stack = check_mask_similarity(mask_stack,shape_thres_percent)
+    
+    # Morph missing masks
+    mask_stack = complete_track(mask_stack,mask_appear,copy_first_to_start,copy_last_to_end)
+    
+    # Re-assign the new value to the masks and obj. Previous step may have created dicontinuous masks
+    print('  ---> Reassigning masks value')
+    mask_stack,_,_ = relabel_sequential(mask_stack)
+    
+    # Save the masks
+    mask_paths = [file for file in img_paths if file.__contains__('_z0001')]
+    metadata = unpack_kwargs(kwargs)
+    fixed_args = {'mask_stack':mask_stack,
+                  'mask_paths':mask_paths,
+                  'metadata':metadata}
+    run_multithread(save_mask,range(frames),fixed_args)
+
+
+############################ Helper functions ############################
 def track_cells(masks: np.ndarray, stitch_threshold: float) -> np.ndarray:
     """
     Track cells in a sequence of masks. Using the Cellpose stitch3D function to stitch masks together 
@@ -149,118 +215,60 @@ def check_mask_similarity(mask: np.ndarray, shape_thres_percent: float = 0.9) ->
         TypeError: If the input mask does not contain 3 dimensions.
     """
     print('  ---> Checking mask similarity')
+    
+    
     # Check that mask contains 3 dimensions
     if mask.ndim != 3:
         raise TypeError(f"Input mask must contain 3 dimensions, {mask.ndim} dim were given")
 
     # Get the region properties of the mask, and zip it: (label,(slice_f,slice_y,slice_x))
-    props: zip[tuple[int,tuple]] = zip(*regionprops_table(mask,properties=('label','slice')).values())
+    props: list[tuple[int,tuple]] = list(zip(*regionprops_table(mask,properties=('label','slice')).values()))
     new_mask = np.zeros(shape=mask.shape)
-    process_mask_partial = partial(process_mask, mask=mask, shape_thres_percent=shape_thres_percent)
-    with ThreadPoolExecutor() as executor:
-        temp_masks = executor.map(process_mask_partial, props)
+    
+    # Process each mask in parallel, and provide a lock
+    fixed_args = {'mask':mask, 
+                  'shape_thres_percent':shape_thres_percent}
+    temp_masks = run_multithread(process_mask,props,fixed_args)
+            
     # Reconstruct original size mask
     for slice_obj,temp in temp_masks:
         new_mask[slice_obj] += temp
     return new_mask.astype('uint16')
         
-def is_channel_in_lst(channel: str, img_paths: list[PathLike]) -> bool:
-    """
-    Check if a channel is in the list of image paths.
-
-    Args:
-        channel (str): The channel name.
-        img_paths (list[PathLike]): The list of image paths.
-
-    Returns:
-        bool: True if the channel is in the list, False otherwise.
-    """
-    return any(channel in path for path in img_paths)
-
-def process_mask(prop: tuple[int,tuple[slice]], mask: np.ndarray, shape_thres_percent: float) -> tuple[tuple[slice],np.ndarray]:
+def process_mask(prop: tuple[int,tuple[slice]], mask: np.ndarray, shape_thres_percent: float, lock: Lock) -> tuple[tuple[slice],np.ndarray]:
     # Crop stack to save memory
     obj,slice_obj = prop
     temp = mask[slice_obj].copy()
     # Isolate mask obj
     temp[temp != obj] = 0
     # Calculate dice coef
-    temp = calculate_dice_coef(temp, shape_thres_percent)
+    with lock:
+        temp = calculate_dice_coef(temp, shape_thres_percent)
     return slice_obj,temp
 
-# # # # # # # # main functions # # # # # # # # # 
-def iou_tracking(exp_obj_lst: list[Experiment], channel_seg: str, mask_fold_src: str,
-                 stitch_thres_percent: float=0.5, shape_thres_percent: float=0.9,
-                 overwrite: bool=False, mask_appear: int=5, copy_first_to_start: bool=True, 
-                 copy_last_to_end: bool=True)-> list[Experiment]:
-    """
-    Perform IoU (Intersection over Union) based cell tracking on a list of experiments.
+def save_mask(frame: int, mask_stack: np.ndarray, mask_paths: list[PathLike], metadata: dict)-> None:
+    # Get the mask path
+    path = mask_paths[frame]
+    mask_path = path.replace('_Cellpose','_IoU_Track').replace('_Threshold','_IoU_Track')
+    # Save the mask
+    save_tif(mask_stack[frame].astype('uint16'),mask_path,**metadata)
 
-    Args:
-        exp_obj_lst (list[Experiment]): List of Experiment objects to perform tracking on.
-        channel_seg (str): Channel name for segmentation.
-        mask_fold_src (str): Source folder path for masks.
-        stitch_thres_percent (float, optional): Stitching threshold percentage. Defaults to 0.5. Higher values will result in more strict tracking (excluding more cells)
-        shape_thres_percent (float, optional): Shape threshold percentage. Defaults to 0.9. Lower values will result in tracks with more differences in shape between frames.
-        overwrite (bool, optional): Flag to overwrite existing tracking results. Defaults to False.
-        mask_appear (int, optional): Number of times a mask should appear to be considered valid. Defaults to 5.
-        copy_first_to_start (bool, optional): Flag to copy the first mask to the start. Defaults to True.
-        copy_last_to_end (bool, optional): Flag to copy the last mask to the end. Defaults to True.
+def unpack_kwargs(kwargs: dict)-> dict:
+    """Function to unpack the kwargs and extract necessary variable."""
+    if not kwargs:
+        return {'finterval':None, 'um_per_pixel':None}
     
-    Returns:
-        list[Experiment]: List of Experiment objects with updated tracking information.
-    """
+    # Unpack the kwargs
+    metadata = {}
+    for k,v in kwargs.items():
+        if k in ['um_per_pixel','finterval']:
+            metadata[k] = v
     
-    for exp_obj in exp_obj_lst:
-        # Check if time sequence
-        if exp_obj.img_properties.n_frames == 1:
-            print(f" --> '{exp_obj.exp_path}' is not a time sequence")
-            continue
-        
-        # Activate the branch
-        exp_obj.tracking.is_iou_tracking = True
-        # Already processed?
-        if is_processed(exp_obj.tracking.iou_tracking,channel_seg,overwrite):
-            print(f" --> Cells have already been tracked for the '{channel_seg}' channel")
-            continue
-        # Track images
-        print(f" --> Tracking cells for the '{channel_seg}' channel")
-        
-        # Create save folder and remove old masks
-        create_save_folder(exp_obj.exp_path,'Masks_IoU_Track')
-        delete_old_masks(exp_obj.tracking.iou_tracking,channel_seg,exp_obj.iou_tracked_masks_lst,overwrite)
-        
-        # Load masks
-        mask_fold_src, mask_src_list = seg_mask_lst_src(exp_obj,mask_fold_src)
-        if not is_channel_in_lst(channel_seg,mask_src_list):
-            print(f" --> Channel '{channel_seg}' not found in the mask folder")
-            continue
-        mask_stack = load_stack(mask_src_list,[channel_seg],range(exp_obj.img_properties.n_frames),True)
-        
-        # Track masks
-        mask_stack = track_cells(mask_stack,stitch_thres_percent)
-        
-        # Check shape similarity to avoid false masks
-        mask_stack = check_mask_similarity(mask_stack,shape_thres_percent)
-        
-        # Morph missing masks
-        mask_stack = complete_track(mask_stack,mask_appear,copy_first_to_start,copy_last_to_end)
-        
-        # Re-assign the new value to the masks and obj. Previous step may have created dicontinuous masks
-        print('  ---> Reassigning masks value')
-        mask_stack,_,_ = relabel_sequential(mask_stack)
-        
-        # Save masks
-        mask_src_list = [file for file in mask_src_list if file.__contains__('_z0001')]
-        for i,path in enumerate(mask_src_list):
-            mask_path = path.replace('Masks','Masks_IoU_Track').replace('_Cellpose','').replace('_Threshold','')
-            imwrite(mask_path,mask_stack[i,...].astype('uint16'))
-        
-        # Save settings
-        exp_obj.tracking.iou_tracking[channel_seg] = {'fold_src':mask_fold_src,'stitch_thres_percent':stitch_thres_percent,
-                                        'shape_thres_percent':shape_thres_percent,'n_mask':mask_appear}
-        exp_obj.save_as_json()
-    return exp_obj_lst
-
+    # if kwargs did not contain metadata, set to None
+    if not metadata:
+        metadata = {'finterval':None, 'um_per_pixel':None}
+    
+    return metadata
 
 
 if __name__ == "__main__":
@@ -278,20 +286,23 @@ if __name__ == "__main__":
     copy_last_to_end = True
     
     start = time()
-    mask_stack = track_cells(mask_stack,stitch_thres_percent)
-    imwrite('/home/Test_images/masks/tracked_masks.tif',mask_stack.astype('uint16'))
-    # Check shape similarity to avoid false masks
-    mask_stack = check_mask_similarity(mask_stack,shape_thres_percent)
-    imwrite('/home/Test_images/masks/similar_masks.tif',mask_stack.astype('uint16'))
+    iou_tracking(mask_folder_src,'YFP',stitch_thres_percent,shape_thres_percent,True,mask_appear,copy_first_to_start,copy_last_to_end)
     
-    # Re-assign the new value to the masks and obj. Previous step may have created dicontinuous masks
-    print('  ---> Reassigning masks value')
-    mask_stack,_,_ = relabel_sequential(mask_stack)
-    imwrite('/home/Test_images/masks/labeled_masks.tif',mask_stack.astype('uint16'))
-    # Morph missing masks
-    # mask_stack = imread('/home/Test_images/masks/labeled_masks.tif')
-    mask_stack = complete_track(mask_stack,mask_appear,copy_first_to_start,copy_last_to_end)
-    imwrite('/home/Test_images/masks/complete_mask.tif', mask_stack.astype('uint16'))
+    
+    # mask_stack = track_cells(mask_stack,stitch_thres_percent)
+    # imwrite('/home/Test_images/masks/tracked_masks.tif',mask_stack.astype('uint16'))
+    # # Check shape similarity to avoid false masks
+    # mask_stack = check_mask_similarity(mask_stack,shape_thres_percent)
+    # imwrite('/home/Test_images/masks/similar_masks.tif',mask_stack.astype('uint16'))
+    
+    # # Re-assign the new value to the masks and obj. Previous step may have created dicontinuous masks
+    # # Morph missing masks
+    # # mask_stack = imread('/home/Test_images/masks/labeled_masks.tif')
+    # mask_stack = complete_track(mask_stack,mask_appear,copy_first_to_start,copy_last_to_end)
+    # imwrite('/home/Test_images/masks/complete_mask.tif', mask_stack.astype('uint16'))
+    # print('  ---> Reassigning masks value')
+    # mask_stack,_,_ = relabel_sequential(mask_stack)
+    # imwrite('/home/Test_images/masks/labeled_masks.tif',mask_stack.astype('uint16'))
     start2 = time()
     print(f"Time to process: {round(start2-start,ndigits=3)} sec\n")
     # mask_stack = check_mask_similarity(mask_stack,shape_thres_percent)

@@ -24,6 +24,7 @@ def mask_warp(mask_start: np.ndarray, mask_end: np.ndarray, ngap: int) -> np.nda
     # Move the mask to the center
     mask_start, mask_start_centroid = relocate_mask(mask_start, img_center)
     mask_end, mask_end_centroid = relocate_mask(mask_end, img_center)
+    
     # Centroids linespace, to get the trajectory of the mask
     interpol_centroids = interpolate_centroids(mask_start_centroid, mask_end_centroid, ngap)
 
@@ -31,17 +32,13 @@ def mask_warp(mask_start: np.ndarray, mask_end: np.ndarray, ngap: int) -> np.nda
     overlap = mask_start + mask_end
     overlap_val = np.amax(mask_start) + np.amax(mask_end)
     overlap[overlap != overlap_val] = 0
-    # overlap, crop_slice = get_overlap_mask(mask_start, mask_end)
-
-    # Crop both mask, to match the overlap image size
-    # mask_start = mask_start[crop_slice]
-    # mask_end = mask_end[crop_slice]
-
+    
     # Get the non-overlap masks
     non_overlap_start, non_overlap_end = get_non_overlap_mask(mask_start, mask_end, overlap)
 
     # Get the missing masks
     missing_masks = get_missing_masks(overlap, non_overlap_start, non_overlap_end, ngap, np.amax(mask_start))
+    
     # Resize the mask to original size
     return resize_mask(missing_masks, ngap, interpol_centroids)
 
@@ -218,35 +215,6 @@ def get_missing_masks(overlap: np.ndarray, non_overlap_start: np.ndarray, non_ov
         mask[mask!=0] = mask_value
         masks_list.append(mask)
     return np.stack(masks_list,axis=0)
-
-# def resize_mask(missing_masks: np.ndarray, img_size: tuple[int,int], crop_slice: slice, ngap: int, interpol_centroids: list[tuple[int,int]])-> np.ndarray:
-#     """
-#     Resize the mask to the original size.
-
-#     Args:
-#         missing_masks (np.ndarray): The array of missing masks.
-#         img_size (tuple[int,int]): The size of the original image.
-#         crop_slice (slice): The slice used to crop the mask.
-#         ngap (int): The number of gaps.
-#         interpol_centroids (list[tuple[int,int]]): The list of interpolated centroids for each missing mask.
-
-#     Returns:
-#         np.ndarray: The resized mask.
-
-#     """
-#     # Resize the mask to original size
-#     resized_mask = np.zeros((ngap,*img_size))
-#     for i in range(ngap):
-#         # Resize the mask
-#         temp_mask = resized_mask[i]
-#         temp_mask[crop_slice] = missing_masks[i]
-#         # Replace mask to new center position, and reset mask value to original
-#         temp_mask,__ = relocate_mask(temp_mask,interpol_centroids[i+1])
-#         temp_mask[temp_mask!=0] = np.amax(missing_masks)
-        
-#         # Reinsert in the stack
-#         resized_mask[i] = temp_mask
-#     return resized_mask
 
 def resize_mask(missing_masks: np.ndarray, ngap: int, interpol_centroids: list[tuple[int,int]])-> np.ndarray:
     """
