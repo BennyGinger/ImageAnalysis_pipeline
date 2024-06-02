@@ -31,7 +31,7 @@ settings = {
                 "cellprob_threshold":0,
                 "process_as_2D": True,
                 "save_as_npy": False,
-                "overwrite": True,}),
+                "overwrite": False,}),
     
     "threshold": (False,
                 {"channel_to_seg":"RFP",
@@ -46,7 +46,7 @@ settings = {
                    "mask_appear":5,
                    "copy_first_to_start": True, 
                    "copy_last_to_end": True,
-                   "overwrite":False}),
+                   "overwrite":True}),
     
     "gnn_track": (False,                         #not working: Fluo-C2DL-Huh7
                   {"channel_to_track":"RFP",

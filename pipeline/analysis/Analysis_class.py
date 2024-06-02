@@ -5,6 +5,7 @@ from os.path import join, exists
 import numpy as np
 import pandas as pd
 from scipy.ndimage import distance_transform_edt
+from tqdm import tqdm
 # from concurrent.futures import ProcessPoolExecutor
 # from functools import partial
 from pipeline.image_handeling.Base_Module_Class import BaseModule
@@ -49,9 +50,14 @@ class AnalysisModule(BaseModule):
     def create_master_df(self, img_fold_src: PathLike = "", channel_show:str=None, overwrite: bool=False)-> pd.DataFrame:
         all_dfs = []
         
-        for exp_obj in self.exp_obj_lst:
+        for exp_obj in tqdm(self.exp_obj_lst,
+                            desc="\033[94mExperiments\033[0m",
+                            colour='blue'):
+            print("\n")
             # extract the data
             all_dfs.append(self.extract_data(exp_obj, img_fold_src, overwrite))
+        
+        # Concatenate all the dataframes
         master_df = pd.concat(all_dfs)
         # Save the data
         save_path = join(self.input_folder,'master_df.csv')
