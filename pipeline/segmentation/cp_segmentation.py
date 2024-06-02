@@ -6,7 +6,6 @@ from cellpose.io import logger_setup, masks_flows_to_seg
 from os import PathLike
 from pathlib import Path
 from os.path import isfile
-
 from pipeline.image_handeling.data_utility import load_stack, create_save_folder, save_tif, run_multithread, run_multiprocess, get_img_prop, is_channel_in_lst
 
 
@@ -129,7 +128,8 @@ def run_cellpose(frame: int, img_paths: list[PathLike], channels: list[str], pro
     path_name = [path for path in sorted(img_paths) if f'_f{frame+1:04d}' in path and channels[0] in path][0]
     mask_path = path_name.replace('Images','Masks_Cellpose').replace('_Registered','').replace('_Blured','')
     # Run Cellpose
-    masks, flows, _ = model.eval(img,**cellpose_eval)
+    with metadata['lock']:
+        masks, flows, _ = model.eval(img,**cellpose_eval)
     # Save
     save_mask(img,masks,flows,model.diam_mean,mask_path,save_as_npy,metadata)
         

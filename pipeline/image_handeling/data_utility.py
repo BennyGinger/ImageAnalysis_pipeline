@@ -215,7 +215,7 @@ def gen_input_data(exp_set: Experiment, img_sorted_frames: dict[str,list], chann
     return input_data
 
 def run_multithread(func: Callable, input_data: Iterable, fixed_args: dict=None)-> list:
-    """Run a function in multi-threading."""
+    """Run a function in multi-threading. It uses a lock to limit access of some functions to the different threads."""
     if not fixed_args:
         fixed_args = {}
     

@@ -3,7 +3,7 @@ settings = {
     
     "init":{"active_channel_list": ["GFP","RFP"],
             'full_channel_list':["GFP","RFP"],
-            "overwrite": True},
+            "overwrite": False},
     
     "bg_sub": (True,
                 {"overwrite": False}),
@@ -31,7 +31,7 @@ settings = {
                 "cellprob_threshold":0,
                 "process_as_2D": True,
                 "save_as_npy": False,
-                "overwrite": False,}),
+                "overwrite": True,}),
     
     "threshold": (False,
                 {"channel_to_seg":"RFP",
@@ -78,7 +78,7 @@ settings = {
                    "channel_show": "YFP",
                    "overwrite": False}),
     
-    "extract_data": (False,
+    "extract_data": (True,
                   {"img_fold_src": "",
                    "overwrite": True}),
 }
