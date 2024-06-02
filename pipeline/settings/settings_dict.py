@@ -41,7 +41,6 @@ settings = {
     
     "iou_track": (True,
                   {"channel_to_track":"RFP", 
-                   "img_fold_src": "",
                    "stitch_thres_percent": 0.5,
                    "shape_thres_percent": 0.95,
                    "mask_appear":5,

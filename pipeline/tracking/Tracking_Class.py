@@ -62,7 +62,7 @@ class TrackingModule(BaseModule):
                          um_per_pixel=um_per_pixel,finterval=finterval)
             
             # Save settings
-            exp_obj.tracking.iou_track[channel_to_track] = {'fold_src':mask_fold_src,
+            exp_obj.tracking.iou_tracking[channel_to_track] = {'fold_src':mask_fold_src,
                                                            'stitch_thres_percent':stitch_thres_percent,
                                                            'shape_thres_percent':shape_thres_percent,
                                                            'mask_appear':mask_appear}
