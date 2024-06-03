@@ -4,10 +4,10 @@ from importlib.metadata import version
 from os import PathLike, sep, walk
 from os.path import join
 from re import search
-from tqdm import tqdm
+from pipeline.utilities.pipeline_utility import progress_bar, pbar_desc
 from pipeline.pre_process.image_sequence import create_img_seq
-from pipeline.image_handeling.Experiment_Classes import Experiment, init_from_dict, init_from_json
-from pipeline.image_handeling.Base_Module_Class import BaseModule
+from pipeline.utilities.Experiment_Classes import Experiment, init_from_dict, init_from_json
+from pipeline.utilities.Base_Module_Class import BaseModule
 
 
 EXTENTION = ('.nd2','.tif','.tiff')
@@ -48,8 +48,7 @@ class ImageExtractionModule(BaseModule):
     def extract_img_seq(self)-> list[Experiment]:
         # Extract the image sequence from the image files, return metadata dict for each exp (i.e. each serie in the image file)
         metadata_lst: list[PathLike | dict] = []
-        for img_path in tqdm(self.exp_img_paths,desc="\033[94mExperiments\033[0m",colour='blue'):
-            print("\n")
+        for img_path in progress_bar(self.exp_img_paths,desc=pbar_desc("Experiment"),colour='blue'):
             metadata_lst.extend(create_img_seq(img_path,self.active_channel_list,self.full_channel_list,self.overwrite))
         
         # Initiate the Experiment object

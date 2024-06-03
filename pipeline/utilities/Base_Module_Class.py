@@ -3,8 +3,7 @@ from dataclasses import dataclass, field
 from os import PathLike, walk
 from os.path import join
 from typing import Callable
-
-from tqdm import tqdm
+from pipeline.utilities.pipeline_utility import progress_bar, pbar_desc
 from .Experiment_Classes import Experiment
 
 
@@ -45,10 +44,9 @@ class BaseModule:
     
     def _loop_over_exp(self, func: Callable, **kwargs)-> None:
         # Loop over all the experiments and apply the function
-        for exp_obj in tqdm(self.exp_obj_lst,
-                            desc="\033[94mExperiments\033[0m",
+        for exp_obj in progress_bar(self.exp_obj_lst,
+                            desc=pbar_desc("Experiments"),
                             colour='blue'):
-            print("\n")
             func(exp_obj,**kwargs)
        
     @staticmethod

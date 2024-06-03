@@ -6,7 +6,7 @@ settings = {
             "overwrite": False},
     
     "bg_sub": (True,
-                {"overwrite": False}),
+                {"overwrite": True}),
     
     "chan_shift": (False,
                     {"reg_channel": "RFP",

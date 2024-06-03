@@ -7,9 +7,9 @@ from pipeline.pre_process.image_blur import blur_images
 from pipeline.pre_process.background_sub import background_sub
 from pipeline.pre_process.image_registration import correct_frame_shift, correct_channel_shift
 from pipeline.settings.Setting_Classes import Settings
-from pipeline.image_handeling.Experiment_Classes import Experiment, init_from_json
-from pipeline.image_handeling.Base_Module_Class import BaseModule
-from pipeline.image_handeling.data_utility import img_list_src, is_processed
+from pipeline.utilities.Experiment_Classes import Experiment, init_from_json
+from pipeline.utilities.Base_Module_Class import BaseModule
+from pipeline.utilities.data_utility import img_list_src, is_processed
 
 EXTENTION = ('.nd2','.tif','.tiff')
 

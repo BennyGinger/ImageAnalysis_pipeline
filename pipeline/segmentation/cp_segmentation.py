@@ -6,7 +6,7 @@ from cellpose.io import logger_setup, masks_flows_to_seg
 from os import PathLike
 from pathlib import Path
 from os.path import isfile
-from pipeline.image_handeling.data_utility import load_stack, create_save_folder, save_tif, run_multithread, run_multiprocess, get_img_prop, is_channel_in_lst
+from pipeline.utilities.data_utility import load_stack, create_save_folder, save_tif, run_multithread, run_multiprocess, get_img_prop, is_channel_in_lst
 
 
 MODEL_SETTINGS = {'gpu':core.use_gpu(),

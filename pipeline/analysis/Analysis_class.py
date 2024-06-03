@@ -5,12 +5,10 @@ from os.path import join, exists
 import numpy as np
 import pandas as pd
 from scipy.ndimage import distance_transform_edt
-from tqdm import tqdm
-# from concurrent.futures import ProcessPoolExecutor
-# from functools import partial
-from pipeline.image_handeling.Base_Module_Class import BaseModule
-from pipeline.image_handeling.Experiment_Classes import Experiment, init_from_json
-from pipeline.image_handeling.data_utility import load_stack, img_list_src, seg_mask_lst_src, track_mask_lst_src
+from pipeline.utilities.Base_Module_Class import BaseModule
+from pipeline.utilities.Experiment_Classes import Experiment, init_from_json
+from pipeline.utilities.data_utility import load_stack, img_list_src, seg_mask_lst_src, track_mask_lst_src
+from pipeline.utilities.pipeline_utility import progress_bar, pbar_desc
 from pipeline.analysis.channel_data import extract_data
 from pipeline.settings.Setting_Classes import Settings
 from pipeline.analysis.wound_mask import draw_wound_mask
@@ -50,10 +48,9 @@ class AnalysisModule(BaseModule):
     def create_master_df(self, img_fold_src: PathLike = "", channel_show:str=None, overwrite: bool=False)-> pd.DataFrame:
         all_dfs = []
         
-        for exp_obj in tqdm(self.exp_obj_lst,
-                            desc="\033[94mExperiments\033[0m",
+        for exp_obj in progress_bar(self.exp_obj_lst,
+                            desc=pbar_desc("Experiments"),
                             colour='blue'):
-            print("\n")
             # extract the data
             all_dfs.append(self.extract_data(exp_obj, img_fold_src, overwrite))
         

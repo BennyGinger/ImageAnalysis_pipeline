@@ -3,8 +3,8 @@ from os import sep, remove, PathLike
 from os.path import join
 from pathlib import Path
 import re
-from tqdm import tqdm
-from pipeline.image_handeling.Experiment_Classes import Experiment
+from pipeline.utilities.pipeline_utility import progress_bar
+from pipeline.utilities.Experiment_Classes import Experiment
 from typing import Iterable, Iterator, Callable
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from functools import partial
@@ -222,7 +222,7 @@ def run_multithread(func: Callable, input_data: Iterable, fixed_args: dict=None)
     # Run callable in threads
     outputs = []
     with ThreadPoolExecutor() as executor:
-        with tqdm(total=len(input_data)) as pbar:
+        with progress_bar(total=len(input_data)) as pbar:
             # Add lock to fixed_args
             if 'metadata' in fixed_args:
                 fixed_args['metadata']['lock'] = Lock()
@@ -243,7 +243,7 @@ def run_multiprocess(func: Callable, input_data: Iterable, fixed_args: dict=None
     
     # Run cellpose in threads
     with ProcessPoolExecutor() as executor:
-        with tqdm(total=len(input_data)) as pbar:
+        with progress_bar(total=len(input_data)) as pbar:
             results = executor.map(partial(func,**fixed_args),input_data)
             # Update the pbar
             [pbar.update() for _ in results]

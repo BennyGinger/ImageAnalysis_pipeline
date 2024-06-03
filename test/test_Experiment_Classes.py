@@ -1,4 +1,4 @@
-from pipeline.image_handeling.Experiment_Classes import Experiment, init_from_dict
+from pipeline.utilities.Experiment_Classes import Experiment, init_from_dict
 
 def test_analyzed_channel(tmpdir):
     # Create input dictionary for the Experiment class

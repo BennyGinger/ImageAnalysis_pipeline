@@ -166,7 +166,7 @@ if __name__ == "__main__":
     from os import listdir
     from os.path import join 
     from tifffile import imread, imwrite
-    from pipeline.image_handeling.data_utility import load_stack
+    from pipeline.utilities.data_utility import load_stack
     from scipy.ndimage import distance_transform_edt
     
     

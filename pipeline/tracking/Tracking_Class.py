@@ -1,9 +1,9 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from os import PathLike
-from pipeline.image_handeling.Base_Module_Class import BaseModule
-from pipeline.image_handeling.Experiment_Classes import Experiment, init_from_json
-from pipeline.image_handeling.data_utility import seg_mask_lst_src
+from pipeline.utilities.Base_Module_Class import BaseModule
+from pipeline.utilities.Experiment_Classes import Experiment, init_from_json
+from pipeline.utilities.data_utility import seg_mask_lst_src
 from pipeline.tracking.iou_tracking import iou_tracking
 from pipeline.tracking.gnn_tracking import gnn_tracking
 from pipeline.tracking.man_tracking import man_tracking
