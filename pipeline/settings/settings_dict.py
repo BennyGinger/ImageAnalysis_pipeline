@@ -6,14 +6,14 @@ settings = {
             "overwrite": False},
     
     "bg_sub": (True,
-                {"overwrite": True}),
+                {"overwrite": False}),
     
     "chan_shift": (False,
                     {"reg_channel": "RFP",
                     "reg_mtd": "rigid_body",
                     "overwrite": False}),
     
-    "frame_shift": (False,
+    "frame_shift": (True,
                 {"reg_channel": "RFP",
                 "reg_mtd": "rigid_body",
                 "img_ref": "first",
@@ -24,14 +24,14 @@ settings = {
             "overwrite": False}),
 
     "cellpose": (True,
-                {"channel_to_seg":"RFP", 
+                {"channel_to_seg":"GFP", 
                 "model_type": "cyto2", #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
-                "diameter": 30.0,
-                "flow_threshold": 0.4,
-                "cellprob_threshold":0,
+                "diameter": 60.0,
+                "flow_threshold": 0.2,
+                "cellprob_threshold":-1,
                 "process_as_2D": True,
                 "save_as_npy": False,
-                "overwrite": False,}),
+                "overwrite": True,}),
     
     "threshold": (False,
                 {"channel_to_seg":"RFP",
@@ -40,7 +40,7 @@ settings = {
                 "overwrite": False,}),
     
     "iou_track": (True,
-                  {"channel_to_track":"RFP", 
+                  {"channel_to_track":"GFP", 
                    "stitch_thres_percent": 0.5,
                    "shape_thres_percent": 0.95,
                    "mask_appear":5,
@@ -78,7 +78,7 @@ settings = {
                    "channel_show": "YFP",
                    "overwrite": False}),
     
-    "extract_data": (True,
+    "extract_data": (False,
                   {"img_fold_src": "",
                    "overwrite": True}),
 }

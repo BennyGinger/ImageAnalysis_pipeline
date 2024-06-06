@@ -246,8 +246,11 @@ def run_multiprocess(func: Callable, input_data: Iterable, fixed_args: dict=None
         with progress_bar(total=len(input_data)) as pbar:
             results = executor.map(partial(func,**fixed_args),input_data)
             # Update the pbar
-            [pbar.update() for _ in results]
-    return results
+            outputs = []
+            for output in results:
+                pbar.update()
+                outputs.append(output)
+    return outputs
 
 def get_img_prop(img_paths: list[PathLike])-> tuple[int,int]:
     """Function that returns the number of frames and z_slices of a folder containing images.
