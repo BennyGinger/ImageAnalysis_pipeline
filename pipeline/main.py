@@ -11,7 +11,6 @@ from pipeline.tracking.Tracking_Class import TrackingModule
 from pipeline.analysis.Analysis_class import AnalysisModule
 
 def run_pipeline(settings: dict)-> pd.DataFrame:
-    
     input_folder = settings['input_folder']
     exp_list = ImageExtractionModule(input_folder,**settings['init']).extract_img_seq()
     exp_list = PreProcessModule(input_folder,exp_list).process_from_settings(settings)
@@ -19,6 +18,24 @@ def run_pipeline(settings: dict)-> pd.DataFrame:
     exp_list = TrackingModule(input_folder,exp_list).track_from_settings(settings)
     master_df = AnalysisModule(input_folder,exp_list).analyze_from_settings(settings)
     return master_df
+
+def run_preprocess(settings: dict)-> None:
+    input_folder = settings['input_folder']
+    exp_list = ImageExtractionModule(input_folder,**settings['init']).extract_img_seq()
+    PreProcessModule(input_folder,exp_list).process_from_settings(settings)
+
+def run_segmentation(settings: dict)-> None:
+    input_folder = settings['input_folder']
+    SegmentationModule(input_folder).segment_from_settings(settings)
+
+def run_tracking(settings: dict)-> None: 
+    input_folder = settings['input_folder']
+    TrackingModule(input_folder).track_from_settings(settings)
+
+def run_analysis(settings: dict)-> pd.DataFrame:
+    input_folder = settings['input_folder']
+    return AnalysisModule(input_folder).analyze_from_settings(settings)
+
 
 if __name__ == "__main__":
     from time import time
