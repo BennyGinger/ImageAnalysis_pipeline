@@ -5,7 +5,7 @@ from pathlib import Path
 import cv2
 from skimage.morphology import remove_small_objects, remove_small_holes
 import numpy as np
-from pipeline.image_handeling.data_utility import load_stack, create_save_folder, save_tif, run_multithread, get_img_prop, is_channel_in_lst
+from pipeline.utilities.data_utility import load_stack, create_save_folder, save_tif, run_multithread, get_img_prop, is_channel_in_lst
 
 
 ############################# main functions ######################################

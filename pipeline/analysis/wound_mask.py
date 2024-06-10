@@ -2,9 +2,9 @@ from __future__ import annotations
 import cv2
 import numpy as np
 from platform import system
-from pipeline.image_handeling.data_utility import load_stack, img_list_src, create_save_folder, save_tif
+from pipeline.utilities.data_utility import load_stack, img_list_src, create_save_folder, save_tif
 from pipeline.mask_transformation.complete_track import complete_track
-from pipeline.image_handeling.Experiment_Classes import Experiment
+from pipeline.utilities.Experiment_Classes import Experiment
 from os import PathLike, scandir, sep
 from os.path import join
 from skimage.color import gray2rgb

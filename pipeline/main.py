@@ -2,7 +2,7 @@ from __future__ import annotations
 # Force the multiprocessing to to start with new interpreter, as pytorch by default will pre-configure the interpreter, which will 'hog' CPU usage
 from multiprocessing import set_start_method
 set_start_method("spawn",force=True)
-from time import time
+
 import pandas as pd
 from pipeline.image_extraction.ImageExtract_Module import ImageExtractionModule
 from pipeline.pre_process.PreProcess_Module import PreProcessModule
@@ -21,6 +21,7 @@ def run_pipeline(settings: dict)-> pd.DataFrame:
     return master_df
 
 if __name__ == "__main__":
+    from time import time
     from pipeline.settings.settings_dict import settings
     from pathlib import Path
     from os.path import join

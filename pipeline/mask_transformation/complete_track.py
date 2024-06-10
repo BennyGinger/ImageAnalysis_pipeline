@@ -2,9 +2,9 @@ from __future__ import annotations
 from threading import Lock
 import numpy as np
 from skimage.measure import regionprops_table
-from tqdm import tqdm
+from pipeline.utilities.pipeline_utility import progress_bar
 from pipeline.mask_transformation.mask_warp import mask_warp
-from pipeline.image_handeling.data_utility import run_multithread
+from pipeline.utilities.data_utility import run_multithread
 
 ################## main functions ##################
 def complete_track(mask_stack: np.ndarray, mask_appear: int, copy_first_to_start: bool=True, copy_last_to_end: bool=True)-> np.ndarray:
@@ -44,7 +44,7 @@ def complete_track(mask_stack: np.ndarray, mask_appear: int, copy_first_to_start
     
     # Reconstruct original size mask
     print('  ---> Reconstructing mask')
-    for slice_obj,temp in tqdm(temp_masks):
+    for slice_obj,temp in progress_bar(temp_masks):
         # Get the array of the mask that are equals to zero
         new_stack_zerro = new_stack[slice_obj] == 0
         # Add the temp to the new_stack only where the new_stack is zero (leave the rest as is)
@@ -179,7 +179,7 @@ if __name__ == "__main__":
     from os import listdir
     import sys
     sys.path.append('/home/ImageAnalysis_pipeline/pipeline')
-    from image_handeling.data_utility import load_stack
+    from utilities.data_utility import load_stack
     from os.path import join
     from tifffile import imwrite, imread
     from mask_warp import mask_warp

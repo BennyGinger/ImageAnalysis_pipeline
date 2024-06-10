@@ -4,13 +4,11 @@ from os import PathLike, sep, remove, listdir
 from os.path import join, exists
 import numpy as np
 import pandas as pd
-from scipy.ndimage import distance_transform_edt
-# from concurrent.futures import ProcessPoolExecutor
-# from functools import partial
-from pipeline.image_handeling.Base_Module_Class import BaseModule
-from pipeline.image_handeling.Experiment_Classes import Experiment, init_from_json
-from pipeline.image_handeling.data_utility import load_stack, img_list_src, seg_mask_lst_src, track_mask_lst_src
-from pipeline.analysis.channel_data import extract_data
+from pipeline.utilities.Base_Module_Class import BaseModule
+from pipeline.utilities.Experiment_Classes import Experiment, init_from_json
+from pipeline.utilities.data_utility import load_stack, img_list_src, seg_mask_lst_src, track_mask_lst_src
+from pipeline.utilities.pipeline_utility import progress_bar, pbar_desc
+from pipeline.analysis.data_extraction import extract_data
 from pipeline.settings.Setting_Classes import Settings
 from pipeline.analysis.wound_mask import draw_wound_mask
 
@@ -46,12 +44,16 @@ class AnalysisModule(BaseModule):
         self.save_as_json()
         return master_df
         
-    def create_master_df(self, img_fold_src: PathLike = "", channel_show:str=None, overwrite: bool=False)-> pd.DataFrame:
+    def create_master_df(self, img_fold_src: PathLike = "", overwrite: bool=False)-> pd.DataFrame:
         all_dfs = []
         
-        for exp_obj in self.exp_obj_lst:
+        for exp_obj in progress_bar(self.exp_obj_lst,
+                            desc=pbar_desc("Experiments"),
+                            colour='blue'):
             # extract the data
             all_dfs.append(self.extract_data(exp_obj, img_fold_src, overwrite))
+        
+        # Concatenate all the dataframes
         master_df = pd.concat(all_dfs)
         # Save the data
         save_path = join(self.input_folder,'master_df.csv')
@@ -61,29 +63,26 @@ class AnalysisModule(BaseModule):
         return master_df
     
     def extract_data(self, exp_obj: Experiment, img_fold_src: PathLike = "", overwrite: bool=False)-> pd.DataFrame:
-        # Gather the images and masks
+        ## Gather the images
         img_fold_src,img_array = _load_img(exp_obj, img_fold_src)
+        
+        ## Gather the masks
         masks_arrays = _load_mask(exp_obj)
         # If no masks were found, then skip
-        if not masks_arrays:
+        if masks_arrays == []:
             print(f"No masks were found for {exp_obj.exp_path}")
             return pd.DataFrame()
-        # If reference masks were drawn
-        if exp_obj.analysis.is_reference_masks:
-            ref_masks = _load_ref_masks(exp_obj)
-        else:
-            ref_masks = {}
-        # Extract the data
+        # Load the reference masks, if any (i.e. None)
+        ref_masks,ref_names,pix_resolution = _load_ref_masks(exp_obj)
+        
+        ## Extract the data
+        # Setup extraction
         dfs = []
-        for mask_name, mask_array in masks_arrays.items():
-            df = extract_data(img_array,mask_array,exp_obj.active_channel_list,
-                                exp_obj.exp_path,ref_masks,overwrite)
-            # Add the mask name, time in seconds and experiment name
-            df['mask_name'] = mask_name
-            if exp_obj.analysis.interval_sec == None:
-                df['time_sec'] = 0
-            else: 
-                df['time_sec'] = df['frame']*exp_obj.analysis.interval_sec
+        for mask_array,mask_name,sec_arrays,sec_names in masks_arrays:
+            df = extract_data(img_array= img_array,mask_array=mask_array,save_path=exp_obj.exp_path,channels=exp_obj.active_channel_list,overwrite=overwrite,mask_name=mask_name,reference_masks=ref_masks,ref_name=ref_names,pixel_resolution=pix_resolution,secondary_masks=sec_arrays,sec_names=sec_names)
+            # Add the time in seconds and experiment name
+            interval_sec = 1 if exp_obj.analysis.interval_sec is None else exp_obj.analysis.interval_sec
+            df['time_sec'] = df['frame']*interval_sec
             df['exp_name'] = exp_obj.exp_path.rsplit(sep,1)[1]
             # Add the labels
             for i,label in enumerate(exp_obj.analysis.labels):
@@ -122,7 +121,7 @@ def _load_img(exp_obj: Experiment, img_fold_src: PathLike)-> tuple[str,np.ndarra
     channels = exp_obj.active_channel_list
     return fold_src,load_stack(img_files,channels,range(frames),True)
 
-def _get_segmentation_masks(exp_obj: Experiment)-> dict[str,np.ndarray]:
+def _get_segmentation_masks(exp_obj: Experiment)-> dict[str,dict]:
     mask_files = exp_obj.segmentation.processed_masks
     # if empty, then return
     if not mask_files:
@@ -133,14 +132,16 @@ def _get_segmentation_masks(exp_obj: Experiment)-> dict[str,np.ndarray]:
         mask_files[mask_type]['mask_paths'] = mask_paths
     return mask_files
 
-def _get_tracking_masks(exp_obj: Experiment)-> dict[str,np.ndarray]:
+def _get_tracking_masks(exp_obj: Experiment)-> dict[str,dict]:
     mask_files = exp_obj.tracking.processed_masks
     # if empty, then return
     if not mask_files:
-        return {}
+        return mask_files
     # Get mask paths
     for mask_type in mask_files.keys():
-        mask_files[mask_type]['mask_paths'] = track_mask_lst_src(exp_obj,mask_type)
+        fold_src = mask_files[mask_type]['fold_loc']
+        print(fold_src)
+        mask_files[mask_type]['mask_paths'] = track_mask_lst_src(exp_obj,fold_src)
     return mask_files
 
 def _get_all_masks_files(exp_obj: Experiment)-> dict[str,dict]:
@@ -150,34 +151,61 @@ def _get_all_masks_files(exp_obj: Experiment)-> dict[str,dict]:
     # If a time sequence, then load tracking masks
     return _get_tracking_masks(exp_obj)
         
-def _load_mask(exp_obj: Experiment)-> dict[str,np.ndarray]:
+def _load_mask(exp_obj: Experiment)-> list[tuple[np.ndarray,str,list[np.ndarray]|None,list[str]|None]]:
     # Gather masks from all mask sources
     mask_files = _get_all_masks_files(exp_obj)
     # if empty, then no masks were found
     if not mask_files:
-        return {}
+        return []
     # Load masks arrays
     frames = exp_obj.img_properties.n_frames
-    masks_arrays = {}
+    output_masks = []
     for mask_type,mask_dict in mask_files.items():
-        masks_arrays.update({f"{mask_type}_{channel}": load_stack(mask_dict['mask_paths'],channel,range(frames),True)
-                 for channel in mask_dict['channels']})
-    return masks_arrays
+        channels = mask_dict['channels']
+        mask_paths = mask_dict['mask_paths']
+        # Pre-load all the mask arrays
+        loaded_arrays = {channel:load_stack(mask_paths,channel,range(frames),True) for channel in channels}
+        # Build the output masks tuples
+        for channel in channels:
+            array_name = f"{mask_type}_{channel}"
+            sec_arrays = [loaded_arrays[chan] for chan in channels if chan != channel]
+            if sec_arrays == []:
+                sec_arrays = None
+            sec_names = [f"{chan}" for chan in channels if chan != channel]
+            if sec_names == []:
+                sec_names = None
+            output_masks.append((loaded_arrays[channel],array_name,sec_arrays,sec_names))
+    return output_masks
 
-def _load_ref_masks(exp_obj: Experiment)-> dict[str,tuple[np.ndarray,float]]:
-    mask_files = exp_obj.analysis.reference_masks.copy()
+def _load_ref_masks(exp_obj: Experiment)-> tuple[list[np.ndarray]|None,list[str]|None,float|None]:
+    ## If no reference masks, then return
+    if not exp_obj.analysis.is_reference_masks:
+        return None,None,None
+    
+    ## Else, load the reference masks
+    # Unpack varaibles
+    ref_masks_dict = exp_obj.analysis.reference_masks
     exp_path = exp_obj.exp_path
     resolution = exp_obj.analysis.um_per_pixel[0]
-    # if empty, then return
-    if not mask_files:
-        return {}
+    frames = exp_obj.img_properties.n_frames
+    
     # Get mask paths
-    for mask_fold in mask_files.keys():
-        folder_path = join(exp_path,f"Masks_{mask_fold}")
+    mask_arrays = []; mask_labels = []
+    for mask_label in ref_masks_dict.keys():
+        # Unpack settings
+        folder_path = join(exp_path,f"Masks_{mask_label}")
         mask_paths = [join(folder_path,file) for file in sorted(listdir(folder_path))]
-        channel = mask_files[mask_fold]['channel_show']
-        mask_array = load_stack(mask_paths,channel,range(exp_obj.img_properties.n_frames),True)
-        # Apply the dmap
-        mask_array = distance_transform_edt(np.logical_not(mask_array))
-        mask_files[mask_fold] = (mask_array,resolution)
-    return mask_files
+        channel = ref_masks_dict[mask_label]['channel_show']
+        # Load the mask array
+        mask_arrays.append(load_stack(mask_paths,channel,range(frames),True))
+        mask_labels.append(mask_label)
+    return mask_arrays,mask_labels,resolution
+
+
+if __name__== "__main__":
+    
+    input_folder = "/home/Test_images/nd2/Run2"
+    aclass = AnalysisModule(input_folder)
+    
+    # print(_get_tracking_masks(aclass.exp_obj_lst[0]))
+    aclass.create_master_df(overwrite=True)

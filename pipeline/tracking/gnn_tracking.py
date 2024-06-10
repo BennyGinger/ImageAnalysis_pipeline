@@ -1,6 +1,6 @@
 from __future__ import annotations
-from pipeline.image_handeling.Experiment_Classes import Experiment
-from pipeline.image_handeling.data_utility import is_processed, create_save_folder, delete_old_masks, seg_mask_lst_src, img_list_src, track_mask_lst_src, load_stack, save_tif
+from pipeline.utilities.Experiment_Classes import Experiment
+from pipeline.utilities.data_utility import is_processed, create_save_folder, delete_old_masks, seg_mask_lst_src, img_list_src, track_mask_lst_src, load_stack, save_tif
 from pipeline.tracking.gnn_track.inference_clean import predict
 from pipeline.tracking.gnn_track.postprocess_clean import Postprocess
 from pipeline.tracking.gnn_track import preprocess_seq2graph_clean, preprocess_seq2graph_3d

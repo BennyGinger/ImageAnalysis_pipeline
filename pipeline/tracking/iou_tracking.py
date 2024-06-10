@@ -1,13 +1,10 @@
 from __future__ import annotations
 from os import sep, listdir, PathLike
 from pathlib import Path
-from typing import Iterable
 import warnings
-
-from tqdm import tqdm
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
 from os.path import join
-from pipeline.image_handeling.data_utility import load_stack, create_save_folder, run_multithread, get_img_prop, save_tif, is_channel_in_lst
+from pipeline.utilities.data_utility import load_stack, create_save_folder, run_multithread, get_img_prop, save_tif, is_channel_in_lst
 from pipeline.mask_transformation.complete_track import complete_track
 from cellpose.utils import stitch3D
 from cellpose.metrics import _intersection_over_union

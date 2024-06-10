@@ -2,7 +2,7 @@ from __future__ import annotations
 from os import PathLike, scandir, sep
 from pathlib import Path
 from time import sleep
-from pipeline.image_handeling.data_utility import create_save_folder, save_tif, run_multithread
+from pipeline.utilities.data_utility import create_save_folder, save_tif, run_multithread
 from tifffile import imread
 from cv2 import GaussianBlur
 import numpy as np

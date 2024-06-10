@@ -3,7 +3,7 @@ from os import PathLike
 from pathlib import Path
 from tifffile import imread
 from smo import SMO
-from pipeline.image_handeling.data_utility import save_tif, run_multithread
+from pipeline.utilities.data_utility import save_tif, run_multithread
 
 
 ################################## main function ###################################

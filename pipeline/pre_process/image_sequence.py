@@ -4,7 +4,7 @@ from os.path import join, getsize, exists
 from nd2 import ND2File
 from tifffile import imread
 import numpy as np
-from pipeline.image_handeling.data_utility import save_tif, create_save_folder, run_multithread
+from pipeline.utilities.data_utility import save_tif, create_save_folder, run_multithread
 from pipeline.pre_process.metadata import get_metadata
 
 
