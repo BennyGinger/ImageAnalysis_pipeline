@@ -4,6 +4,7 @@ from pipeline.utilities.data_utility import is_processed, create_save_folder, de
 from pipeline.tracking.gnn_track.inference_clean import predict
 from pipeline.tracking.gnn_track.postprocess_clean import Postprocess
 from pipeline.tracking.gnn_track import preprocess_seq2graph_clean, preprocess_seq2graph_3d
+from pipeline.mask_transformation.complete_track import trim_incomplete_track
 from skimage.segmentation import relabel_sequential
 from skimage.measure import regionprops_table
 from matplotlib.colors import cnames
@@ -83,10 +84,13 @@ def prepare_manual_correct(exp_obj, channel_seg, mask_fold_src):
     points_df = points_df.sort_values('label').set_index('label')
     create_mdf_file(exp_obj, points_df, channel_seg)
 
-def relabel_masks(exp_obj, channel_seg, mask_fold_src):
+def relabel_masks(exp_obj, channel_seg, mask_fold_src, trim_incomplete_tracks=False):
     # Load masks
     mask_src_list = track_mask_lst_src(exp_obj,mask_fold_src)
     mask_stack = load_stack(mask_src_list,[channel_seg],range(exp_obj.img_properties.n_frames))
+    # trim incomplete tracks
+    if trim_incomplete_tracks:
+        mask_stack = trim_incomplete_track(mask_stack)
     #relabel the masks
     mask_stack, _, _ = relabel_sequential(mask_stack)
     #save the masks back into the folder, this time with metadata
@@ -97,7 +101,7 @@ def relabel_masks(exp_obj, channel_seg, mask_fold_src):
 
 def gnn_tracking(exp_obj_lst: list[Experiment], channel_seg: str, model:str, max_travel_dist:int ,overwrite: bool=False,
                  img_fold_src: str = None, mask_fold_src: str = None, morph: bool=False, mask_appear=2,
-                 decision_threshold:float = 0.5, manual_correct:bool=False):
+                 decision_threshold:float = 0.5, manual_correct:bool=False, trim_incomplete_tracks:bool=False):
     """
     Perform GNN Tracking based cell tracking on a list of experiments.
 
@@ -166,7 +170,7 @@ def gnn_tracking(exp_obj_lst: list[Experiment], channel_seg: str, model:str, max
         
         
         #relabel the masks from ID 1 until n and add metadata
-        relabel_masks(exp_obj, channel_seg, mask_fold_src = 'Masks_GNN_Track')
+        relabel_masks(exp_obj, channel_seg, mask_fold_src = 'Masks_GNN_Track',trim_incomplete_tracks=trim_incomplete_tracks)
         
         if manual_correct: #write mdf file to manual correct the tracks later
             prepare_manual_correct(exp_obj, channel_seg, mask_fold_src = 'Masks_GNN_Track')

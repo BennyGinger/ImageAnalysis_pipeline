@@ -89,13 +89,13 @@ class TrackingModule(BaseModule):
                 self.exp_obj_lst = self.iou_tracking(channel,mask_fold_src,stitch_thres_percent,shape_thres_percent,overwrite,mask_appear,copy_first_to_start,copy_last_to_end)
             return self.exp_obj_lst
         
-    def gnn_tracking(self, channel_to_track: str | list[str], max_travel_dist: int,img_fold_src: PathLike ="", model: str='neutrophil', mask_fold_src: PathLike ="", morph: bool=False, decision_threshold: float=0.5, mask_appear: int=2, manual_correct: bool=False, overwrite: bool=False) -> list[Experiment]:
+    def gnn_tracking(self, channel_to_track: str | list[str], max_travel_dist: int,img_fold_src: PathLike ="", model: str='neutrophil', mask_fold_src: PathLike ="", morph: bool=False, decision_threshold: float=0.5, mask_appear: int=2, manual_correct: bool=False, trim_incomplete_tracks: bool= False, overwrite: bool=False) -> list[Experiment]:
         if isinstance(channel_to_track, str):
-            return gnn_tracking(self.exp_obj_lst,channel_to_track,model, max_travel_dist,overwrite,img_fold_src,mask_fold_src,morph,mask_appear,decision_threshold, manual_correct)
+            return gnn_tracking(self.exp_obj_lst,channel_to_track,model,max_travel_dist,overwrite,img_fold_src,mask_fold_src,morph,mask_appear,decision_threshold,manual_correct,trim_incomplete_tracks)
         
         if isinstance(channel_to_track,list):
             for channel in channel_to_track:
-                self.exp_obj_lst = self.gnn_tracking(channel, max_travel_dist, model,overwrite,img_fold_src,mask_fold_src,morph,mask_appear,decision_threshold, manual_correct)
+                self.exp_obj_lst = self.gnn_tracking(channel,model,max_travel_dist,overwrite,img_fold_src,mask_fold_src,morph,mask_appear,decision_threshold,manual_correct,trim_incomplete_tracks)
             return self.exp_obj_lst
         
     def man_tracking(self, channel_to_track: str | list[str], track_seg_mask: bool = False, mask_fold_src: PathLike = None,
