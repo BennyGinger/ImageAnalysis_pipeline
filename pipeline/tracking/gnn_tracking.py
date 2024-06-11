@@ -90,7 +90,7 @@ def relabel_masks(exp_obj, channel_seg, mask_fold_src, trim_incomplete_tracks=Fa
     mask_stack = load_stack(mask_src_list,[channel_seg],range(exp_obj.img_properties.n_frames))
     # trim incomplete tracks
     if trim_incomplete_tracks:
-        mask_stack = trim_incomplete_track(mask_stack)
+        trim_incomplete_track(mask_stack)
     #relabel the masks
     mask_stack, _, _ = relabel_sequential(mask_stack)
     #save the masks back into the folder, this time with metadata

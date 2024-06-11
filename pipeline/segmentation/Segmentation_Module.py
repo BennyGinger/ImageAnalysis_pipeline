@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from os import PathLike
 from typing import Any
 from pipeline.utilities.Base_Module_Class import BaseModule
-from pipeline.utilities.Experiment_Classes import Experiment, init_from_json
+from pipeline.utilities.Experiment_Classes import Experiment
 from pipeline.segmentation.cp_segmentation import cellpose_segmentation
 from pipeline.segmentation.segmentation import threshold
 from pipeline.settings.Setting_Classes import Settings
@@ -11,19 +11,16 @@ from pipeline.utilities.data_utility import img_list_src
 
 @dataclass
 class SegmentationModule(BaseModule):
-    # Attributes from the BaseModule class:
+    ## Attributes from the BaseModule class:
         # input_folder: PathLike | list[PathLike]
         # exp_obj_lst: list[Experiment] = field(init=False)
-    def __post_init__(self)-> None:
-        super().__post_init__()
-        if self.exp_obj_lst:
-            return
-        
-        # Initialize the experiment list
-        jsons_path = self.gather_all_json_path()
-        self.exp_obj_lst = [init_from_json(json_path) for json_path in jsons_path]
+        # optimization: bool = False
             
     def segment_from_settings(self, settings: dict)-> list[Experiment]:
+        # If optimization is set, then process only the first experiment
+        self.optimization = settings['optimization']
+
+        # Segment the cells based on the settings
         sets = Settings(settings)
         if not hasattr(sets,'segmentation'):
             print("\n\033[93mNo segmentation settings found =====\033[0m")

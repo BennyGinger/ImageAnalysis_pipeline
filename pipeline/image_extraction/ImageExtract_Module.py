@@ -23,7 +23,7 @@ class ImageExtractionModule(BaseModule):
     exp_img_paths: list[PathLike] = field(init=False)
     
     def __post_init__(self) -> None:
-        super().__post_init__()
+        print(f"\n\033[92m===== Initializing the {self.__class__.__name__} Module =====\033[0m")
         self.exp_img_paths = self.search_exp_files()
         # Check if the channel lists are strings, if so convert them to lists
         if isinstance(self.active_channel_list,str):
@@ -94,3 +94,8 @@ class ImageExtractionModule(BaseModule):
         # Set all the branch to inactive
         exp_obj.init_to_inactive()
         return exp_obj
+    
+if __name__ == '__main__':
+    
+    input_folder = '/home/Test_images/nd2/Run4'
+    iem = ImageExtractionModule(input_folder)

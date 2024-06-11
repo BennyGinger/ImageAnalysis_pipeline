@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from os import PathLike
 from pipeline.utilities.Base_Module_Class import BaseModule
-from pipeline.utilities.Experiment_Classes import Experiment, init_from_json
+from pipeline.utilities.Experiment_Classes import Experiment
 from pipeline.utilities.data_utility import seg_mask_lst_src
 from pipeline.tracking.iou_tracking import iou_tracking
 from pipeline.tracking.gnn_tracking import gnn_tracking
@@ -11,19 +11,16 @@ from pipeline.settings.Setting_Classes import Settings
 
 @dataclass
 class TrackingModule(BaseModule):
-    # Attributes from the BaseModule class:
+    ## Attributes from the BaseModule class:
         # input_folder: PathLike | list[PathLike]
         # exp_obj_lst: list[Experiment] = field(init=False)
-    def __post_init__(self)-> None:
-        super().__post_init__()
-        if self.exp_obj_lst:
-            return
-        
-        # Initialize the experiment list
-        jsons_path = self.gather_all_json_path()
-        self.exp_obj_lst = [init_from_json(json_path) for json_path in jsons_path]
+        # optimization: bool = False
     
     def track_from_settings(self, settings: dict)-> list[Experiment]:
+        # If optimization is set, then process only the first experiment
+        self.optimization = settings['optimization']
+        
+        # Track the cells based on the settings
         sets = Settings(settings)
         if not hasattr(sets,'tracking'):
             print("No tracking settings found")

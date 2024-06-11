@@ -7,7 +7,7 @@ from pipeline.pre_process.image_blur import blur_images
 from pipeline.pre_process.background_sub import background_sub
 from pipeline.pre_process.image_registration import correct_frame_shift, correct_channel_shift
 from pipeline.settings.Setting_Classes import Settings
-from pipeline.utilities.Experiment_Classes import Experiment, init_from_json
+from pipeline.utilities.Experiment_Classes import Experiment
 from pipeline.utilities.Base_Module_Class import BaseModule
 from pipeline.utilities.data_utility import img_list_src, is_processed
 
@@ -15,19 +15,15 @@ EXTENTION = ('.nd2','.tif','.tiff')
 
 @dataclass
 class PreProcessModule(BaseModule):
-    # Attributes from the BaseModule class:
+    ## Attributes from the BaseModule class:
         # input_folder: PathLike | list[PathLike]
         # exp_obj_lst: list[Experiment] = field(init=False)
-    def __post_init__(self)-> None:
-        super().__post_init__()
-        if self.exp_obj_lst:
-            return
-        
-        # Initialize the experiment list
-        jsons_path = self.gather_all_json_path()
-        self.exp_obj_lst = [init_from_json(json_path) for json_path in jsons_path]
+        # optimization: bool = False
             
     def process_from_settings(self, settings: dict)-> list[Experiment]:
+        # If optimization is set, then process only the first experiment
+        self.optimization = settings['optimization']
+        
         # Process the images based on the settings
         sets = Settings(settings)
         if not hasattr(sets,'preprocess'):

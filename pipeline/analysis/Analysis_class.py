@@ -5,7 +5,7 @@ from os.path import join, exists
 import numpy as np
 import pandas as pd
 from pipeline.utilities.Base_Module_Class import BaseModule
-from pipeline.utilities.Experiment_Classes import Experiment, init_from_json
+from pipeline.utilities.Experiment_Classes import Experiment
 from pipeline.utilities.data_utility import load_stack, img_list_src, seg_mask_lst_src, track_mask_lst_src
 from pipeline.utilities.pipeline_utility import progress_bar, pbar_desc
 from pipeline.analysis.data_extraction import extract_data
@@ -18,19 +18,15 @@ REFERENCE_MASKS = [] #TODO: Add reference masks
 
 @dataclass
 class AnalysisModule(BaseModule):
-    # Attributes from the BaseModule class:
-    # input_folder: PathLike | list[PathLike]
-    # exp_obj_lst: list[Experiment] = field(init=False)
-    def __post_init__(self)-> None:
-        super().__post_init__()
-        if self.exp_obj_lst:
-            return
-        
-        # Initialize the experiment list
-        jsons_path = self.gather_all_json_path()
-        self.exp_obj_lst = [init_from_json(json_path) for json_path in jsons_path]
+    ## Attributes from the BaseModule class:
+        # input_folder: PathLike | list[PathLike]
+        # exp_obj_lst: list[Experiment] = field(init=False)
+        # optimization: bool = False
     
     def analyze_from_settings(self, settings: dict)-> pd.DataFrame:
+        # If optimization is set, then process only the first experiment
+        self.optimization = settings['optimization']
+            
         # Analyze the data based on the settings
         sets = Settings(settings)
         if not hasattr(sets,'analysis'):
@@ -207,5 +203,5 @@ if __name__== "__main__":
     input_folder = "/home/Test_images/nd2/Run2"
     aclass = AnalysisModule(input_folder)
     
-    # print(_get_tracking_masks(aclass.exp_obj_lst[0]))
-    aclass.create_master_df(overwrite=True)
+    print(aclass.exp_obj_lst)
+    # aclass.create_master_df(overwrite=True)

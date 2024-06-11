@@ -4,13 +4,14 @@ from os import PathLike, walk
 from os.path import join
 from typing import Callable
 from pipeline.utilities.pipeline_utility import progress_bar, pbar_desc
-from .Experiment_Classes import Experiment
+from .Experiment_Classes import Experiment, init_from_json
 
 
 @dataclass
 class BaseModule:
     input_folder: PathLike | list[PathLike]
     exp_obj_lst: list[Experiment] = field(default_factory=list)
+    optimization: bool = False
     
     def __post_init__(self)-> None:
         if self.exp_obj_lst:
@@ -19,6 +20,12 @@ class BaseModule:
         
         # Initialize the experiment list
         print(f"\n\033[92m===== Initializing the {self.__class__.__name__} Module =====\033[0m")
+        self.init_exp_obj()
+    
+    def init_exp_obj(self)-> None:
+        # Initialize the experiment list
+        jsons_path = self.gather_all_json_path()
+        self.exp_obj_lst = [init_from_json(json_path) for json_path in jsons_path]
     
     def change_attribute(self, attribute: str, value: any)-> list[Experiment]:
         for exp_obj in self.exp_obj_lst:
@@ -42,6 +49,7 @@ class BaseModule:
         for exp_obj in self.exp_obj_lst:
             exp_obj.save_as_json()
     
+    @optimization
     def _loop_over_exp(self, func: Callable, **kwargs)-> None:
         # Loop over all the experiments and apply the function
         for exp_obj in progress_bar(self.exp_obj_lst,
@@ -60,7 +68,12 @@ class BaseModule:
                     jsons_path.append(join(root,f))
         return sorted(jsons_path)
 
-
+def optimization(func: Callable)-> Callable:
+    def wrapper(self, *args, **kwargs):
+        if self.optimization == True:
+            self.exp_obj_lst = self.exp_obj_lst[:1]
+        return func(self, *args, **kwargs)
+    return wrapper
 
 
     #TODO: add methods to change channel names

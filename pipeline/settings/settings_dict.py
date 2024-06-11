@@ -1,6 +1,8 @@
 settings = {
     "input_folder": '/home/Test_images/nd2/Run2',
     
+    "optimization": False,
+    
     "init":{"active_channel_list": ["GFP","RFP"],
             'full_channel_list':["GFP","RFP"],
             "overwrite": False},
