@@ -144,7 +144,7 @@ def register_stack(img_paths: list[str], frames: int, stackreg: StackReg, reg_ch
     # Load the the stack
     img_stack = load_stack(img_paths,reg_channel,range(frames),True)
     
-    return stackreg.register_stack(img_stack,reference=img_ref)
+    return stackreg.register_stack(img_stack,reference=img_ref,verbose=True)
     
 def apply_frame_shift(img_paths: list[PathLike], stackreg: StackReg, frames: int,reg_channel: str, img_ref: str, metadata: dict)-> None:
     """Apply the frame shift correction to the images depending on the img_ref (first, mean or previous)."""
