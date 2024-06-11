@@ -49,10 +49,12 @@ class BaseModule:
         for exp_obj in self.exp_obj_lst:
             exp_obj.save_as_json()
     
-    @optimization
     def _loop_over_exp(self, func: Callable, **kwargs)-> None:
+        # If optimization is set, then process only the first experiment
+        exp_obj_lst = self.exp_obj_lst.copy()[:1] if self.optimization else self.exp_obj_lst
+        
         # Loop over all the experiments and apply the function
-        for exp_obj in progress_bar(self.exp_obj_lst,
+        for exp_obj in progress_bar(exp_obj_lst,
                             desc=pbar_desc("Experiments"),
                             colour='blue'):
             func(exp_obj,**kwargs)
@@ -68,12 +70,7 @@ class BaseModule:
                     jsons_path.append(join(root,f))
         return sorted(jsons_path)
 
-def optimization(func: Callable)-> Callable:
-    def wrapper(self, *args, **kwargs):
-        if self.optimization == True:
-            self.exp_obj_lst = self.exp_obj_lst[:1]
-        return func(self, *args, **kwargs)
-    return wrapper
+
 
 
     #TODO: add methods to change channel names
