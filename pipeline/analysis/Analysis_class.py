@@ -41,9 +41,12 @@ class AnalysisModule(BaseModule):
         return master_df
         
     def create_master_df(self, img_fold_src: PathLike = "", overwrite: bool=False)-> pd.DataFrame:
+        # If optimization is set, then process only the first experiment
+        exp_obj_lst = self.exp_obj_lst.copy()[:1] if self.optimization else self.exp_obj_lst
+        
         all_dfs = []
         
-        for exp_obj in progress_bar(self.exp_obj_lst,
+        for exp_obj in progress_bar(exp_obj_lst,
                             desc=pbar_desc("Experiments"),
                             colour='blue'):
             # extract the data
@@ -95,7 +98,10 @@ class AnalysisModule(BaseModule):
         if isinstance(mask_label, str):
             mask_label=[mask_label]
         
-        for exp_obj in self.exp_obj_lst:
+        # If optimization is set, then process only the first experiment
+        exp_obj_lst = self.exp_obj_lst.copy()[:1] if self.optimization else self.exp_obj_lst
+        
+        for exp_obj in exp_obj_lst:
             # Activate branch and get imgage files
             exp_obj.analysis.is_reference_masks = True
             img_flod_src, img_files = img_list_src(exp_obj,None)

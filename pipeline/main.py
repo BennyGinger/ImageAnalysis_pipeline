@@ -13,10 +13,20 @@ from pipeline.analysis.Analysis_class import AnalysisModule
 def run_pipeline(settings: dict)-> pd.DataFrame:
     input_folder = settings['input_folder']
     exp_list = ImageExtractionModule(input_folder,**settings['init']).extract_img_seq()
+    
     exp_list = PreProcessModule(input_folder,exp_list).process_from_settings(settings)
-    exp_list = SegmentationModule(input_folder,exp_list).segment_from_settings(settings)
+    
+    # For batch, draw the mask asap after registration, so no need to wait the all process
+    if settings["draw_mask"][0]:
+        AnalysisModule(input_folder,exp_list).draw_wound_mask(**settings["draw_mask"][1])
+    
+    exp_list = SegmentationModule(input_folder).segment_from_settings(settings)
     exp_list = TrackingModule(input_folder,exp_list).track_from_settings(settings)
-    master_df = AnalysisModule(input_folder,exp_list).analyze_from_settings(settings)
+    
+    if settings["extract_data"][0]:
+        master_df = AnalysisModule(input_folder,exp_list).create_master_df(**settings["extract_data"][1])
+    else:
+        master_df = pd.DataFrame()
     return master_df
 
 def run_preprocess(settings: dict)-> None:
@@ -35,6 +45,16 @@ def run_tracking(settings: dict)-> None:
 def run_analysis(settings: dict)-> pd.DataFrame:
     input_folder = settings['input_folder']
     return AnalysisModule(input_folder).analyze_from_settings(settings)
+
+def reset_overwrite(settings: dict):
+    for k,v in settings.items():
+        if k == "optimization":
+            settings[k] = False
+        
+        if isinstance(v, dict):
+            reset_overwrite(v)
+        elif isinstance(v, tuple):
+            reset_overwrite(v[1])
 
 
 if __name__ == "__main__":

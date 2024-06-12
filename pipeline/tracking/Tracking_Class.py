@@ -87,8 +87,11 @@ class TrackingModule(BaseModule):
             return self.exp_obj_lst
         
     def gnn_tracking(self, channel_to_track: str | list[str], max_travel_dist: int,img_fold_src: PathLike ="", model: str='neutrophil', mask_fold_src: PathLike ="", morph: bool=False, decision_threshold: float=0.5, mask_appear: int=2, manual_correct: bool=False, trim_incomplete_tracks: bool= False, overwrite: bool=False) -> list[Experiment]:
+        # If optimization is set, then process only the first experiment
+        exp_obj_lst = self.exp_obj_lst.copy()[:1] if self.optimization else self.exp_obj_lst
+        
         if isinstance(channel_to_track, str):
-            return gnn_tracking(self.exp_obj_lst,channel_to_track,model,max_travel_dist,overwrite,img_fold_src,mask_fold_src,morph,mask_appear,decision_threshold,manual_correct,trim_incomplete_tracks)
+            return gnn_tracking(exp_obj_lst,channel_to_track,model,max_travel_dist,overwrite,img_fold_src,mask_fold_src,morph,mask_appear,decision_threshold,manual_correct,trim_incomplete_tracks)
         
         if isinstance(channel_to_track,list):
             for channel in channel_to_track:

@@ -10,36 +10,21 @@ from skimage.measure import regionprops_table
 from matplotlib.colors import cnames
 from pandas import DataFrame
 from os.path import join
-from os import getcwd
 
 import numpy as np #TODO remove later!
+# /ImageAnalysis/pipeline/tracking/gnn_track/models/PhC-C2DH-U373
+
+BUILD_IN_MODEL = {"Fluo-C2DL-Huh7": "epoch=136.ckpt", "Fluo-N2DH-SIM+": "epoch=132.ckpt", "Fluo-N3DH-SIM+": "epoch=42.ckpt", "Fluo-N2DL-HeLa": "epoch=312.ckpt", "PhC-C2DH-U373": "epoch=10.ckpt"}
+IN_HOUSE_MODEL = {"neutrophil_old": "epoch=73.ckpt", "neutrophil": "epoch=175.ckpt"}
+MODEL = {**BUILD_IN_MODEL, **IN_HOUSE_MODEL}
 
 def model_select(model):
-    model_dict = {}
-    root = getcwd()
-    if model == 'neutrophil_old':
-        model_dict['model_metric'] = root+'/ImageAnalysis/pipeline/tracking/gnn_track/models/neutrophil_old/all_params.pth'
-        model_dict['model_lightning'] =  root+'/ImageAnalysis/pipeline/tracking/gnn_track/models/neutrophil_old/epoch=73.ckpt'
-    elif model == 'neutrophil':
-        model_dict['model_metric'] =  root+'/ImageAnalysis/pipeline/tracking/gnn_track/models/neutrophil/all_params.pth'
-        model_dict['model_lightning'] =  root+'/ImageAnalysis/pipeline/tracking/gnn_track/models/neutrophil/epoch=175.ckpt'
-    elif model == 'Fluo-C2DL-Huh7':
-        model_dict['model_metric'] =  root+'/ImageAnalysis/pipeline/tracking/gnn_track/models/Fluo-C2DL-Huh7/all_params.pth'
-        model_dict['model_lightning'] =  root+'/ImageAnalysis/pipeline/tracking/gnn_track/models/Fluo-C2DL-Huh7/epoch=136.ckpt'
-    elif model == 'Fluo-N2DH-SIM+':
-        model_dict['model_metric'] =  root+'/ImageAnalysis/pipeline/tracking/gnn_track/models/Fluo-N2DH-SIM+/all_params.pth'
-        model_dict['model_lightning'] =  root+'/ImageAnalysis/pipeline/tracking/gnn_track/models/Fluo-N2DH-SIM+/epoch=132.ckpt'
-    elif model == 'Fluo-N2DL-HeLa':
-        model_dict['model_metric'] =  root+'/ImageAnalysis/pipeline/tracking/gnn_track/models/Fluo-N2DL-HeLa/all_params.pth'
-        model_dict['model_lightning'] =  root+'/ImageAnalysis/pipeline/tracking/gnn_track/models/Fluo-N2DL-HeLa/epoch=312.ckpt'
-    elif model == 'Fluo-N3DH-SIM+':
-        model_dict['model_metric'] =  root+'/ImageAnalysis/pipeline/tracking/gnn_track/models/Fluo-N3DH-SIM+/all_params.pth'
-        model_dict['model_lightning'] =  root+'/ImageAnalysis/pipeline/tracking/gnn_track/models/Fluo-N3DH-SIM+/epoch=42.ckpt'
-    elif model == 'PhC-C2DH-U373':
-        model_dict['model_metric'] =  root+'/ImageAnalysis/pipeline/tracking/gnn_track/models/PhC-C2DH-U373/all_params.pth'
-        model_dict['model_lightning'] =  root+'/ImageAnalysis/pipeline/tracking/gnn_track/models/PhC-C2DH-U373/epoch=10.ckpt'
-    else:
-        raise AttributeError(f'{model =} is not a valid modelname.')
+    if model not in MODEL:
+        raise AttributeError(f"{model =} is not a valid modelname.")
+    
+    model_dict = {"model_metric": f"/ImageAnalysis/pipeline/tracking/gnn_track/models/{model}/all_params.pth",
+                  "model_lightning": f"/ImageAnalysis/pipeline/tracking/gnn_track/models/{model}/{MODEL[model]}"}
+    
     return model_dict
 
 def create_mdf_file(exp_obj, points_df, channel_seg):

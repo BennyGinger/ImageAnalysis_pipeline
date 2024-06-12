@@ -1,6 +1,7 @@
 from __future__ import annotations
 from os import PathLike, scandir
 from os.path import join, getsize, exists
+from pathlib import Path
 from nd2 import ND2File
 from tifffile import imread
 import numpy as np
@@ -65,16 +66,18 @@ def process_img(meta_dict: dict, save_folder: PathLike)-> None:
     process_img_array(array,meta_dict,save_folder)
     return 
 
-def get_img_params_lst(meta_dict: dict)-> list[tuple]:
+def get_img_params_lst(meta_dict: dict, save_folder: PathLike)-> list[tuple]:
     """Return a list of tuples with the channel name and the array slice of the image."""
+    # Get the actual serie number from save_folder
+    serie = int(Path(save_folder).parent.stem.split('_s')[-1]) - 1
+    
     # Create a name for each image
     img_params_lst = []
-    for serie in range(meta_dict['n_series']):
-        for f in range(meta_dict['n_frames']):
-            for z in range(meta_dict['n_slices']):
-                for chan in meta_dict['active_channel_list']:
-                    chan_idx = meta_dict['full_channel_list'].index(chan)
-                    img_params_lst.append((chan,(f,serie,z,chan_idx)))
+    for f in range(meta_dict['n_frames']):
+        for z in range(meta_dict['n_slices']):
+            for chan in meta_dict['active_channel_list']:
+                chan_idx = meta_dict['full_channel_list'].index(chan)
+                img_params_lst.append((chan,(f,serie,z,chan_idx)))
     return img_params_lst
 
 
@@ -97,7 +100,7 @@ def process_img_array(array: np.ndarray, meta_dict: dict, save_folder: PathLike)
     It uses multithreading to save each image."""
     
     # Create all the params of the images
-    img_params_lst = get_img_params_lst(meta_dict)
+    img_params_lst = get_img_params_lst(meta_dict,save_folder)
     # Adjust array with missing dimension
     array = expand_array_dim(array,meta_dict['axes'])
     # Get the metadata
@@ -124,7 +127,7 @@ def process_img_obj(meta_dict: dict, save_folder: PathLike)-> None:
     It uses multithreading to save each image."""
     
     # Create all the names for the images+metadata
-    img_params_lst = get_img_params_lst(meta_dict)
+    img_params_lst = get_img_params_lst(meta_dict,save_folder)
     # Get the metadata
     with ND2File(meta_dict['img_path']) as nd_obj:
         fixed_args = {'nd_obj':nd_obj,
@@ -177,6 +180,6 @@ if __name__ == "__main__":
     # Test nd2 image
     # img_path = '/home/Test_images/nd2/Run1/c1z25t25v1_nd2.nd2'
     # img_path = '/home/Test_images/nd2/Run2/c2z25t23v1_nd2.nd2'
-    img_path = '/home/Test_images/tiff/Run1/c1z25t25v1_tif.tif'
-    fold_paths = create_img_seq(img_path,active_channel_list=['YFP'],full_channel_list=['YFP'],overwrite=True)
+    img_path = r'/home/Dia/Ca2+_Itga_analysis/iso/1382x1172_iso_15%laser@5min-MaxIP.nd2'
+    fold_paths = create_img_seq(img_path,active_channel_list=['RFP','GFP'],full_channel_list=['RFP','GFP'],overwrite=True)
     # fold_paths = create_img_seq(img_path,active_channel_list=['GFP','RFP'],full_channel_list=['GFP','RFP'],overwrite=True)
