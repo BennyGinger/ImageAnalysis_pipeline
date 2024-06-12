@@ -12,8 +12,8 @@ from pandas import DataFrame
 from os.path import join
 
 import numpy as np #TODO remove later!
-# /ImageAnalysis/pipeline/tracking/gnn_track/models/PhC-C2DH-U373
 
+# List of all the models. For organization purposes, the models are divided into two categories: BUILD_IN_MODEL and IN_HOUSE_MODEL. However, they are then combined into a single dictionary (MODEL) for ease of use. The key is the model name and the value is the name of the checkpoint file to use.
 BUILD_IN_MODEL = {"Fluo-C2DL-Huh7": "epoch=136.ckpt", "Fluo-N2DH-SIM+": "epoch=132.ckpt", "Fluo-N3DH-SIM+": "epoch=42.ckpt", "Fluo-N2DL-HeLa": "epoch=312.ckpt", "PhC-C2DH-U373": "epoch=10.ckpt"}
 IN_HOUSE_MODEL = {"neutrophil_old": "epoch=73.ckpt", "neutrophil": "epoch=175.ckpt"}
 MODEL = {**BUILD_IN_MODEL, **IN_HOUSE_MODEL}

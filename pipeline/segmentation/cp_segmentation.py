@@ -292,13 +292,13 @@ if __name__ == "__main__":
     
     channel = "YFP"
     model_type = "cyto2" #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
-    diameter = 30.0
+    diameter = 15.0
     flow_threshold = 0.4
-    cellprob_threshold = 0
+    cellprob_threshold = 1
     process_as_2D = True
     overwrite = True
     
-    folder_input = Path('/home/Test_images/szimi/Cellpose_test')
+    folder_input = Path('/home/Test_images/szimi/MET/20240515-fMLF_diffusion/neutrophil')
     img_folds = list(Path(folder_input).glob('**/*_s1'))
     # print(cpu_count())
     for img_fold in img_folds:

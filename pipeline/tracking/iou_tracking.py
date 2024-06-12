@@ -1,5 +1,5 @@
 from __future__ import annotations
-from os import sep, listdir, PathLike
+from os import listdir, PathLike
 from pathlib import Path
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
@@ -272,11 +272,11 @@ if __name__ == "__main__":
     from tifffile import imread
     from time import time
     
-    folder = '/home/Test_images/bigy/HEKA_c1031_c1829_miniSOG_80%_435_2min_40min_002_Merged_s1/Masks_Cellpose'
+    folder = '/home/Test_images/szimi/MET/20240515-fMLF_diffusion/neutrophil/neutrophil_003_s1/Masks_Cellpose'
     mask_folder_src = [join(folder,file) for file in sorted(listdir(folder)) if file.endswith('.tif')]
-    mask_stack = load_stack(mask_folder_src,'RFP',range(126),True)
+    # mask_stack = load_stack(mask_folder_src,'YFP',range(126),True)
     
-    stitch_thres_percent = 0.1
+    stitch_thres_percent = 0.4
     shape_thres_percent = 0.95
     mask_appear = 5
     copy_first_to_start = True

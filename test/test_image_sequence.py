@@ -2,7 +2,7 @@
 from os import mkdir
 import numpy as np
 from tifffile import imread
-from pipeline.pre_process.image_sequence import expand_array_dim, get_img_params_lst
+from ImageAnalysis_pipeline.pipeline.image_extraction.image_sequence import expand_array_dim, get_img_params_lst
 
     
 # def test_write_array(tmpdir):
