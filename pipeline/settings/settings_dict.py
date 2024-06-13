@@ -1,16 +1,16 @@
 settings = {
-    "input_folder": '/home/Test_images/nd2/Run2',
+    "input_folder": '/home/Test_images/nd2/Run4',
     
     "optimization": False,
     
-    "init":{"active_channel_list": ["GFP","RFP"],
-            'full_channel_list':["GFP","RFP"],
+    "init":{"active_channel_list": ['GFP','RFP'],
+            'full_channel_list': ['DAPI','GFP','RFP','iRed'],
             "overwrite": False},
     
     "bg_sub": (True,
                 {"overwrite": False}),
     
-    "chan_shift": (False,
+    "chan_shift": (True,
                     {"reg_channel": "RFP",
                     "reg_mtd": "rigid_body",
                     "overwrite": False}),
@@ -26,14 +26,14 @@ settings = {
             "overwrite": False}),
 
     "cellpose": (True,
-                {"channel_to_seg":"GFP", 
+                {"channel_to_seg":"RFP", 
                 "model_type": "cyto2", #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
-                "diameter": 60.0,
-                "flow_threshold": 0.2,
-                "cellprob_threshold":-1,
+                "diameter": 65.0,
+                "flow_threshold": 0.6,
+                "cellprob_threshold":0,
                 "process_as_2D": True,
                 "save_as_npy": False,
-                "overwrite": True,}),
+                "overwrite": False,}),
     
     "threshold": (False,
                 {"channel_to_seg":"RFP",
@@ -42,13 +42,13 @@ settings = {
                 "overwrite": False,}),
     
     "iou_track": (True,
-                  {"channel_to_track":"GFP", 
+                  {"channel_to_track":"RFP", 
                    "stitch_thres_percent": 0.5,
                    "shape_thres_percent": 0.95,
                    "mask_appear":5,
                    "copy_first_to_start": True, 
                    "copy_last_to_end": True,
-                   "overwrite":True}),
+                   "overwrite":False}),
     
     "gnn_track": (False,                         #not working: Fluo-C2DL-Huh7
                   {"channel_to_track":"RFP",
