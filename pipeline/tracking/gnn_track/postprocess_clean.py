@@ -5,6 +5,8 @@ import pandas as pd
 import numpy as np
 from skimage import io
 import warnings
+
+from tqdm import trange
 warnings.filterwarnings("ignore")
 import imageio
 
@@ -369,7 +371,7 @@ class Postprocess(object):
         n_rows, _ = all_frames_traject.shape
 
         count_diff_vals = 0
-        for idx in range(n_rows):
+        for idx in trange(n_rows):
             pred = self.get_pred(idx)
             pred_copy = pred.copy()
             curr_row = all_frames_traject[idx, :]
@@ -394,7 +396,6 @@ class Postprocess(object):
                 pred_copy[pred==val]=true_id
 
                 frame_ids.append(true_id)
-            print(f'processing frame: {idx+1}')
             isOK, predID_not_in_currID = self.check_ids_consistent(idx, np.unique(pred_copy), frame_ids)
             if not debug:
                 if not isOK:

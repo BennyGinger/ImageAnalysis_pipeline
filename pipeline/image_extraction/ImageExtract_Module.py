@@ -5,7 +5,7 @@ from os import PathLike, sep, walk
 from os.path import join
 from re import search
 from pipeline.utilities.pipeline_utility import progress_bar, pbar_desc
-from ImageAnalysis_pipeline.pipeline.image_extraction.image_sequence import create_img_seq
+from pipeline.image_extraction.image_sequence import create_img_seq
 from pipeline.utilities.Experiment_Classes import Experiment, init_from_dict, init_from_json
 from pipeline.utilities.Base_Module_Class import BaseModule
 

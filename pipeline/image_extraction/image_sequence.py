@@ -6,7 +6,7 @@ from nd2 import ND2File
 from tifffile import imread
 import numpy as np
 from pipeline.utilities.data_utility import save_tif, create_save_folder, run_multithread
-from ImageAnalysis_pipeline.pipeline.image_extraction.metadata import get_metadata
+from pipeline.image_extraction.metadata import get_metadata
 
 
 

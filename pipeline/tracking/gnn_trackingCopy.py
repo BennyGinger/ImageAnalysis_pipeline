@@ -1,6 +1,8 @@
 from __future__ import annotations
+from os import PathLike
+from pathlib import Path
 from pipeline.utilities.Experiment_Classes import Experiment
-from pipeline.utilities.data_utility import is_processed, create_save_folder, delete_old_masks, seg_mask_lst_src, img_list_src, track_mask_lst_src, load_stack, save_tif
+from pipeline.utilities.data_utility import track_mask_lst_src, load_stack, save_tif, get_img_prop
 from pipeline.tracking.gnn_track.inference_clean import predict
 from pipeline.tracking.gnn_track.postprocess_clean import Postprocess
 from pipeline.tracking.gnn_track import preprocess_seq2graph_clean, preprocess_seq2graph_3d
@@ -27,7 +29,7 @@ def model_select(model):
     
     return model_dict
 
-def create_mdf_file(exp_obj, points_df, channel_seg):
+def create_mdf_file(exp_path: Path, points_df, channel_seg):
     mdf_lst = []
     mdf_lst.append('MTrackJ 1.5.1 Data File\n')
     mdf_lst.append('Displaying true true true 1 2 0 3 100 4 0 0 0 2 1 12 0 true true true false\n')
@@ -46,16 +48,15 @@ def create_mdf_file(exp_obj, points_df, channel_seg):
                 point_ID += 1
                 mdf_lst.append(f'Point {point_ID} {centroid[1]} {centroid[0]} 1.0 {float(frame)} 1.0\n')
     mdf_lst.append('End of MTrackJ Data File\n')
-    mdf_filename = join(exp_obj.exp_path, channel_seg+'.mdf')
+    mdf_filename = exp_path.joinpath(channel_seg+'.mdf')
     file = open(mdf_filename, "w")
     file.writelines(mdf_lst)
     file.close()
     print(f'--> .mdf trackingfile saved for the {channel_seg} channel')
 
-def prepare_manual_correct(exp_obj, channel_seg, mask_fold_src):
+def prepare_manual_correct(frames, mask_src_list, channel_seg, exp_path: Path):
     # Load masks
-    mask_src_list = track_mask_lst_src(exp_obj,mask_fold_src)
-    mask_stack = load_stack(mask_src_list,[channel_seg],range(exp_obj.img_properties.n_frames))
+    mask_stack = load_stack(mask_src_list,[channel_seg],range(frames))
     # get centroids of all obj and save them with the label ID in a dataframe
     for frame, img in enumerate(mask_stack, start=1):
         props_table = regionprops_table(img, properties=('label','centroid'))
@@ -67,12 +68,11 @@ def prepare_manual_correct(exp_obj, channel_seg, mask_fold_src):
         else:
             points_df = points_df.join(props_df.set_index('label'),on='label', how='outer')
     points_df = points_df.sort_values('label').set_index('label')
-    create_mdf_file(exp_obj, points_df, channel_seg)
+    create_mdf_file(exp_path, points_df, channel_seg)
 
-def relabel_masks(exp_obj, channel_seg, mask_fold_src, trim_incomplete_tracks=False):
+def relabel_masks(frames, mask_src_list, channel_seg, metadata, trim_incomplete_tracks=False):
     # Load masks
-    mask_src_list = track_mask_lst_src(exp_obj,mask_fold_src)
-    mask_stack = load_stack(mask_src_list,[channel_seg],range(exp_obj.img_properties.n_frames))
+    mask_stack = load_stack(mask_src_list,[channel_seg],range(frames))
     # trim incomplete tracks
     if trim_incomplete_tracks:
         trim_incomplete_track(mask_stack)
@@ -80,13 +80,11 @@ def relabel_masks(exp_obj, channel_seg, mask_fold_src, trim_incomplete_tracks=Fa
     mask_stack, _, _ = relabel_sequential(mask_stack)
     #save the masks back into the folder, this time with metadata
     for frame, mask_path in enumerate(mask_src_list):
-        save_tif(array=mask_stack[frame], save_path=mask_path, um_per_pixel=exp_obj.analysis.um_per_pixel, finterval=exp_obj.analysis.interval_sec)
+        save_tif(array=mask_stack[frame], save_path=mask_path,**metadata)
 
 # # # # # # # # main functions # # # # # # # # # 
 
-def gnn_tracking(exp_obj_lst: list[Experiment], channel_seg: str, model:str, max_travel_dist:int ,overwrite: bool=False,
-                 img_fold_src: str = None, mask_fold_src: str = None, morph: bool=False, mask_appear=2,
-                 decision_threshold:float = 0.5, manual_correct:bool=False, trim_incomplete_tracks:bool=False):
+def gnn_tracking(exp_path: PathLike, channel_to_track: str, model: str, max_travel_dist: int, img_fold_src: str, mask_fold_src: str, overwrite: bool=False, decision_threshold: float=0.5, manual_correct: bool=False, trim_incomplete_tracks: bool=False,**kwargs)-> None:
     """
     Perform GNN Tracking based cell tracking on a list of experiments.
 
@@ -105,66 +103,74 @@ def gnn_tracking(exp_obj_lst: list[Experiment], channel_seg: str, model:str, max
     Returns:
         list[Experiment]: List of Experiment objects with updated tracking information.
     """    
-    for exp_obj in exp_obj_lst:
-        # Activate the branch
-        exp_obj.tracking.is_gnn_tracking = True
+    
+    # Set exp paths
+    exp_path = Path(exp_path)
+    save_path: Path = exp_path.joinpath('Masks_GNN_Track')
+    save_path.mkdir(exist_ok=True)
+    
+    
+    # Already processed?
+    if any(file.match(f"*{channel_to_track}*") for file in save_path.glob('*.tif')) and not overwrite:
+            # Log
+        print(f" --> Cells have already been tracked for the '{channel_to_track}' channel")
+        return
 
-        
-        # Already processed?
-        if is_processed(exp_obj.tracking.gnn_tracking,channel_seg,overwrite):
-                # Log
-            print(f" --> Cells have already been tracked for the '{channel_seg}' channel")
-            continue
+    # Track images
+    print(f" --> Tracking cells for the '{channel_to_track}' channel")
+    
+    # Prepare tracking
+    csvs_folder = exp_path.joinpath('gnn_files')
+    csvs_folder.mkdir(exist_ok=True)
+    seg_fold_src = exp_path.joinpath(mask_fold_src)
+    img_fold_src: Path = exp_path.joinpath(img_fold_src)
+    frames, n_slices = get_img_prop(list(img_fold_src.glob('*.tif')))
+    model_dict = model_select(model=model)
 
-        # Track images
-        print(f" --> Tracking cells for the '{channel_seg}' channel")
+    #get path of image
+    if n_slices==1: # check of 2D or 3D
+        is_3d = False
+        preprocess_seq2graph_clean.create_csv(input_images=img_fold_src, input_seg=seg_fold_src, input_model=model_dict['model_metric'], channel=channel_to_track, output_csv=csvs_folder)
+    else:
+        is_3d = True
+        preprocess_seq2graph_3d.create_csv(input_images=img_fold_src, input_seg=seg_fold_src, input_model=model_dict['model_metric'], channel=channel_to_track, output_csv=csvs_folder)
         
-        # Create save folder and remove old masks
-        create_save_folder(exp_obj.exp_path,'Masks_GNN_Track')
-        create_save_folder(exp_obj.exp_path,'gnn_files')
-        files_folder = join(exp_obj.exp_path,'gnn_files')
-        delete_old_masks(exp_obj.tracking.gnn_tracking,channel_seg,exp_obj.gnn_tracked_masks_lst,overwrite)
-        model_dict = model_select(model=model)
-        
-        #get path of mask
-        mask_fold_src, _ = seg_mask_lst_src(exp_obj,mask_fold_src)
-        input_seg = join(exp_obj.exp_path, mask_fold_src)
+    predict(ckpt_path=model_dict['model_lightning'], path_csv_output=csvs_folder, num_seq='01')
 
-        #get path of image
-        img_fold_src, _ = img_list_src(exp_obj,img_fold_src)
-        input_img = join(exp_obj.exp_path, img_fold_src)
-        if exp_obj.img_properties.n_slices==1: # check of 2D or 3D
-            is_3d = False
-            preprocess_seq2graph_clean.create_csv(input_images=input_img, input_seg=input_seg, input_model=model_dict['model_metric'], channel=channel_seg, output_csv=files_folder)
-        else:
-            is_3d = True
-            preprocess_seq2graph_3d.create_csv(input_images=input_img, input_seg=input_seg, input_model=model_dict['model_metric'], channel=channel_seg, output_csv=files_folder)
-            
-        predict(ckpt_path=model_dict['model_lightning'], path_csv_output=files_folder, num_seq='01')
-   
-        pp = Postprocess(is_3d=is_3d, type_masks='tif', merge_operation='AND', decision_threshold=decision_threshold,
-                     path_inference_output=files_folder, directed=True, path_seg_result=input_seg, max_travel_dist=max_travel_dist)
-        
-        pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
-        # np.savetxt("/home/Fabian/ImageData/all_frames_traject.csv", all_frames_traject, delimiter=",")
-        # np.savetxt("/home/Fabian/ImageData/trajectory_same_label.csv", trajectory_same_label, delimiter=",")
+    pp = Postprocess(is_3d=is_3d, type_masks='tif', merge_operation='AND', decision_threshold=decision_threshold,
+                    path_inference_output=csvs_folder, directed=True, path_seg_result=seg_fold_src, max_travel_dist=max_travel_dist)
+    
+    pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
+    # np.savetxt("/home/Fabian/ImageData/all_frames_traject.csv", all_frames_traject, delimiter=",")
+    # np.savetxt("/home/Fabian/ImageData/trajectory_same_label.csv", trajectory_same_label, delimiter=",")
 
 
-        pp.fill_mask_labels(debug=False)
-        
-        
-        
-        #relabel the masks from ID 1 until n and add metadata
-        relabel_masks(exp_obj, channel_seg, mask_fold_src = 'Masks_GNN_Track',trim_incomplete_tracks=trim_incomplete_tracks)
-        
-        if manual_correct: #write mdf file to manual correct the tracks later
-            prepare_manual_correct(exp_obj, channel_seg, mask_fold_src = 'Masks_GNN_Track')
-            
-        # Save settings
-        exp_obj.tracking.gnn_tracking[channel_seg] = {'img_fold_src':img_fold_src, 'mask_fold_src':mask_fold_src, 'model':model, 'mask_appear':mask_appear, 'morph':morph, 'decision_threshold':decision_threshold, 'max_travel_dist':max_travel_dist}
-        exp_obj.save_as_json()
-    return exp_obj_lst
+    pp.fill_mask_labels(debug=False)
+    
+    
+    metadata = unpack_kwargs(kwargs)
+    #relabel the masks from ID 1 until n and add metadata
+    relabel_masks(frames,list(save_path.glob('*.tif')),channel_to_track,metadata,trim_incomplete_tracks)
+    
+    if manual_correct: #write mdf file to manual correct the tracks later
+        prepare_manual_correct(frames,list(save_path.glob('*.tif')),channel_to_track,exp_path)
 
+def unpack_kwargs(kwargs: dict)-> dict:
+    """Function to unpack the kwargs and extract necessary variable."""
+    if not kwargs:
+        return {'finterval':None, 'um_per_pixel':None}
+    
+    # Unpack the kwargs
+    metadata = {}
+    for k,v in kwargs.items():
+        if k in ['um_per_pixel','finterval']:
+            metadata[k] = v
+    
+    # if kwargs did not contain metadata, set to None
+    if not metadata:
+        metadata = {'finterval':None, 'um_per_pixel':None}
+    
+    return metadata
 
 if __name__ == "__main__":
     from time import time
@@ -180,8 +186,17 @@ if __name__ == "__main__":
                    "overwrite":True}
     
     
-    
+    exp_path = '/home/Test_images/nd2/Run4/c4z1t91v1_s1'
     start = time()
-    gnn_tracking(channel_to_track='RFP', model='neutrophil', max_travel_dist=50, overwrite=True)
+    gnn_tracking(exp_path=exp_path,
+                 channel_to_track='RFP', 
+                 model="PhC-C2DH-U373",
+                 max_travel_dist=10,
+                 img_fold_src="Images_Registered",
+                 mask_fold_src="Masks_Cellpose",
+                 overwrite=True,
+                 decision_threshold=0.4,
+                 manual_correct=False,
+                 trim_incomplete_tracks=False)
     end = time()
     print(f"Time to process: {round(end-start,ndigits=3)} sec\n")

@@ -12,7 +12,7 @@ from threading import Lock
 import numpy as np
 from tifffile import imread, imwrite
 
-def load_stack(img_paths: list[PathLike], channels: str | Iterable[str], frame_range: int | Iterable[int], return_2D: bool=False)-> np.ndarray:
+def load_stack(img_paths: list[PathLike|Path], channels: str | Iterable[str], frame_range: int | Iterable[int], return_2D: bool=False)-> np.ndarray:
     """"Convert images to stack. If return_2D is True, return the max projection of the stack. The output shape is tzxyc,
     with t, z and c being optional.
     
@@ -37,9 +37,7 @@ def load_stack(img_paths: list[PathLike], channels: str | Iterable[str], frame_r
         for frame in frame_range:
             f_lst = []
             for path in img_paths:
-                # To be able to load either _f3digit.tif or _f4digit.tif
-                ndigit = len(path.split(sep)[-1].split('_')[2][1:])
-                if chan in path and path.__contains__(f'_f%0{ndigit}d'%(frame+1)):
+                if chan in str(path) and str(path).__contains__(f'_f{frame+1:04d}'):
                     f_lst.append(imread(path))
             chan_list.append(f_lst)
         exp_list.append(chan_list)
@@ -258,10 +256,10 @@ def get_img_prop(img_paths: list[PathLike])-> tuple[int,int]:
     where C is a label of the channel name (str), S the serie number followed by 2 digits,
     F the frames followed by 4 digits and Z the z_slices followed by 4 digits"""
     # Gather all frames and all z_slice
-    frames = [re.search('_f\d{4}', path).group() 
-                     for path in img_paths if re.search('_f\d{4}', path)]
-    z_slices = [re.search('_z\d{4}', path).group() 
-                     for path in img_paths if re.search('_z\d{4}', path)]
+    frames = [re.search('_f\d{4}', str(path)).group() 
+                     for path in img_paths if re.search('_f\d{4}', str(path))]
+    z_slices = [re.search('_z\d{4}', str(path)).group() 
+                     for path in img_paths if re.search('_z\d{4}', str(path))]
     return len(set(frames)),len(set(z_slices))
 
 def is_channel_in_lst(channel: str, img_paths: list[PathLike]) -> bool:

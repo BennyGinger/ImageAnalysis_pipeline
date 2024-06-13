@@ -10,6 +10,8 @@ import cv2
 from skimage import io
 from skimage.measure import regionprops
 import warnings
+
+from tqdm import trange
 warnings.filterwarnings("always")
 from pathlib import Path
 import re
@@ -212,11 +214,10 @@ class TestDataset(Dataset):
             firstframeflag = True
             subst_value = im_num
         
-        for ind_data in range(self.__len__()):
+        for ind_data in trange(len(self)):
             img, result, im_path, result_path = self[ind_data]
             im_name = Path(im_path).stem
             im_num = int(re.findall('f\d+', im_name)[0][1:])
-            print(f'Processing Image: {im_path}')
 
             result_name = Path(result_path).stem
             result_num = int(re.findall('f\d+', result_name)[0][1:])

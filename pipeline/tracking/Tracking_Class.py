@@ -3,9 +3,9 @@ from dataclasses import dataclass
 from os import PathLike
 from pipeline.utilities.Base_Module_Class import BaseModule
 from pipeline.utilities.Experiment_Classes import Experiment
-from pipeline.utilities.data_utility import seg_mask_lst_src
+from pipeline.utilities.data_utility import seg_mask_lst_src, img_list_src
 from pipeline.tracking.iou_tracking import iou_tracking
-from pipeline.tracking.gnn_tracking import gnn_tracking
+from pipeline.tracking.gnn_trackingCopy import gnn_tracking
 from pipeline.tracking.man_tracking import man_tracking
 from pipeline.settings.Setting_Classes import Settings
 
@@ -43,7 +43,7 @@ class TrackingModule(BaseModule):
             return self.exp_obj_lst
     
     @staticmethod
-    def _iou_tracking(exp_obj: Experiment, channel_to_track: str, mask_fold_src: PathLike, stitch_thres_percent: float, shape_thres_percent: float, overwrite: bool, mask_appear: int, copy_first_to_start: bool, copy_last_to_end: bool)-> None:
+    def _iou_tracking(exp_obj: Experiment, channel_to_track: str, mask_fold_src: str, stitch_thres_percent: float, shape_thres_percent: float, overwrite: bool, mask_appear: int, copy_first_to_start: bool, copy_last_to_end: bool)-> None:
         """Function to track the segemented cells using IOU method. This function mainly apply to cells that are not moving much between frames. If both copy_first_to_start (copy the first mask appearance to the start of the sequence) and copy_last_to_end (copy the last mask appearance to the end of the sequence) are True, then the incomplete tracks will be removed, else all tracks will be returned.
         
         Args:
@@ -75,29 +75,68 @@ class TrackingModule(BaseModule):
                                                         'mask_appear':mask_appear}
         exp_obj.save_as_json()
     
-    def iou_tracking(self, channel_to_track: str | list[str], mask_fold_src: PathLike = "", stitch_thres_percent: float=0.75, shape_thres_percent: float=0.2, overwrite: bool=False, mask_appear: int=5, copy_first_to_start: bool=True, copy_last_to_end: bool=True)-> list[Experiment]:
+    def iou_tracking(self, channel_to_track: str | list[str], mask_fold_src: str = "", stitch_thres_percent: float=0.75, shape_thres_percent: float=0.2, overwrite: bool=False, mask_appear: int=5, copy_first_to_start: bool=True, copy_last_to_end: bool=True)-> list[Experiment]:
+        
+        
         if isinstance(channel_to_track, str):
             print(f"\n-> Tracking images with IOU")
             
             self._loop_over_exp(self._iou_tracking,channel_to_track=channel_to_track,mask_fold_src=mask_fold_src,stitch_thres_percent=stitch_thres_percent,shape_thres_percent=shape_thres_percent,overwrite=overwrite,mask_appear=mask_appear,copy_first_to_start=copy_first_to_start,copy_last_to_end=copy_last_to_end)
+            return self.exp_obj_lst
         
         if isinstance(channel_to_track,list):
             for channel in channel_to_track:
                 self.exp_obj_lst = self.iou_tracking(channel,mask_fold_src,stitch_thres_percent,shape_thres_percent,overwrite,mask_appear,copy_first_to_start,copy_last_to_end)
             return self.exp_obj_lst
         
-    def gnn_tracking(self, channel_to_track: str | list[str], max_travel_dist: int,img_fold_src: PathLike ="", model: str='neutrophil', mask_fold_src: PathLike ="", morph: bool=False, decision_threshold: float=0.5, mask_appear: int=2, manual_correct: bool=False, trim_incomplete_tracks: bool= False, overwrite: bool=False) -> list[Experiment]:
-        # If optimization is set, then process only the first experiment
-        exp_obj_lst = self.exp_obj_lst.copy()[:1] if self.optimization else self.exp_obj_lst
+    # def gnn_tracking(self, channel_to_track: str | list[str], max_travel_dist: int,img_fold_src: str ="", model: str='neutrophil', mask_fold_src: str ="", morph: bool=False, decision_threshold: float=0.5, mask_appear: int=2, manual_correct: bool=False, trim_incomplete_tracks: bool= False, overwrite: bool=False) -> list[Experiment]:
+    #     # If optimization is set, then process only the first experiment
+    #     exp_obj_lst = self.exp_obj_lst.copy()[:1] if self.optimization else self.exp_obj_lst
+        
+    #     if isinstance(channel_to_track, str):
+    #         return gnn_tracking(exp_obj_lst,channel_to_track,model,max_travel_dist,overwrite,img_fold_src,mask_fold_src,morph,mask_appear,decision_threshold,manual_correct,trim_incomplete_tracks)
+        
+    #     if isinstance(channel_to_track,list):
+    #         for channel in channel_to_track:
+    #             self.exp_obj_lst = self.gnn_tracking(channel,model,max_travel_dist,overwrite,img_fold_src,mask_fold_src,morph,mask_appear,decision_threshold,manual_correct,trim_incomplete_tracks)
+    #         return self.exp_obj_lst
+    
+    def gnn_tracking(self, model: str, channel_to_track: str | list[str], max_travel_dist: int,img_fold_src: str ="", mask_fold_src: str ="", decision_threshold: float=0.5, manual_correct: bool=False, trim_incomplete_tracks: bool= False, overwrite: bool=False) -> list[Experiment]:
+        
         
         if isinstance(channel_to_track, str):
-            return gnn_tracking(exp_obj_lst,channel_to_track,model,max_travel_dist,overwrite,img_fold_src,mask_fold_src,morph,mask_appear,decision_threshold,manual_correct,trim_incomplete_tracks)
+            print(f"\n-> Tracking images with IOU")
+            
+            self._loop_over_exp(self._gnn_tracking,channel_to_track=channel_to_track,model=model,max_travel_dist=max_travel_dist,decision_threshold=decision_threshold,manual_correct=manual_correct,mask_fold_src=mask_fold_src,img_fold_src=img_fold_src,trim_incomplete_tracks=trim_incomplete_tracks,overwrite=overwrite)
+            return self.exp_obj_lst
         
         if isinstance(channel_to_track,list):
             for channel in channel_to_track:
-                self.exp_obj_lst = self.gnn_tracking(channel,model,max_travel_dist,overwrite,img_fold_src,mask_fold_src,morph,mask_appear,decision_threshold,manual_correct,trim_incomplete_tracks)
+                self.exp_obj_lst = self.gnn_tracking(model,channel,max_travel_dist,img_fold_src,mask_fold_src,decision_threshold,manual_correct,trim_incomplete_tracks,overwrite)
             return self.exp_obj_lst
         
+    @staticmethod
+    def _gnn_tracking(exp_obj: Experiment, channel_to_track: str, model: str, max_travel_dist: int, decision_threshold: float, manual_correct: bool, mask_fold_src: str, img_fold_src: str, trim_incomplete_tracks: bool, overwrite: bool)-> None:
+        
+        
+        # Activate the branch
+        exp_obj.tracking.is_gnn_tracking = True
+    
+        # Get the mask paths and metadata
+        exp_path = exp_obj.exp_path
+        mask_fold_src, _ = seg_mask_lst_src(exp_obj,mask_fold_src)
+        img_fold_src, _ = img_list_src(exp_obj,img_fold_src)
+        um_per_pixel = exp_obj.analysis.um_per_pixel
+        finterval = exp_obj.analysis.interval_sec
+        
+        # Run GNN tracking
+        gnn_tracking(exp_path,channel_to_track,model,max_travel_dist,img_fold_src,mask_fold_src,overwrite,decision_threshold,manual_correct,trim_incomplete_tracks,um_per_pixel=um_per_pixel,finterval=finterval)
+
+        # Save settings
+        exp_obj.tracking.gnn_tracking[channel_to_track] = {'img_fold_src': img_fold_src, 'mask_fold_src': mask_fold_src, 'model':model, 'decision_threshold': decision_threshold, 'max_travel_dist': max_travel_dist}
+        exp_obj.save_as_json()
+    
+    
     def man_tracking(self, channel_to_track: str | list[str], track_seg_mask: bool = False, mask_fold_src: PathLike = None,
                      csv_name: str = None, radius: int=5, copy_first_to_start: bool=True, copy_last_to_end: bool=True, mask_appear=2, 
                      dilate_value: int = 20, process_as_2D: bool=True, overwrite: bool=False) -> list[Experiment]:
@@ -108,3 +147,23 @@ class TrackingModule(BaseModule):
             for channel in channel_to_track:
                 self.exp_obj_lst = self.man_tracking(channel,track_seg_mask,mask_fold_src,csv_name,radius,copy_first_to_start, copy_last_to_end, mask_appear, dilate_value, process_as_2D, overwrite)
             return self.exp_obj_lst
+        
+
+
+if __name__ == "__main__":
+    from time import time
+    
+    input_folder = '/home/Test_images/nd2/Run4'
+    track = TrackingModule(input_folder)
+    
+    start = time()
+    gnn_track = {"channel_to_track":"RFP",
+                   "model":"PhC-C2DH-U373", #neutrophil, Fluo-N2DH-SIM+, Fluo-N2DL-HeLa, Fluo-N3DH-SIM+ (implement from server first!), PhC-C2DH-U373
+                   'decision_threshold': 0.4, #between 0-1, 1=more interrupted tracks, 0= more tracks gets connected, checks for the confidence of the model for the connection of two cells
+                   'max_travel_dist':10,
+                   "manual_correct":False,
+                   "trim_incomplete_tracks":True,
+                   "overwrite":True}
+    track.gnn_tracking(**gnn_track)
+    end = time()
+    print(f"Time to process: {round(end-start,ndigits=3)} sec\n")
