@@ -1,8 +1,10 @@
 from __future__ import annotations
-import os
+from dataclasses import dataclass, field
 from os import PathLike
+import os
 import os.path as op
-
+from typing import Any
+from tifffile import imread
 from PIL import Image
 import torch
 from torch.utils.data import Dataset
@@ -10,7 +12,7 @@ import numpy as np
 import pandas as pd
 import cv2
 from skimage import io
-from skimage.measure import regionprops
+from skimage.measure import regionprops, regionprops_table
 import warnings
 
 from tqdm import trange
@@ -19,293 +21,167 @@ from pathlib import Path
 import re
 
 from pipeline.tracking.gnn_track.modules.resnet_2d.resnet import set_model_architecture, MLP #src_metric_learning.modules.resnet_2d.resnet
+from pipeline.utilities.data_utility import run_multithread, run_multiprocess, load_stack, get_img_prop
 from skimage.morphology import label
 
+PROPERTIES = ['label', 'area', 'bbox', 'slice', 'centroid', 'major_axis_length', 'minor_axis_length', 'max_intensity', 'mean_intensity', 'min_intensity']
 
-
-def create_csv(img_path: PathLike, mask_path: PathLike, model_dict: dict[str,PathLike], save_path: PathLike, channel_to_track: str)-> None:
-    """Create csv files with features extracted from the images and masks using the metric learning model."""
+def create_csv(input_images, input_seg, input_model, output_csv, channel:str):
+    # Load images
+    if not Path(input_images).exists():
+        raise FileNotFoundError(f"Input images folder does not exist: {input_images}")
     
-    ds = TestDataset(img_path,mask_path,channel_to_track,file_type="tif")
-    ds.extract_features_w_metric_learning(save_path,model_dict)
+    img_lst = sorted([str(file) for file in Path(input_images).glob(f"*{channel}*.tif")])
+    
+    if not img_lst:
+        raise FileNotFoundError(f"Input images folder does not contain any images with the channel: {channel}")
+    
+    # Load segmentation masks
+    if not Path(input_seg).exists():
+        raise FileNotFoundError(f"Input segmentation folder does not exist: {input_seg}")
+    
+    seg_lst = sorted([str(file) for file in Path(input_seg).glob(f"*{channel}*.tif")])
+    
+    if not seg_lst:
+        raise FileNotFoundError(f"Input segmentation folder does not contain any images with the channel: {channel}")
+    
+    # Create dataset
+    ds = ExtractFeatures(images=img_lst, seg_masks=seg_lst, channel=channel)
+    
+    ds.preprocess_features_loop_by_results_w_metric_learning(path_to_write=output_csv, dict_path=input_model)
 
 
-class TestDataset(Dataset):
+
+@dataclass
+class ExtractFeatures():
     """Example dataset class for loading images from folder."""
 
-    def __init__(self, img_path: str, mask_path: str, channel_to_track: str, file_type: str):
+    img_stack: np.ndarray
+    seg_stack: np.ndarray
+    # Settings of the model
+    model_path: PathLike | str
+    model_params: dict[str, Any] = field(init=False)
+    model_roi_shape: tuple[int,int] = field(init=False)
+    # Regionprops
+    props: pd.DataFrame = field(init=False)
+    # Properties used to normalize the images
+    min_int: int = field(init=False)
+    max_int: int = field(init=False)
+    # Properties used to pad the images
+    curr_roi_shape: tuple[int,int] = field(init=False)
+    pad_value: int = field(init=False)
+    
+    def __post_init__(self):
+        # Unpack the model parameters
+        self.model_params = torch.load(self.model_path)
+        model_roi_shape = self.model_params['roi']
+        self.model_roi_shape = (model_roi_shape['row'], model_roi_shape['col'])
+        self.pad_value = self.model_params['pad_value']
         
-        ## Load the images paths
-        self.img_path = Path(img_path)
+    
+    def get_regionprops(self):
+        # Extract the regionprops
+        fixed_args = {'mask_array': self.seg_stack,'img_array': self.img_stack}
+        lst_df = run_multithread(extract_regionprops,range(self.seg_stack.shape[0]),fixed_args)
         
-        if not self.img_path.exists():
-            raise FileNotFoundError(f"Image path {self.img_path} does not exist")
+        # Save the dataframes
+        self.props = pd.concat(lst_df, ignore_index=True)
+        self.curr_roi_shape = (self.props['delta_row'].max(), self.props['delta_col'].max())
         
-        img_lst = list(self.img_path.glob(f"*.{file_type}"))
-        self.images = [str(file) for file in img_lst if file.match(f"*{channel_to_track}*")]
-        
-        if not len(self.images):
-            raise FileNotFoundError(f"No images found in {self.img_path} with channel {channel_to_track}")
-        
-        ## Load the mask paths
-        self.mask_path = mask_path
-        
-        if not self.mask_path.exists():
-            raise FileNotFoundError(f"Mask path {self.mask_path} does not exist")
-        
-        mask_lst = list(self.mask_path.glob(f"*.{file_type}"))
-        self.masks = [str(file) for file in mask_lst if file.match(f"*{channel_to_track}*")]
-        
-        if not len(self.masks):
-            raise FileNotFoundError(f"No masks found in {self.mask_path} with channel {channel_to_track}")
+        # Get the min and max intensity values
+        self.min_int = self.props['min_intensity'].min()
+        self.max_int = self.props['max_intensity'].max()
+    
+    @property
+    def ref_shape(self):
+        if self.curr_roi_shape[0] > self.model_roi_shape[0]:
+            return self.curr_roi_shape
+        if self.curr_roi_shape[1] > self.model_roi_shape[1]:
+            return self.curr_roi_shape
+        return self.model_roi_shape        
 
-    def __getitem__(self, idx):
-        
-        im_path, image = None, None
-        if len(self.images):
-            im_path = self.images[idx]
-            image = np.array(Image.open(im_path))
+def crop_images(img: np.ndarray, mask: np.ndarray, bbox_slice: tuple[slice], mask_idx: int)-> tuple[np.ndarray,np.ndarray]:
+    """Function to crop the images and masks to the bbox_slice. The function will return the cropped images and masks as np.arrays. The mask_idx is the value of the mask to crop."""
+    
+    # Crop the images
+    img_crop = img[bbox_slice]
+    mask_crop = mask[bbox_slice] == mask_idx
+    return img_crop, mask_crop
 
-        result_path, result = None, None
-        if len(self.masks):
-            result_path = self.masks[idx]
-            result = np.array(Image.open(result_path))
-        flag = True
-        if im_path is not None:
-            flag = False
-            im_name = Path(im_path).stem
-            im_num = re.findall('f\d+', im_name)[0][1:]            
-
-        if result_path is not None:
-            flag = False
-            result_name = Path(result_path).stem
-            result_num = re.findall('f\d+', result_name)[0][1:]            
-
-        if flag:
-            assert im_num == result_num, f"Image number ({im_num}) is not equal to result number ({result_num})"
-
-        return image, result, im_path, result_path
-
-    def __len__(self):
-        return len(self.images)
-
-    def padding(self, img):
-        if self.flag_new_roi:
-            desired_size_row = self.global_delta_row
-            desired_size_col = self.global_delta_col
-        else:
-            desired_size_row = self.roi_model['row']
-            desired_size_col = self.roi_model['col']
-        delta_row = desired_size_row - img.shape[0]
-        delta_col = desired_size_col - img.shape[1]
+def normalize_images(img_crop: np.ndarray, mask_crop: np.ndarray, pad_value: int, min_int: int, max_int: int)-> np.ndarray:
+    """Return a normalized image with the background set to the pad value. The normalization is done by min-max scaling the intensity values of the image within the mask_crop region. Retruns a np.array as float32."""
+    
+    
+    outter_mask_crop = np.logical_not(mask_crop)
+    
+    # Set the background to the pad value
+    img_crop[outter_mask_crop] = pad_value
+    
+    # Normalize the intensity values
+    img_crop = img_crop.astype(np.float32)
+    img_crop[mask_crop] = (img_crop[mask_crop] - min_int) / (max_int - min_int)
+    return img_crop
+    
+def pad_images(img: np.ndarray, ref_shape: tuple[int,int], pad_value: int, output_shape: tuple[int,int])-> np.ndarray:
+    """Add padding to the image to match the reference shape. The padding is added to the top and left side of the image. The image is then resized to the output_shape. The function returns the padded and resized image as a np.array. ref_shape and output_shape are in the format (y,x) and ref_shape is either equal or bigger than output_shape."""
+    
+    # Pad the image and masks, if necessary
+    if img.shape[0] != ref_shape[0] or img.shape[1] != ref_shape[1]:
+        delta_row = ref_shape[0] - img.shape[0]
+        delta_col = ref_shape[1] - img.shape[1]
         pad_top = delta_row // 2
-        pad_left = delta_col // 2
-
-        image = cv2.copyMakeBorder(img, pad_top, delta_row - pad_top, pad_left, delta_col - pad_left,
-                                   cv2.BORDER_CONSTANT, value=self.pad_value)
-
-        if self.flag_new_roi:
-            image = cv2.resize(image, dsize=(self.roi_model['col'], self.roi_model['row']))
-
-        return image
-
-    def extract_freature_metric_learning(self, bbox, img, seg_mask, ind, normalize_type='MinMaxCell'):
-        min_row_bb, min_col_bb, max_row_bb, max_col_bb = bbox
-        img_patch = img[min_row_bb:max_row_bb, min_col_bb:max_col_bb]
-        msk_patch = seg_mask[min_row_bb:max_row_bb, min_col_bb:max_col_bb] != ind
-        img_patch[msk_patch] = self.pad_value
-        img_patch = img_patch.astype(np.float32)
-
-        if normalize_type == 'regular':
-            img = self.padding(img_patch) / self.max_img
-        elif normalize_type == 'MinMaxCell':
-            not_msk_patch = np.logical_not(msk_patch)
-            img_patch[not_msk_patch] = (img_patch[not_msk_patch] - self.min_cell) / (self.max_cell - self.min_cell)
-            img = self.padding(img_patch)
-        else:
-            assert False, "Not supported this type of normalization"
-
-        img = torch.from_numpy(img).float()
-        with torch.no_grad():
-            embedded_img = self.embedder(self.trunk(img[None, None, ...]))
-
-        return embedded_img.numpy().squeeze()
-
-    def find_min_max_and_roi(self):
-        global_min = 2 ** 16 - 1
-        global_max = 0
-        global_delta_row = 0
-        global_delta_col = 0
-        counter = 0
-        for ind_data in range(self.__len__()):
-            img, result, _, _ = self[ind_data]
-
-            for id_res in np.unique(result):
-                if id_res == 0:
-                    continue
-
-                properties = regionprops(np.uint8(result == id_res), img)[0]
-                min_row_bb, min_col_bb, max_row_bb, max_col_bb = properties.bbox
-                delta_row = np.abs(max_row_bb - min_row_bb)
-                delta_col = np.abs(max_col_bb - min_col_bb)
-
-                if (delta_row > self.roi_model['row']) or (delta_col > self.roi_model['col']):
-                    counter += 1
-
-                global_delta_row = max(global_delta_row, delta_row)
-                global_delta_col = max(global_delta_col, delta_col)
-
-            res_bin = result != 0
-            min_curr = img[res_bin].min()
-            max_curr = img[res_bin].max()
-
-            global_min = min(global_min, min_curr)
-            global_max = max(global_max, max_curr)
-        print(f'{counter=}')
-        print(f"global_delta_row: {global_delta_row}")
-        print(f"global_delta_col: {global_delta_col}")
-        self.min_cell = global_min
-        self.max_cell = global_max
-
-        self.global_delta_row = global_delta_row
-        self.global_delta_col = global_delta_col
-
-    def extract_features_w_metric_learning(self, path_to_write: PathLike, model_dict: dict[str,PathLike])-> None:
-        dict_params = torch.load(model_dict)
-        self.roi_model = dict_params['roi']
-        self.find_min_max_and_roi()
-        self.flag_new_roi = self.global_delta_row > self.roi_model['row'] or self.global_delta_col > self.roi_model['col']
-        if self.flag_new_roi:
-            self.global_delta_row = max(self.global_delta_row, self.roi_model['row'])
-            self.global_delta_col = max(self.global_delta_col, self.roi_model['col'])
-            print("Assign new region of interest")
-            print(f"old ROI: {self.roi_model}, new: row: {self.global_delta_row}, col : {self.global_delta_col}")
-        else:
-            print("We don't assign new region of interest - use the old one")
-
-        self.pad_value = dict_params['pad_value']
-        # models params
-        model_name = dict_params['model_name']
-        mlp_dims = dict_params['mlp_dims']
-        mlp_normalized_features = dict_params['mlp_normalized_features']
-        # models state_dict
-        trunk_state_dict = dict_params['trunk_state_dict']
-        embedder_state_dict = dict_params['embedder_state_dict']
-
-        trunk = set_model_architecture(model_name)
-        trunk.load_state_dict(trunk_state_dict)
-        self.trunk = trunk
-        self.trunk.eval()
-
-        embedder = MLP(mlp_dims, normalized_feat=mlp_normalized_features)
-        embedder.load_state_dict(embedder_state_dict)
-        self.embedder = embedder
-        self.embedder.eval()
-
-        cols = ["seg_label",
-                "frame_num",
-                "area",
-                "min_row_bb", "min_col_bb", "max_row_bb", "max_col_bb",
-                "centroid_row", "centroid_col",
-                "major_axis_length", "minor_axis_length",
-                "max_intensity", "mean_intensity", "min_intensity"
-                ]
-
-
-        cols_resnet = [f'feat_{i}' for i in range(mlp_dims[-1])]
-        cols += cols_resnet
+        pad_left = delta_row - pad_top
+        # Pad the image and masks, if necessary
+        img = cv2.copyMakeBorder(img, pad_top, delta_row - pad_top, pad_left, delta_col - pad_left,cv2.BORDER_CONSTANT, value=pad_value)
+    # cv2 inverse the shape i.e. (x,y)
+    return cv2.resize(img, dsize=output_shape[::-1])
         
-        _, _, im_path, _ = self[0]
-        im_name = Path(im_path).stem
-        im_num = int(re.findall('f\d+', im_name)[0][1:])
-        firstframeflag = False
-        if im_num !=0:
-            firstframeflag = True
-            subst_value = im_num
+def extract_regionprops(frame_idx: int | None, mask_array: np.ndarray, img_array: np.ndarray, properties: list[str]=None)-> pd.DataFrame:
+        """Function to extract the regionprops from the mask_array and img_array. The function will extract the properties defined in the PROPERTIES list. If the ref_masks and/or the sec_maks are provided, the function will extract the dmap from the reference masks and/or whether the cells in pramary masks overlap with cells of the secondary masks. The extracted data will be returned as a pandas.DataFrame.
         
-        for ind_data in trange(len(self)):
-            img, result, im_path, result_path = self[ind_data]
-            im_name = Path(im_path).stem
-            im_num = int(re.findall('f\d+', im_name)[0][1:])
-
-            result_name = Path(result_path).stem
-            result_num = int(re.findall('f\d+', result_name)[0][1:])
+        Args:
+            frame (int): The frame index to extract the data from.
             
-            #check if the stack start with frame 0, otherwise set the naming begin to 0
-            if firstframeflag:
-                result_num -= subst_value
-                im_num -= subst_value
-                
-            assert im_num == result_num, f"Image number ({im_num}) is not equal to result number ({result_num})"
-
-            num_labels = np.unique(result).shape[0] - 1
-
-            df = pd.DataFrame(index=range(num_labels), columns=cols)
+            mask_array ([[F],Y,X], np.ndarray): The mask array to extract the regionprops from. Frame dim is optional.
             
-
-            for ind, id_res in enumerate(np.unique(result)):
-                # Color 0 is assumed to be background or artifacts
-                row_ind = ind - 1 #because we skip 0 and want to start writing with position 0
-                if id_res == 0:
-                    continue
-
-                # extracting statistics using regionprops
-                properties = regionprops(np.uint8(result == id_res), img)[0]
-
-                embedded_feat = self.extract_freature_metric_learning(properties.bbox, img.copy(), result.copy(), id_res)
-                df.loc[row_ind, cols_resnet] = embedded_feat
-                df.loc[row_ind, "seg_label"] = id_res
-
-                df.loc[row_ind, "area"] = properties.area
-
-                df.loc[row_ind, "min_row_bb"], df.loc[row_ind, "min_col_bb"], \
-                df.loc[row_ind, "max_row_bb"], df.loc[row_ind, "max_col_bb"] = properties.bbox
-
-                df.loc[row_ind, "centroid_row"], df.loc[row_ind, "centroid_col"] = \
-                    properties.centroid[0].round().astype(np.int16), \
-                    properties.centroid[1].round().astype(np.int16)
-
-                df.loc[row_ind, "major_axis_length"], df.loc[row_ind, "minor_axis_length"] = \
-                    properties.major_axis_length, properties.minor_axis_length
-
-                df.loc[row_ind, "max_intensity"], df.loc[row_ind, "mean_intensity"], df.loc[row_ind, "min_intensity"] = \
-                    properties.max_intensity, properties.mean_intensity, properties.min_intensity
-
-
-            df.loc[:, "frame_num"] = im_num
-
-            if df.isnull().values.any():
-                warnings.warn("Pay Attention! there are Nan values!")
-
-            full_dir = op.join(path_to_write, "csv")
-            os.makedirs(full_dir, exist_ok=True)
-            im_num=str(im_num).zfill(4)
-            file_path = op.join(full_dir, f"frame_{im_num}.csv")
-            df.to_csv(file_path, index=False)
-        print(f"files were saved to : {full_dir}")
-
+            img_array ([[F],Y,X,[C]], np.ndarray): The image array to extract the mean intensities from. Frame and channel dim are optional.
+            
+            properties (list[str], optional): The properties to extract from the regionprops, if different from constant PROPERTIES. Defaults to None.
+            
+        Returns:
+            pd.DataFrame: The extracted regionprops data.
+            """
+            
+        if not properties:
+            properties = PROPERTIES
+        
+        ## Extract the main regionprops
+        prop = regionprops_table(mask_array[frame_idx],img_array[frame_idx],properties=properties)
+        
+        # Get the absolute size of the bbox
+        prop['delta_row'] = prop['bbox-2'] - prop['bbox-0']
+        prop['delta_col'] = prop['bbox-3'] - prop['bbox-1']
+        
+        # Create a dataframe
+        df = pd.DataFrame(prop)
+        df['frame'] = frame_idx
+        return df
 
 
 
 
 
 if __name__ == "__main__":
-    import argparse
+    from time import time
+    
+    start = time()
+    input_images = '/home/Test_images/nd2/Run4/c4z1t91v1_s1/Images_Registered'
+    input_segmentation = '/home/Test_images/nd2/Run4/c4z1t91v1_s1/Masks_Cellpose'
+    model = "PhC-C2DH-U373"
+    input_model = f"/home/ImageAnalysis_pipeline/pipeline/tracking/gnn_track/models/{model}/all_params.pth"
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-ii', type=str, required=True, help='input images directory')
-    parser.add_argument('-iseg', type=str, required=True, help='input segmentation directory')
-    parser.add_argument('-im', type=str, required=True, help='metric learning model params directory')
-    parser.add_argument('-cs', type=int, required=True, help='min cell size')
+    output_csv = '/home/Test_images/nd2/Run4/c4z1t91v1_s1/gnn_files'
 
-    parser.add_argument('-oc', type=str, required=True, help='output csv directory')
-
-    args = parser.parse_args()
-
-    input_images = args.ii
-    input_segmentation = args.iseg
-    input_model = args.im
-
-    output_csv = args.oc
-
-    create_csv(input_images, input_segmentation, input_model, output_csv)
+    create_csv(input_images, input_segmentation, input_model, output_csv, 'RFP')
+    end = time()
+    print(f"Time to process: {round(end-start,ndigits=3)} sec\n")
