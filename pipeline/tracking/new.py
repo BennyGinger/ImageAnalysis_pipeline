@@ -78,7 +78,6 @@ class ExtractFeatures():
         self.model_roi_shape = (model_roi_shape['row'], model_roi_shape['col'])
         self.pad_value = self.model_params['pad_value']
         
-    
     def get_regionprops(self):
         # Extract the regionprops
         fixed_args = {'mask_array': self.seg_stack,'img_array': self.img_stack}

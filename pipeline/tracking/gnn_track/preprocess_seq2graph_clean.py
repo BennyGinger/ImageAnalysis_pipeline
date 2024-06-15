@@ -91,20 +91,23 @@ class TestDataset(Dataset):
 
         return image
 
-    def extract_freature_metric_learning(self, bbox, img, seg_mask, ind):
-        min_row_bb, min_col_bb, max_row_bb, max_col_bb = bbox
-        img_patch = img[min_row_bb:max_row_bb, min_col_bb:max_col_bb]
-        msk_patch = seg_mask[min_row_bb:max_row_bb, min_col_bb:max_col_bb] != ind
-        img_patch[msk_patch] = self.pad_value
-        img_patch = img_patch.astype(np.float32)
+    def extract_freature_metric_learning(self, bboxes, img, seg_mask):
+        img_patches = []
+        for ind, bbox in enumerate(bboxes):
+            min_row_bb, min_col_bb, max_row_bb, max_col_bb = bbox
+            img_patch = img[min_row_bb:max_row_bb, min_col_bb:max_col_bb]
+            msk_patch = seg_mask[min_row_bb:max_row_bb, min_col_bb:max_col_bb] != ind
+            img_patch[msk_patch] = self.pad_value
+            img_patch = img_patch.astype(np.float32)
+            
+            not_msk_patch = np.logical_not(msk_patch)
+            img_patch[not_msk_patch] = (img_patch[not_msk_patch] - self.min_cell) / (self.max_cell - self.min_cell)
+            img_patches.append(self.padding(img_patch))
+            
+        img_patches = torch.stack([torch.from_numpy(img).float() for img in img_patches])
         
-        not_msk_patch = np.logical_not(msk_patch)
-        img_patch[not_msk_patch] = (img_patch[not_msk_patch] - self.min_cell) / (self.max_cell - self.min_cell)
-        img = self.padding(img_patch)
-        
-        img = torch.from_numpy(img).float()
         with torch.no_grad():
-            embedded_img = self.embedder(self.trunk(img[None, None, ...]))
+            embedded_img = self.embedder(self.trunk(img_patches[:, None, ...]))
 
         return embedded_img.numpy().squeeze()
 
@@ -164,7 +167,7 @@ class TestDataset(Dataset):
         else:
             print("We don't assign new region of interest - use the old one")
 
-        
+        # NOTE: this block sets up different parameters for the feature extraction
         self.pad_value = dict_params['pad_value']
         print(f"pad_value: {self.pad_value}")
         # models params
@@ -199,7 +202,7 @@ class TestDataset(Dataset):
         
         fixed_args = {'obj':self,'cols_resnet':cols_resnet,'path_to_write':path_to_write, 'img_lst': self.images, 'result_lst': self.seg_masks}
         
-        # run_multiprocess(extract_feat, range(len(self)), fixed_args)
+        # run_multiprocess(construct_csv, range(len(self)), fixed_args)
         
         for ind_data in trange(len(self)):
             construct_csv(ind_data,**fixed_args)
@@ -234,7 +237,8 @@ def construct_csv(ind_data,obj,img_lst,result_lst,cols_resnet,path_to_write,lock
     
     # Extract features from ResNet
     bbox_lst = list(zip(df['min_row_bb'], df['min_col_bb'], df['max_row_bb'], df['max_col_bb']))
-    embedded_feats = [obj.extract_freature_metric_learning(bbox, img.copy(), result.copy(), id_res) for id_res, bbox in enumerate(bbox_lst)]
+    # embedded_feats = [obj.extract_freature_metric_learning(bbox, img.copy(), result.copy(), id_res) for id_res, bbox in enumerate(bbox_lst)]
+    embedded_feats = obj.extract_freature_metric_learning(bbox_lst, img.copy(), result.copy())
     embedded_feats_df = pd.DataFrame(embedded_feats, columns=cols_resnet)
     df = pd.concat([df, embedded_feats_df], axis=1)
     

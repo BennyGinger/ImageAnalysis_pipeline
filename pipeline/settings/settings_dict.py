@@ -41,7 +41,7 @@ settings = {
                 "img_fold_src": "",
                 "overwrite": False,}),
     
-    "iou_track": (True,
+    "iou_track": (False,
                   {"channel_to_track":"RFP", 
                    "stitch_thres_percent": 0.5,
                    "shape_thres_percent": 0.95,
