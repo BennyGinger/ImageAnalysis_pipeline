@@ -20,7 +20,7 @@ warnings.filterwarnings("always")
 from pathlib import Path
 import re
 
-from pipeline.tracking.gnn_track.modules.resnet_2d.resnet import set_model_architecture, MLP #src_metric_learning.modules.resnet_2d.resnet
+from pipeline.tracking.gnn_track.modules.resnet_2d.resnet import initialize_model, MLP #src_metric_learning.modules.resnet_2d.resnet
 from pipeline.utilities.data_utility import run_multithread, run_multiprocess, load_stack, get_img_prop
 from skimage.morphology import label
 
@@ -46,22 +46,22 @@ def create_csv(input_images, input_seg, input_model, output_csv, channel:str):
         raise FileNotFoundError(f"Input segmentation folder does not contain any images with the channel: {channel}")
     
     # Create dataset
-    ds = ExtractFeatures(images=img_lst, seg_masks=seg_lst, channel=channel)
+    ds = ImagesPreProcessing(images=img_lst, seg_masks=seg_lst, channel=channel)
     
     ds.preprocess_features_loop_by_results_w_metric_learning(path_to_write=output_csv, dict_path=input_model)
 
 
 
 @dataclass
-class ExtractFeatures():
+class ImagesPreProcessing():
     """Example dataset class for loading images from folder."""
 
     img_stack: np.ndarray
     seg_stack: np.ndarray
     # Settings of the model
-    model_path: PathLike | str
-    model_params: dict[str, Any] = field(init=False)
-    model_roi_shape: tuple[int,int] = field(init=False)
+    model_roi_shape: tuple[int,int]
+    pad_value: int
+    
     # Regionprops
     props: pd.DataFrame = field(init=False)
     # Properties used to normalize the images
@@ -69,15 +69,7 @@ class ExtractFeatures():
     max_int: int = field(init=False)
     # Properties used to pad the images
     curr_roi_shape: tuple[int,int] = field(init=False)
-    pad_value: int = field(init=False)
     
-    def __post_init__(self):
-        # Unpack the model parameters
-        self.model_params = torch.load(self.model_path)
-        model_roi_shape = self.model_params['roi']
-        self.model_roi_shape = (model_roi_shape['row'], model_roi_shape['col'])
-        self.pad_value = self.model_params['pad_value']
-        
     def get_regionprops(self):
         # Extract the regionprops
         fixed_args = {'mask_array': self.seg_stack,'img_array': self.img_stack}
@@ -90,6 +82,20 @@ class ExtractFeatures():
         # Get the min and max intensity values
         self.min_int = self.props['min_intensity'].min()
         self.max_int = self.props['max_intensity'].max()
+    
+    def prepare_images(self)-> list[np.ndarray]:
+        # Get the regionprops
+        self.get_regionprops()
+        
+        # Prepare the images
+        for frame in range(self.img_stack.shape[0]):
+            img = self.img_stack[frame]
+            seg = self.seg_stack[frame]
+            for idx in range(self.props.shape[0]):
+                img_crop, mask_crop = crop_images(img, seg, tuple(self.props.loc[idx,'bbox']), self.props.loc[idx,'label'])
+                img_norm = normalize_images(img_crop, mask_crop, self.pad_value, self.min_int, self.max_int)
+                img_pad = pad_images(img_norm, self.ref_shape, self.pad_value, self.model_roi_shape)
+                yield img_pad
     
     @property
     def ref_shape(self):
@@ -166,8 +172,46 @@ def extract_regionprops(frame_idx: int | None, mask_array: np.ndarray, img_array
         df['frame'] = frame_idx
         return df
 
+def initialize_models(model_params: dict[str, Any]):
+    # Initialize trunk
+    trunk = initialize_model(model_params['model_name'])
+    trunk.load_state_dict(model_params['trunk_state_dict'])
+    trunk.eval()
+    # Initialize embedder
+    embedder = MLP(model_params['mlp_dims'], normalized_feat=model_params['mlp_normalized_features'])
+    embedder.load_state_dict(model_params['embedder_state_dict'])
+    embedder.eval()
+    return trunk, embedder
 
+def extract_freature_metric_learning(img_patches: list[np.ndarray], trunk: torch.nn.Module, embedder: torch.nn.Module)-> np.ndarray:
+    # Convert the images to torch.Tensor
+    img_patches = torch.stack([torch.from_numpy(img).float() for img in img_patches])
+    
+    with torch.no_grad():
+        embedded_img = embedder(trunk(img_patches[:, None, ...]))
 
+    return embedded_img.numpy().squeeze()
+
+def construct_csv(output_path: PathLike | str)-> None:
+    raise NotImplementedError
+
+def main(img_stack: np.ndarray, seg_stack: np.ndarray, model_path: PathLike | str, output_path: PathLike | str)-> None:
+    # Get the roi shape and pad value
+    model_params: dict = torch.load(model_path)
+    model_roi_shape = (model_params['roi']['row'], model_params['roi']['col'])
+    pad_value = model_params['pad_value']
+    
+    # get all padded images
+    img_patches = ImagesPreProcessing(img_stack,seg_stack,model_roi_shape,pad_value).prepare_images()
+    
+    # Extract features
+    trunk, embedder = initialize_models(model_params)
+    embedded_imgs = []
+    for img_patch in img_patches:
+        embedded_imgs.append(extract_freature_metric_learning(img_patch, trunk, embedder))
+    
+    # Construct csv
+    construct_csv(output_path)
 
 
 if __name__ == "__main__":
