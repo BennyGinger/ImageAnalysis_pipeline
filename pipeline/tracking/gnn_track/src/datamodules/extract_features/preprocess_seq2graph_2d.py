@@ -99,7 +99,7 @@ class TestDataset(Dataset):
     def padding(self, img):
         desired_size_row = self.roi_model['row']
         desired_size_col = self.roi_model['col']
-        assert desired_size_col >= img.shape[0] or desired_size_col >= img.shape[1], "the patch dimension is bigger than image shape" #BUG changes from > into >=
+        assert desired_size_col >= img.shape[0] or desired_size_col >= img.shape[1], "the patch dimension is bigger than image shape" 
         delta_row = desired_size_row - img.shape[0]
         delta_col = desired_size_col - img.shape[1]
         pad_top = delta_row // 2

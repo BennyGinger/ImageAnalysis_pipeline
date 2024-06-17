@@ -158,6 +158,20 @@ class TestDataset(Dataset):
         self.find_min_max_and_roi()
         
         # NOTE: The following block seems unnecessary, we just need to set the new roi as the global_delta_row and global_delta_col
+        self.update_roi()
+
+        # NOTE: this block sets up different parameters for the feature extraction
+        self.initialize_model(dict_params)
+
+        fixed_args = {'obj':self,'path_to_write':path_to_write, 'img_lst': self.images, 'result_lst': self.seg_masks}
+        
+        for frame in trange(len(self)):
+            construct_csv(frame,**fixed_args)
+        
+        full_dir = op.join(path_to_write, "csv")    
+        print(f"files were saved to : {full_dir}")
+
+    def update_roi(self):
         self.flag_new_roi = self.global_delta_row > self.roi_model['row'] or self.global_delta_col > self.roi_model['col']
         if self.flag_new_roi:
             self.global_delta_row = max(self.global_delta_row, self.roi_model['row'])
@@ -167,7 +181,7 @@ class TestDataset(Dataset):
         else:
             print("We don't assign new region of interest - use the old one")
 
-        # NOTE: this block sets up different parameters for the feature extraction
+    def initialize_model(self, dict_params: dict)-> None:
         self.pad_value = dict_params['pad_value']
         print(f"pad_value: {self.pad_value}")
         # models params
@@ -188,35 +202,30 @@ class TestDataset(Dataset):
         self.embedder = embedder
         self.embedder.eval()
 
-        cols = ["seg_label",
-                "frame_num",
-                "area",
-                "min_row_bb", "min_col_bb", "max_row_bb", "max_col_bb",
-                "centroid_row", "centroid_col",
-                "major_axis_length", "minor_axis_length",
-                "max_intensity", "mean_intensity", "min_intensity"]
-
-
-        cols_resnet = [f'feat_{i}' for i in range(mlp_dims[-1])]
-        cols += cols_resnet
-        
-        fixed_args = {'obj':self,'cols_resnet':cols_resnet,'path_to_write':path_to_write, 'img_lst': self.images, 'result_lst': self.seg_masks}
-        
-        # run_multiprocess(construct_csv, range(len(self)), fixed_args)
-        
-        for ind_data in trange(len(self)):
-            construct_csv(ind_data,**fixed_args)
-        
-        full_dir = op.join(path_to_write, "csv")    
-        print(f"files were saved to : {full_dir}")
-
     
-def construct_csv(ind_data,obj,img_lst,result_lst,cols_resnet,path_to_write,lock=None)-> None:
+def construct_csv(ind_data,obj,img_lst,result_lst,path_to_write,lock=None)-> None:
+    img, result, df = get_regionprops(ind_data, img_lst, result_lst)
+    
+    # Extract features from ResNet
+    bbox_lst = list(zip(df['min_row_bb'], df['min_col_bb'], df['max_row_bb'], df['max_col_bb']))
+    embedded_feats = obj.extract_freature_metric_learning(bbox_lst, img.copy(), result.copy())
+    cols_resnet = [f'feat_{i}' for i in range(embedded_feats.shape[1])]
+    embedded_feats_df = pd.DataFrame(embedded_feats, columns=cols_resnet)
+    df = pd.concat([df, embedded_feats_df], axis=1)
+    
+    # Add frame number
+    df.loc[:, "frame_num"] = ind_data
+
+    # Save to csv
+    save_path = Path(path_to_write).joinpath("csv").joinpath(f"frame_{ind_data:04d}.csv")
+    save_path.parent.mkdir(exist_ok=True, parents=True)
+    df.to_csv(save_path, index=False)
+
+def get_regionprops(ind_data, img_lst, result_lst)-> tuple[np.ndarray, int, np.ndarray, pd.DataFrame]:
     img_path = Path(img_lst[ind_data])
     img = imread(img_path)
     im_name = img_path.stem
-    im_num = int(re.findall('f\d+', im_name)[0][1:])-1
-
+    
     result_path = Path(result_lst[ind_data])
     result = imread(result_path)
     
@@ -234,21 +243,7 @@ def construct_csv(ind_data,obj,img_lst,result_lst,cols_resnet,path_to_write,lock
     
     df = pd.DataFrame(props_table)
     df.rename(columns=col_rename, inplace=True)
-    
-    # Extract features from ResNet
-    bbox_lst = list(zip(df['min_row_bb'], df['min_col_bb'], df['max_row_bb'], df['max_col_bb']))
-    # embedded_feats = [obj.extract_freature_metric_learning(bbox, img.copy(), result.copy(), id_res) for id_res, bbox in enumerate(bbox_lst)]
-    embedded_feats = obj.extract_freature_metric_learning(bbox_lst, img.copy(), result.copy())
-    embedded_feats_df = pd.DataFrame(embedded_feats, columns=cols_resnet)
-    df = pd.concat([df, embedded_feats_df], axis=1)
-    
-    # Add frame number
-    df.loc[:, "frame_num"] = im_num
-
-    # Save to csv
-    save_path = Path(path_to_write).joinpath("csv").joinpath(f"frame_{im_num:04d}.csv")
-    save_path.parent.mkdir(exist_ok=True, parents=True)
-    df.to_csv(save_path, index=False)
+    return img,result,df
 
 def extract_regionprops(frame_idx: int | None, mask_array: np.ndarray, img_array: np.ndarray, properties: list[str]=None)-> pd.DataFrame:
         """Function to extract the regionprops from the mask_array and img_array. The function will extract the properties defined in the PROPERTIES list. If the ref_masks and/or the sec_maks are provided, the function will extract the dmap from the reference masks and/or whether the cells in pramary masks overlap with cells of the secondary masks. The extracted data will be returned as a pandas.DataFrame.

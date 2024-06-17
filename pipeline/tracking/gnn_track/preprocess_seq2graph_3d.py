@@ -18,7 +18,7 @@ from pipeline.tracking.gnn_track.modules.resnet_3d.resnet import set_model_archi
 import torch
 from skimage.morphology import label
 
-
+# FIXME: This file can be removed after the main file has been tested for 3D tracking
 
 class TestDataset(Dataset):
 

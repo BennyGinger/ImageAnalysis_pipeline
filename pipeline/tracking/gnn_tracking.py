@@ -6,6 +6,7 @@ from pipeline.utilities.data_utility import track_mask_lst_src, load_stack, save
 from pipeline.tracking.gnn_track.inference_clean import predict
 from pipeline.tracking.gnn_track.postprocess_clean import Postprocess
 from pipeline.tracking.gnn_track import preprocess_seq2graph_clean, preprocess_seq2graph_3d
+from pipeline.tracking.gnn_track.preprocess_seq2graph import extract_img_features
 from pipeline.mask_transformation.complete_track import trim_incomplete_track
 from skimage.segmentation import relabel_sequential
 from skimage.measure import regionprops_table
@@ -20,7 +21,7 @@ BUILD_IN_MODEL = {"Fluo-C2DL-Huh7": "epoch=136.ckpt", "Fluo-N2DH-SIM+": "epoch=1
 IN_HOUSE_MODEL = {"neutrophil_old": "epoch=73.ckpt", "neutrophil": "epoch=175.ckpt"}
 MODEL = {**BUILD_IN_MODEL, **IN_HOUSE_MODEL}
 
-
+# [ ] Need to test the 3D tracking
 ################################## Main function ##################################
 
 def gnn_tracking(exp_path: PathLike, channel_to_track: str, model: str, max_travel_dist: int, img_fold_src: str, mask_fold_src: str, overwrite: bool=False, decision_threshold: float=0.5, manual_correct: bool=False, trim_incomplete_tracks: bool=False,**kwargs)-> None:
@@ -59,28 +60,23 @@ def gnn_tracking(exp_path: PathLike, channel_to_track: str, model: str, max_trav
     print(f" --> Tracking cells for the '{channel_to_track}' channel")
     
     # Prepare tracking
-    csvs_folder = exp_path.joinpath('gnn_files')
-    csvs_folder.mkdir(exist_ok=True)
+    save_dir = exp_path.joinpath('gnn_files')
+    save_dir.mkdir(exist_ok=True)
     seg_fold_src = exp_path.joinpath(mask_fold_src)
     img_fold_src: Path = exp_path.joinpath(img_fold_src)
-    frames, n_slices = get_img_prop(list(img_fold_src.glob('*.tif')))
+    frames, _ = get_img_prop(list(img_fold_src.glob('*.tif')))
     model_dict = model_select(model=model)
     metadata = unpack_kwargs(kwargs)
 
     # Create csv files
-    if n_slices==1: # check of 2D or 3D
-        is_3d = False
-        preprocess_seq2graph_clean.create_csv(input_images=img_fold_src, input_seg=seg_fold_src, input_model=model_dict['model_metric'], channel=channel_to_track, output_csv=csvs_folder)
-    else:
-        is_3d = True
-        preprocess_seq2graph_3d.create_csv(input_images=img_fold_src, input_seg=seg_fold_src, input_model=model_dict['model_metric'], channel=channel_to_track, output_csv=csvs_folder)
+    is_3d = extract_img_features(img_fold_src,seg_fold_src,model_dict['model_metric'],save_dir,channel_to_track)
     
     # Run the model    
-    predict(ckpt_path=model_dict['model_lightning'], path_csv_output=csvs_folder, num_seq='01')
+    predict(ckpt_path=model_dict['model_lightning'], path_csv_output=save_dir, num_seq='01')
 
     # Postprocess the model output
     pp = Postprocess(is_3d=is_3d, type_masks='tif', merge_operation='AND', decision_threshold=decision_threshold,
-                    path_inference_output=csvs_folder, directed=True, path_seg_result=seg_fold_src, max_travel_dist=max_travel_dist)
+                    path_inference_output=save_dir, directed=True, path_seg_result=seg_fold_src, max_travel_dist=max_travel_dist)
     
     pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
     # np.savetxt("/home/Fabian/ImageData/all_frames_traject.csv", all_frames_traject, delimiter=",")

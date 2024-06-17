@@ -1,4 +1,4 @@
-# TODO: Check if this file is needed for training
+# FIXME: Check if this file is needed for training
 import os
 import os.path as op
 import torch
