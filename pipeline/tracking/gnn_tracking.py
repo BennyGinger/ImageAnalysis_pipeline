@@ -72,7 +72,7 @@ def gnn_tracking(exp_path: PathLike, channel_to_track: str, model: str, max_trav
     is_3d = extract_img_features(img_fold_src,seg_fold_src,model_dict['model_metric'],save_dir,channel_to_track)
     
     # Run the model    
-    predict(ckpt_path=model_dict['model_lightning'], path_csv_output=save_dir, num_seq='01')
+    predict(ckpt_path=model_dict['model_lightning'], path_csv_output=save_dir)
 
     # Postprocess the model output
     pp = Postprocess(is_3d=is_3d, type_masks='tif', merge_operation='AND', decision_threshold=decision_threshold,

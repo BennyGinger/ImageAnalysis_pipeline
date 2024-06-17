@@ -1,38 +1,28 @@
 import os
 import yaml
 import torch
-
+from pathlib import Path
 from pipeline.tracking.gnn_track.src.models.celltrack_plmodel import CellTrackLitModel
 from pipeline.tracking.gnn_track.modules.graph_dataset_inference import CellTrackDataset
 import warnings
 warnings.filterwarnings("ignore")
 
 
-def predict(ckpt_path, path_csv_output, num_seq):
+def predict(ckpt_path: os.PathLike, path_csv_output: os.PathLike):
     """Inference with trained model.
     It loads trained model from checkpoint.
     Then it creates graph and make prediction.
     """
 
-    CKPT_PATH = ckpt_path
-    path_output = path_csv_output
-
-    #folder_path = CKPT_PATH
-    #for i in range(2):
-    #    folder_path = folder_path[:folder_path.rfind('/')]
-    folder_path = os.path.dirname(CKPT_PATH)
+    parent_path = Path(ckpt_path).parent
     
+    config_path = parent_path.joinpath('.hydra/config.yaml')
+    data_yaml = yaml.full_load(open(config_path))['datamodule']
 
-    config_path = os.path.join(folder_path, '.hydra/config.yaml')
-    config = yaml.full_load(open(config_path))
+    print(f"load model from: {ckpt_path}")
 
-    print(f"load model from: {CKPT_PATH}")
-    data_yaml = config['datamodule']
-
-    # load model from checkpoint
-    # model __init__ parameters will be loaded from ckpt automatically
-    # you can also pass some parameter explicitly to override it
-    trained_model = CellTrackLitModel.load_from_checkpoint(checkpoint_path=CKPT_PATH)
+    # load model from checkpoint model __init__ parameters will be loaded from ckpt automatically you can also pass some parameter explicitly to override it
+    trained_model = CellTrackLitModel.load_from_checkpoint(checkpoint_path=ckpt_path)
 
     # print model hyperparameters
     print(trained_model.hparams)
@@ -42,9 +32,7 @@ def predict(ckpt_path, path_csv_output, num_seq):
     trained_model.freeze()
 
     data_yaml['dataset_params']['num_frames'] = 'all' 
-    data_yaml['dataset_params']['main_path'] = path_output
-
-    second_path = num_seq
+    data_yaml['dataset_params']['main_path'] = path_csv_output
     data_yaml['dataset_params']['dirs_path']['test'] = ['']
 
     data_train: CellTrackDataset = CellTrackDataset(**data_yaml['dataset_params'], split='test')
@@ -53,13 +41,12 @@ def predict(ckpt_path, path_csv_output, num_seq):
     x, x2, edge_index, edge_feature = test_data.x, test_data.x_2, test_data.edge_index, test_data.edge_feat
 
     outputs = trained_model((x, x2), edge_index, edge_feature.float())
-    data_path = path_output #+ '/Masks_GNN_Track'
-    path_output_folder = data_path
-    print(f"save path : {path_output_folder}")
-    os.makedirs(path_output_folder, exist_ok=True)
-    file1 = os.path.join(path_output_folder, 'pytorch_geometric_data.pt')
-    file2 = os.path.join(path_output_folder, 'all_data_df.csv')
-    file3 = os.path.join(path_output_folder, 'raw_output.pt')
+    
+    print(f"save path : {path_csv_output}")
+    os.makedirs(path_csv_output, exist_ok=True)
+    file1 = os.path.join(path_csv_output, 'pytorch_geometric_data.pt')
+    file2 = os.path.join(path_csv_output, 'all_data_df.csv')
+    file3 = os.path.join(path_csv_output, 'raw_output.pt')
     print(f"Save inference files: \n - {file1} \n - {file2} \n - {file3}")
     df_data.to_csv(file2)
     torch.save(test_data, file1)
