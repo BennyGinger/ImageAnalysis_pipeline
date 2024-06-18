@@ -31,16 +31,9 @@ def predict(ckpt_path: os.PathLike, path_csv_output: os.PathLike):
     test_data, df_data = data_list[0], df_list[0]
     x, x2, edge_index, edge_feature = test_data.x, test_data.x_2, test_data.edge_index, test_data.edge_feat
     
-    # load model from checkpoint model __init__ parameters will be loaded from ckpt automatically you can also pass some parameter explicitly to override it
-    trained_model = CellTrackLitModel.load_from_checkpoint(checkpoint_path=ckpt_path)
-
-    # print model hyperparameters
-    print(trained_model.hparams)
-
-    # switch to evaluation mode
-    trained_model.eval()
-    trained_model.freeze()
-
+    
+    trained_model = load_model(ckpt_path)
+    # make prediction
     outputs = trained_model((x, x2), edge_index, edge_feature.float())
     
     print(f"save path : {path_csv_output}")
@@ -53,6 +46,20 @@ def predict(ckpt_path: os.PathLike, path_csv_output: os.PathLike):
     torch.save(test_data, file1)
     torch.save(outputs, file3)
 
+
+def load_model(ckpt_path: os.PathLike)-> CellTrackLitModel:
+    """Load model from checkpoint.
+    """
+    # load model from checkpoint model __init__ parameters will be loaded from ckpt automatically you can also pass some parameter explicitly to override it
+    trained_model = CellTrackLitModel.load_from_checkpoint(checkpoint_path=ckpt_path)
+
+    # print model hyperparameters
+    print(trained_model.hparams)
+
+    # switch to evaluation mode
+    trained_model.eval()
+    trained_model.freeze()
+    return trained_model
 
 if __name__ == "__main__":
     import argparse

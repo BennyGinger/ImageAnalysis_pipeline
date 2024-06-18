@@ -10,7 +10,10 @@ from skimage.measure import regionprops_table
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from pipeline.tracking.gnn_track.modules.resnet_2d.resnet import set_model_architecture, MLP
+from pipeline.tracking.gnn_track.modules.resnet_2d.resnet import set_model_architecture as set_model_arch_2d
+from pipeline.tracking.gnn_track.modules.resnet_2d.resnet import MLP as MLP_2D
+from pipeline.tracking.gnn_track.modules.resnet_3d.resnet import set_model_architecture as set_model_arch_3d
+from pipeline.tracking.gnn_track.modules.resnet_3d.resnet import MLP as MLP_3D
 from pipeline.utilities.data_utility import run_multithread, load_stack, get_img_prop
 from pipeline.utilities.pipeline_utility import progress_bar
 
@@ -59,7 +62,7 @@ def extract_img_features(img_fold_src: PathLike, seg_fold_src: PathLike, model_p
     
     # Extract features
     print(f"  ---> Extracting image features")
-    trunk, embedder = initialize_models(model_params)
+    trunk, embedder = initialize_models(model_params,z_slices)
     fixed_args = {'output_csv': save_dir, 'trunk': trunk, 'embedder': embedder, 'img_frames': img_frames}
     for frame_idx in progress_bar(range(n_frames)):
         _extract_feat(frame_idx, **fixed_args)
@@ -275,13 +278,19 @@ def extract_regionprops(frame_idx: int | None, mask_array: np.ndarray, img_array
         df.rename(columns=col_rename, inplace=True)
         return df
 
-def initialize_models(model_params: dict[str, Any]):
+def initialize_models(model_params: dict[str, Any], z_slices: int)-> tuple[torch.nn.Module, torch.nn.Module]:
+    # Import the model
+    if z_slices > 1:
+        trunk = set_model_arch_3d(model_params['model_name'])
+        embedder = MLP_3D(model_params['mlp_dims'], normalized_feat=model_params['mlp_normalized_features'])
+    else:
+        trunk = set_model_arch_2d(model_params['model_name'])
+        embedder = MLP_2D(model_params['mlp_dims'], normalized_feat=model_params['mlp_normalized_features'])
+    
     # Initialize trunk
-    trunk = set_model_architecture(model_params['model_name'])
     trunk.load_state_dict(model_params['trunk_state_dict'])
     trunk.eval()
     # Initialize embedder
-    embedder = MLP(model_params['mlp_dims'], normalized_feat=model_params['mlp_normalized_features'])
     embedder.load_state_dict(model_params['embedder_state_dict'])
     embedder.eval()
     return trunk, embedder
