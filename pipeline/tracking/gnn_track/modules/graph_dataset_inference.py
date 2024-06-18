@@ -88,6 +88,7 @@ class CellTrackDataset:
         self.exp_name = exp_name
         self._process(split)
 
+    # FIXME: Not used...
     def true_links(self, df_data):
         """
         Doing aggregation of the true links, i.e. which cell are truly connected
@@ -175,6 +176,7 @@ class CellTrackDataset:
                     same_next_edge_index += curr_list
         return same_next_edge_index
 
+    # FIXME: Not used...
     def iterator_gt_creator(self, df_data):
         frames = np.unique(df_data.frame_num)
         gt = []
