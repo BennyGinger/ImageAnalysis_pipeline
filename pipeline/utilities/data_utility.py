@@ -1,9 +1,9 @@
 from __future__ import annotations
-from os import sep, remove, PathLike
+from os import remove
 from os.path import join
 from pathlib import Path
 import re
-from pipeline.utilities.pipeline_utility import progress_bar
+from pipeline.utilities.pipeline_utility import progress_bar, PathType
 from pipeline.utilities.Experiment_Classes import Experiment
 from typing import Iterable, Iterator, Callable
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
@@ -12,12 +12,13 @@ from threading import Lock
 import numpy as np
 from tifffile import imread, imwrite
 
-def load_stack(img_paths: list[PathLike|Path], channels: str | Iterable[str], frame_range: int | Iterable[int], return_2D: bool=False)-> np.ndarray:
+
+def load_stack(img_paths: list[PathType | Path], channels: str | Iterable[str], frame_range: int | Iterable[int], return_2D: bool=False)-> np.ndarray:
     """"Convert images to stack. If return_2D is True, return the max projection of the stack. The output shape is tzxyc,
     with t, z and c being optional.
     
     Args:
-        img_list (list[PathLike]): The list of images path.
+        img_list (list[PathType]): The list of images path.
         channel_list (str | Iterable[str]): Name of the channel(s).
         frame_range (int | Iterable[int]): The frame(s) to load.
         return_2D (bool, optional): If True, return the max projection of the stack. Defaults to False.
@@ -58,14 +59,14 @@ def load_stack(img_paths: list[PathLike|Path], channels: str | Iterable[str], fr
     else:
         return np.amax(stack, axis=0)
 
-def img_list_src(exp_set: Experiment, img_fold_src: str)-> tuple[str,list[PathLike]]:
+def img_list_src(exp_set: Experiment, img_fold_src: str)-> tuple[str,list[PathType]]:
     """If not manually specified, return the latest processed images list
     Return the image folder source to save during segmentation.
     Args:
         exp_set (Experiment): The experiment settings.
         img_fold_src (str): The image folder source. Can be None or str.
     Returns:
-        tuple[str,list[PathLike]]: The image folder source and the list of masks."""
+        tuple[str,list[PathType]]: The image folder source and the list of masks."""
     
     if img_fold_src and img_fold_src == 'Images':
         return img_fold_src,exp_set.ori_imgs_lst
@@ -82,14 +83,14 @@ def img_list_src(exp_set: Experiment, img_fold_src: str)-> tuple[str,list[PathLi
     else:
         return 'Images',exp_set.ori_imgs_lst
 
-def seg_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> tuple[str,list[PathLike]]:
+def seg_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> tuple[str,list[PathType]]:
     """If not manually specified, return the latest processed segmentated masks list. 
     Return the mask folder source to save during tracking.
     Args:
         exp_set (Experiment): The experiment settings.
         mask_fold_src (str): The mask folder source. Can be None or str.
     Returns:
-        tuple[str,list[PathLike]]: The mask folder source and the list of masks."""
+        tuple[str,list[PathType]]: The mask folder source and the list of masks."""
     
     if mask_fold_src == 'Masks_Threshold':
         return mask_fold_src, exp_set.threshold_masks_lst  
@@ -104,13 +105,13 @@ def seg_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> tuple[str,list[P
     else:
         print("No segmentation masks found")
 
-def track_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> list[PathLike]:
+def track_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> list[PathType]:
     """If not manually specified, return the latest processed tracked masks list
     Args:
         exp_set (Experiment): The experiment settings.
         mask_fold_src (str): The mask folder source. Can be None or str.
     Returns:
-        list[PathLike]: The list of tracked masks."""
+        list[PathType]: The list of tracked masks."""
     
     if mask_fold_src == 'Masks_IoU_Track':
         return exp_set.iou_tracked_masks_lst 
@@ -140,7 +141,7 @@ def is_processed(process_settings: dict | list, channel_seg: str = None, overwri
         return False
     return True
 
-def create_save_folder(exp_path: PathLike | Path, folder_name: str)-> PathLike:
+def create_save_folder(exp_path: PathType | Path, folder_name: str)-> PathType:
     if isinstance(exp_path, str):
         exp_path = Path(exp_path)
     save_folder = exp_path.joinpath(folder_name)
@@ -152,7 +153,7 @@ def create_save_folder(exp_path: PathLike | Path, folder_name: str)-> PathLike:
     print(f"  ---> Saving folder already exists: {log_path}")
     return str(save_folder)
 
-def delete_old_masks(class_setting_dict: dict, channel_seg: str, mask_files_list: list[PathLike], overwrite: bool=False)-> None:
+def delete_old_masks(class_setting_dict: dict, channel_seg: str, mask_files_list: list[PathType], overwrite: bool=False)-> None:
     """Check if old masks exists, if the case, the delete old masks. Only
     if overwrite is True and class_setting_dict is not empty and channel_seg is in class_setting_dict"""
     if not overwrite:
@@ -171,7 +172,7 @@ def get_resolution(um_per_pixel: tuple[float,float])-> tuple[float,float]:
     x_umpixel,y_umpixel = um_per_pixel
     return 1/x_umpixel,1/y_umpixel
 
-def save_tif(array: np.ndarray, save_path: PathLike, um_per_pixel: tuple[float,float], finterval: int, lock: Lock=None)-> None:
+def save_tif(array: np.ndarray, save_path: PathType, um_per_pixel: tuple[float,float], finterval: int, lock: Lock=None)-> None:
     """Save array as tif with metadata. If lock is provided, use it to limit access to the save function."""
     if not lock:
         _save_tif(array,save_path,um_per_pixel,finterval)
@@ -180,7 +181,7 @@ def save_tif(array: np.ndarray, save_path: PathLike, um_per_pixel: tuple[float,f
     with lock:
         _save_tif(array,save_path,um_per_pixel,finterval)
 
-def _save_tif(array: np.ndarray, save_path: PathLike, um_per_pixel: tuple[float,float], finterval: int)-> None:
+def _save_tif(array: np.ndarray, save_path: PathType, um_per_pixel: tuple[float,float], finterval: int)-> None:
     """Actual save function for tif with metadata. If no metadata provided, save the array as tif without metadata"""
     # If no metadata provided
     if not finterval or not um_per_pixel:
@@ -250,7 +251,7 @@ def run_multiprocess(func: Callable, input_data: Iterable, fixed_args: dict=None
                 outputs.append(output)
     return outputs
 
-def get_img_prop(img_paths: list[PathLike])-> tuple[int,int]:
+def get_img_prop(img_paths: list[PathType])-> tuple[int,int]:
     """Function that returns the number of frames and z_slices of a folder containing images.
     The names of those images must match the pattern [C]_[S/d{1}]_[F/d{4}]_[Z/d{4}],
     where C is a label of the channel name (str), S the serie number followed by 2 digits,
@@ -262,13 +263,13 @@ def get_img_prop(img_paths: list[PathLike])-> tuple[int,int]:
                      for path in img_paths if re.search('_z\d{4}', str(path))]
     return len(set(frames)),len(set(z_slices))
 
-def is_channel_in_lst(channel: str, img_paths: list[PathLike]) -> bool:
+def is_channel_in_lst(channel: str, img_paths: list[PathType]) -> bool:
     """
     Check if a channel is in the list of image paths.
 
     Args:
         channel (str): The channel name.
-        img_paths (list[PathLike]): The list of image paths.
+        img_paths (list[PathType]): The list of image paths.
 
     Returns:
         bool: True if the channel is in the list, False otherwise.

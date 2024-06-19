@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from os import PathLike
+from pipeline.utilities.pipeline_utility import PathType
 from typing import Any
 import torch
 import numpy as np
@@ -22,23 +22,28 @@ PROPERTIES = ['label', 'area', 'bbox', 'centroid', 'major_axis_length', 'minor_a
 
 # [ ]: Test 3D.
 ############################ Main function ############################
-def extract_img_features(img_fold_src: PathLike, seg_fold_src: PathLike, model_param_path: PathLike, save_dir: PathLike, channel: str)-> bool:
+def extract_img_features(img_fold_src: PathType, seg_fold_src: PathType, model_param_path: PathType, save_dir: PathType, channel: str, overwrite: bool)-> None:
     """Main function to extract the image features using the metric learning model. 
     
     Args:
-        img_fold_src (PathLike): The path to the folder containing the images.
+        img_fold_src (PathType): The path to the folder containing the images.
         
-        seg_fold_src (PathLike): The path to the folder containing the segmentation masks.
+        seg_fold_src (PathType): The path to the folder containing the segmentation masks.
         
-        model_param_path (PathLike): The path to the model parameters file.
+        model_param_path (PathType): The path to the model parameters file.
         
-        save_dir (PathLike): The path to the folder to save the extracted features.
+        save_dir (PathType): The path to the folder to save the extracted features.
         
-        channel (str): The channel to extract the features from.
+        channel (str): The channel to extract the features from."""
+        
+        
+    save_path = Path(save_dir).joinpath("csv")
     
-    Returns:
-        bool: True if the images are 3D, False otherwise.
-        """
+    if any(file.match('frame_*') for file in save_path.glob('*.csv')) and not overwrite:
+        # Log
+        print(f" --> Image features have already been extracted for the '{channel}' channel")
+        return
+    
     # Load the images and masks
     exp_path = Path(img_fold_src).parent.parent
     img_lst = sorted([str(file) for file in Path(img_fold_src).glob(f"*{channel}*.tif")])
@@ -66,7 +71,6 @@ def extract_img_features(img_fold_src: PathLike, seg_fold_src: PathLike, model_p
     fixed_args = {'output_csv': save_dir, 'trunk': trunk, 'embedder': embedder, 'img_frames': img_frames}
     for frame_idx in progress_bar(range(n_frames)):
         _extract_feat(frame_idx, **fixed_args)
-    return img_frames[0].is_3D
 
 
 
@@ -306,7 +310,7 @@ def extract_freature_metric_learning(padded_images: list[np.ndarray], trunk: tor
 
     return embedded_img.numpy().squeeze()
 
-def _extract_feat(frame_idx: int, output_csv: PathLike, trunk: torch.nn.Module, embedder: torch.nn.Module, img_frames: list[FramesPreProcessing]):
+def _extract_feat(frame_idx: int, output_csv: PathType, trunk: torch.nn.Module, embedder: torch.nn.Module, img_frames: list[FramesPreProcessing]):
     
     frame = img_frames[frame_idx]
     
@@ -314,7 +318,7 @@ def _extract_feat(frame_idx: int, output_csv: PathLike, trunk: torch.nn.Module, 
     # Construct csv
     construct_csv(output_csv, frame_idx, frame, embedded_array)
 
-def construct_csv(output_path: PathLike | str, frame_idx: int, frame: FramesPreProcessing, embedded_array: np.ndarray)-> None:
+def construct_csv(output_path: PathType | str, frame_idx: int, frame: FramesPreProcessing, embedded_array: np.ndarray)-> None:
     
     feat_cols = [f'feat_{i}' for i in range(embedded_array.shape[1])]
     embedded_df = pd.DataFrame(embedded_array, columns=feat_cols)

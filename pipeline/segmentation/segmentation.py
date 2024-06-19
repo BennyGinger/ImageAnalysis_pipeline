@@ -46,7 +46,7 @@ def threshold(img_paths: list[PathLike], channel_seg: str, overwrite: bool=False
 
 ############################# helper functions ######################################
 def determine_threshold(img: np.ndarray, manual_threshold: float=None)-> float:
-    # Set the threshold's value. Either as input or automatically if thres==None
+    # Set the threshold's value. Either as input or automatically if thres is None
     threshold_value = manual_threshold
     if not manual_threshold:
         threshold_value,_ = cv2.threshold(img.astype(np.uint8),0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)

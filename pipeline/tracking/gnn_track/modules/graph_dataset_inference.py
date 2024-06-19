@@ -29,7 +29,6 @@ class CellTrackDataset:
                  overlap=1,
                  jump_frames=1,
                  filter_edges=False,
-                 save_stats=False,
                  directed=True,
                  same_frame=True, #TODO False?
                  next_frame=True,
@@ -41,15 +40,15 @@ class CellTrackDataset:
                  which_preprocess='MinMax',
                  drop_feat=[]
                  ):
-        # attributes for the filter edges using ROI
+        # List of int, to scale up the ROI: [2, 2, 2] for 3D and [2, 2] for 2D
         self.mul_vals = mul_vals
-        flag_2d = '2D' in exp_name
-        flag_3d = '3D' in exp_name
-        assert not (flag_2d and flag_3d), "Please provide experiment name with only one detailed dimension (e.g. 2D/3D)"
-        assert flag_2d or flag_3d, "Please provide experiment name with detailed dimension (e.g. 2D/3D)"
-        self.is_3d = flag_3d and (not flag_2d)
-        flag_Hela = 'hela' in exp_name.lower()
-        self.filter_edges = filter_edges or flag_Hela  #TODO what is Hela or filter_edges?
+        
+        # The experiment name must contain the string '3D' or 2D
+        self.is_3d = True if '3D' in exp_name else False
+        
+        # NOTE: Not sure what it does...
+        self.filter_edges = filter_edges
+        
         # attributes for visualization
         self.debug_visualization = debug_visualization
         # attributes for nodes features
@@ -64,14 +63,14 @@ class CellTrackDataset:
         # attributes for GT construction
         self.produce_gt = produce_gt
         self.one_hot_label = one_hot_label
-        # attributes for paths handling
+        # Create a dict with train or test as keys and a list of paths as values to be processed
+        # BUG: Trainning only and must accept 2 files!! Change that
         self.dirs_path = dirs_path
         for k, v_list in dirs_path.items():
             for ind, val in enumerate(v_list):
                 self.dirs_path[k][ind] = osp.join(main_path, val)
                 
-                
-        print(self.dirs_path)
+        
         self.modes = ["train", "valid", "test"]
         self.type_file = type_file
         # attributes for graph construction
@@ -81,11 +80,11 @@ class CellTrackDataset:
         self.overlap = overlap
         self.directed = directed
         self.num_frames = num_frames
+        # BUG: I don't thing we ever gonna use this
         self.jump_frames = jump_frames
         if self.jump_frames > 1:
             print(f"Pay attention! using {jump_frames} jump_frames can make problem in mitosis edges!")
 
-        self.exp_name = exp_name
         self._process(split)
 
     # FIXME: Not used...
@@ -408,27 +407,15 @@ class CellTrackDataset:
 
         return data_list, df_list
 
-    def _process(self, curr_mode):
+    def _process(self, curr_mode: str):
         # Read data into huge `Data` list and store in dictionary.
         self.all_data = {}
         curr_dir = self.dirs_path[curr_mode]
-
-        if isinstance(curr_dir, str):
-            # this is the case that we get one path (str type)
-            curr_dir = osp.join(curr_dir, self.type_file)  # add type of the files for the folder (../{type})
-
-            data_list = self.create_graph(curr_dir, curr_mode)
+        print(f"Start process {curr_dir} ({curr_mode})")
+        data_list = []
+        for dir_path in curr_dir:
+            curr_dir = osp.join(dir_path, self.type_file)  # add type of the files for the folder (../{type})
+            data_list += self.create_graph(curr_dir, curr_mode)    # concat all dirs graphs
             print(f"Finish process {curr_dir} ({curr_mode})")
-            self.all_data[curr_mode] = data_list
-
-        elif isinstance(curr_dir, Iterable):
-            # this is the case that we get multiple paths (listConfig type which is iterable..)
-            data_list = []
-            for dir_path in curr_dir:
-                curr_dir = osp.join(dir_path, self.type_file)  # add type of the files for the folder (../{type})
-                data_list += self.create_graph(curr_dir, curr_mode)    # concat all dirs graphs
-                print(f"Finish process {curr_dir} ({curr_mode})")
-            self.all_data[curr_mode] = data_list
-        else:
-            assert False, "Can't handle the object type that was inserted for the directory path"
+        self.all_data[curr_mode] = data_list
 

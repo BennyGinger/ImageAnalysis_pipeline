@@ -3,12 +3,12 @@ import json
 import numpy as np
 from cellpose import models, core
 from cellpose.io import logger_setup, masks_flows_to_seg
-from os import PathLike
+from pipeline.utilities.pipeline_utility import PathType
 from pathlib import Path
 from os.path import isfile
 from pipeline.utilities.data_utility import load_stack, create_save_folder, save_tif, run_multithread, run_multiprocess, get_img_prop, is_channel_in_lst
 
-
+# Default cellpose settings
 MODEL_SETTINGS = {'gpu':core.use_gpu(),
                   'model_type': 'cyto2',
                   'pretrained_model':False,
@@ -40,6 +40,7 @@ CELLPOSE_EVAL = {'batch_size':8,
                  'compute_masks':True,
                  'progress':None}
 
+# List of all models, that are separated into 2 categories: BUILD_IN_MODELS and IN_HOUSE_MODELS for organization purposes. Then combined into a single list MODEL for ease of use.
 BUILD_IN_MODELS = ['cyto3', 'nuclei', 'cyto2_cp3', 
                 'tissuenet_cp3', 'livecell_cp3',
                 'yeast_PhC_cp3', 'yeast_BF_cp3',
@@ -48,9 +49,10 @@ BUILD_IN_MODELS = ['cyto3', 'nuclei', 'cyto2_cp3',
 
 IN_HOUSE_MODELS = []
 
+MODELS = BUILD_IN_MODELS + IN_HOUSE_MODELS
 
 # # # # # # # # main functions # # # # # # # # # 
-def cellpose_segmentation(img_paths: list[PathLike], channel_seg: str, model_type: str | PathLike ='cyto2', diameter: float=60., flow_threshold: float=0.4, cellprob_threshold: float=0.0, overwrite: bool=False, process_as_2D: bool=False, save_as_npy: bool=False, **kwargs)-> tuple[dict,dict]:
+def cellpose_segmentation(img_paths: list[PathType], channel_seg: str, model_type: str | PathType ='cyto2', diameter: float=60., flow_threshold: float=0.4, cellprob_threshold: float=0.0, overwrite: bool=False, process_as_2D: bool=False, save_as_npy: bool=False, **kwargs)-> tuple[dict,dict]:
     """Function to run cellpose segmentation. See https://github.com/MouseLand/cellpose for more details.
     Takes a list of image paths, with names that match the pattern [C]_[S/d{4}]_[F/d{4}]_[Z/d{4}].
     With C the channel name, S the serie number, F the frame number and Z the z_slice number, followed by
@@ -60,9 +62,9 @@ def cellpose_segmentation(img_paths: list[PathLike], channel_seg: str, model_typ
     masks will be saved. The function will return the model settings and the cellpose evaluation settings.
     
     Args:
-        img_paths: list[PathLike] = list of image paths
+        img_paths: list[PathType] = list of image paths
         channel_seg: str = channel name to segment
-        model_type: str | PathLike = model type to use
+        model_type: str | PathType = model type to use
         diameter: float = Average cell diameter
         flow_threshold: float = Flow threshold for running cellpose
         cellprob_threshold: float = Cell probability threshold for running cellpose
@@ -120,7 +122,7 @@ def cellpose_segmentation(img_paths: list[PathLike], channel_seg: str, model_typ
     
 
 #################### Helper functions ####################
-def run_cellpose(frame: int, img_paths: list[PathLike], channels: list[str], process_as_2D: bool, model: models.CellposeModel, cellpose_eval: dict, save_as_npy: bool, metadata: dict)-> None:
+def run_cellpose(frame: int, img_paths: list[PathType], channels: list[str], process_as_2D: bool, model: models.CellposeModel, cellpose_eval: dict, save_as_npy: bool, metadata: dict)-> None:
     """Function that runs the cellpose segmentation on a single frame of a stack."""
     # Load image/stack and model
     img = load_stack(img_paths,channels,frame,process_as_2D)
@@ -133,7 +135,7 @@ def run_cellpose(frame: int, img_paths: list[PathLike], channels: list[str], pro
     # Save
     save_mask(img,masks,flows,model.diam_mean,mask_path,save_as_npy,metadata)
         
-def save_mask(img: np.ndarray | list[np.ndarray], mask: np.ndarray | list[np.ndarray], flows: list[np.ndarray] | list[list], diameter: float, mask_path: PathLike, as_npy: bool, metadata: dict)-> None:
+def save_mask(img: np.ndarray | list[np.ndarray], mask: np.ndarray | list[np.ndarray], flows: list[np.ndarray] | list[list], diameter: float, mask_path: PathType, as_npy: bool, metadata: dict)-> None:
     if as_npy:
         if img.ndim==3:
             mask_path = mask_path.replace("_z0001","_allz")
@@ -199,7 +201,7 @@ class CellposeSetup:
             self.cellpose_eval['anisotropy'] = 2.0
         return self.cellpose_eval
     
-    def setup_model(self, model_type: str | PathLike ='cyto2', **kwargs)-> tuple[models.CellposeModel,dict]:
+    def setup_model(self, model_type: str | PathType ='cyto2', **kwargs)-> tuple[models.CellposeModel,dict]:
         # Setup log
         logger_setup()
         # Unpack kwargs
@@ -213,7 +215,7 @@ class CellposeSetup:
             return self.model,self.model_settings
         if model_type in IN_HOUSE_MODELS:
             self.model_settings['pretrained_model'] = model_type
-            self.model_settings['model_type'] = False
+            self.model_settings['model_type'] = None
             self.model = models.CellposeModel(**self.model_settings)
             return self.model,self.model_settings
         if isfile(model_type):
@@ -226,10 +228,10 @@ class CellposeSetup:
                           Please choose one of the following: {BUILD_IN_MODELS}\
                           or provide a path to a pretrained model.")
 
-def parallel_executor(frames: int, gpu: bool, z_axis: int, fixed_args: dict)-> None:
+def parallel_executor(frames: int, gpu: bool, z_axis: int | None, fixed_args: dict)-> None:
     """Function to determine how to run cellpose."""
     # If GPU and 2D images: multi-threading
-    if gpu and z_axis==None: 
+    if gpu and z_axis is None: 
         run_multithread(run_cellpose,range(frames),fixed_args)
     # If GPU and 3D images: no parallelization
     elif gpu and z_axis==0: 

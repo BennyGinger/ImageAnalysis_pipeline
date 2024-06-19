@@ -1,18 +1,16 @@
 from __future__ import annotations
-from os import PathLike
 from pathlib import Path
-from pipeline.utilities.Experiment_Classes import Experiment
-from pipeline.utilities.data_utility import track_mask_lst_src, load_stack, save_tif, get_img_prop
+from pipeline.utilities.data_utility import load_stack, save_tif, get_img_prop
+from pipeline.utilities.pipeline_utility import PathType
 from pipeline.tracking.gnn_track.inference_clean import predict
 from pipeline.tracking.gnn_track.postprocess_clean import Postprocess
-from pipeline.tracking.gnn_track import preprocess_seq2graph_clean, preprocess_seq2graph_3d
 from pipeline.tracking.gnn_track.preprocess_seq2graph import extract_img_features
 from pipeline.mask_transformation.complete_track import trim_incomplete_track
 from skimage.segmentation import relabel_sequential
 from skimage.measure import regionprops_table
 from matplotlib.colors import cnames
 from pandas import DataFrame
-from os.path import join
+import json
 
 import numpy as np #TODO remove later!
 
@@ -24,7 +22,7 @@ MODEL = {**BUILD_IN_MODEL, **IN_HOUSE_MODEL}
 # [ ] Need to test the 3D tracking
 ################################## Main function ##################################
 
-def gnn_tracking(exp_path: PathLike, channel_to_track: str, model: str, max_travel_dist: int, img_fold_src: str, mask_fold_src: str, overwrite: bool=False, decision_threshold: float=0.5, manual_correct: bool=False, trim_incomplete_tracks: bool=False,**kwargs)-> None:
+def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_travel_dist: int, img_fold_src: str, mask_fold_src: str, overwrite: bool=False, decision_threshold: float=0.5, manual_correct: bool=False, trim_incomplete_tracks: bool=False,**kwargs)-> None:
     """
     Perform GNN Tracking based cell tracking on a list of experiments.
 
@@ -43,9 +41,12 @@ def gnn_tracking(exp_path: PathLike, channel_to_track: str, model: str, max_trav
     Returns:
         list[Experiment]: List of Experiment objects with updated tracking information.
     """    
+    # Get the arguments to store them in file and assess if some part of the function needs to be overwritten or not
+    passed_args = locals()
+    passed_args.update(kwargs)
     
     # Set exp paths
-    exp_path = Path(exp_path)
+    exp_path: Path = Path(exp_path)
     save_path: Path = exp_path.joinpath('Masks_GNN_Track')
     save_path.mkdir(exist_ok=True)
     
@@ -60,21 +61,23 @@ def gnn_tracking(exp_path: PathLike, channel_to_track: str, model: str, max_trav
     print(f" --> Tracking cells for the '{channel_to_track}' channel")
     
     # Prepare tracking
-    save_dir = exp_path.joinpath('gnn_files')
+    save_dir: Path = exp_path.joinpath('gnn_files')
     save_dir.mkdir(exist_ok=True)
     seg_fold_src = exp_path.joinpath(mask_fold_src)
     img_fold_src: Path = exp_path.joinpath(img_fold_src)
-    frames, _ = get_img_prop(list(img_fold_src.glob('*.tif')))
+    frames, z_slices = get_img_prop(list(img_fold_src.glob('*.tif')))
     model_dict = model_select(model=model)
     metadata = unpack_kwargs(kwargs)
 
     # Create csv files
-    is_3d = extract_img_features(img_fold_src,seg_fold_src,model_dict['model_metric'],save_dir,channel_to_track)
+    ow_extract_feat = overwrite_extraction_feat(passed_args,save_dir)
+    extract_img_features(img_fold_src,seg_fold_src,model_dict['model_metric'],save_dir,channel_to_track,ow_extract_feat)
     
     # Run the model    
-    predict(ckpt_path=model_dict['model_lightning'], path_csv_output=save_dir)
+    predict(ckpt_path=model_dict['model_lightning'], save_dir=save_dir, frames=frames)
 
     # Postprocess the model output
+    is_3d = True if z_slices > 1 else False
     pp = Postprocess(is_3d=is_3d, type_masks='tif', merge_operation='AND', decision_threshold=decision_threshold,
                     path_inference_output=save_dir, directed=True, path_seg_result=seg_fold_src, max_travel_dist=max_travel_dist)
     
@@ -92,7 +95,7 @@ def gnn_tracking(exp_path: PathLike, channel_to_track: str, model: str, max_trav
 
 
 ################################## Helper functions ##################################
-def model_select(model):
+def model_select(model: str)-> dict:
     if model not in MODEL:
         raise AttributeError(f"{model =} is not a valid modelname.")
     
@@ -171,6 +174,28 @@ def unpack_kwargs(kwargs: dict)-> dict:
     
     return metadata
 
+def overwrite_extraction_feat(local_args: dict, save_dir: Path)-> bool:
+    """Function to check if the extraction features should be overwritten based on the arguments passed."""
+    
+    def write_json(args: dict, path: Path)-> None:
+        with open(path,'w') as file:
+            json.dump(args,file)
+    
+    args_path = save_dir.joinpath('extraction_feat.json')
+    if not args_path.exists():
+        write_json(local_args,args_path)
+        return True
+    
+    with open(args_path,'r') as file:
+        args_dict = json.load(file)
+    
+    # Check if any of those key/value pairs are different
+    key_ref = ['img_fold_src','mask_fold_src','model']
+    for key in key_ref:
+        if args_dict[key] != local_args[key]:
+            write_json(local_args,args_path)
+            return True
+    return False
 
 if __name__ == "__main__":
     from time import time

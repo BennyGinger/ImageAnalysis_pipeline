@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Callable
 
+
 def is_run_from_ipython()-> bool:
     """Check if the pipeline is run in a notebook or not"""
     from IPython import get_ipython
@@ -27,3 +28,7 @@ def pbar_desc(desc: str)-> str:
     if is_run_from_ipython():
         return desc
     return f"\033[94m{desc}\033[0m"
+
+class PathType:
+    """Class hint that str must be a path"""
+    pass
