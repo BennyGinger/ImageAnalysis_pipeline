@@ -88,10 +88,10 @@ def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_trav
     pp.fill_mask_labels(debug=False)
     
     #relabel the masks from ID 1 until n and add metadata
-    relabel_masks(frames,list(save_path.glob('*.tif')),channel_to_track,metadata,trim_incomplete_tracks)
+    relabel_masks(frames,save_path,channel_to_track,metadata,trim_incomplete_tracks)
     
     if manual_correct: #write mdf file to manual correct the tracks later
-        prepare_manual_correct(frames,list(save_path.glob('*.tif')),channel_to_track,exp_path)
+        prepare_manual_correct(frames,save_path,channel_to_track,exp_path)
 
 
 ################################## Helper functions ##################################
@@ -129,8 +129,10 @@ def create_mdf_file(exp_path: Path, points_df, channel_seg):
     file.close()
     print(f'--> .mdf trackingfile saved for the {channel_seg} channel')
 
-def prepare_manual_correct(frames, mask_src_list, channel_seg, exp_path: Path):
+def prepare_manual_correct(frames: int, mask_fold_src: Path, channel_seg: str, exp_path: Path):
     # Load masks
+    # Load masks
+    mask_src_list = sorted(list(mask_fold_src.glob('*.tif')))
     mask_stack = load_stack(mask_src_list,[channel_seg],range(frames))
     # get centroids of all obj and save them with the label ID in a dataframe
     for frame, img in enumerate(mask_stack, start=1):
@@ -145,8 +147,10 @@ def prepare_manual_correct(frames, mask_src_list, channel_seg, exp_path: Path):
     points_df = points_df.sort_values('label').set_index('label')
     create_mdf_file(exp_path, points_df, channel_seg)
 
-def relabel_masks(frames, mask_src_list, channel_seg, metadata, trim_incomplete_tracks=False):
+def relabel_masks(frames: int, mask_fold_src: Path, channel_seg: str, metadata: dict, trim_incomplete_tracks: bool=False):
     # Load masks
+    mask_fold_src = Path(mask_fold_src)
+    mask_src_list = sorted(list(mask_fold_src.glob('*.tif')))
     mask_stack = load_stack(mask_src_list,[channel_seg],range(frames))
     # trim incomplete tracks
     if trim_incomplete_tracks:
