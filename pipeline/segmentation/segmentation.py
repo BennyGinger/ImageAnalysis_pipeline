@@ -5,7 +5,7 @@ from pathlib import Path
 import cv2
 from skimage.morphology import remove_small_objects, remove_small_holes
 import numpy as np
-from pipeline.utilities.data_utility import load_stack, create_save_folder, save_tif, run_multithread, get_img_prop, is_channel_in_lst
+from pipeline.utilities.data_utility import load_stack, create_save_folder, save_tif, run_multithread, get_exp_props, is_channel_in_lst
 
 
 ############################# main functions ######################################
@@ -26,7 +26,7 @@ def threshold(img_paths: list[PathLike], channel_seg: str, overwrite: bool=False
         return load_metadata(exp_path,channel_seg)
     
     # Generate input data
-    frames, _ = get_img_prop(img_paths)
+    _, _, frames, _ = get_exp_props(img_paths)
     fixed_args = {'img_paths':img_paths,
                   'channel':channel_seg,
                   'manual_threshold':manual_threshold,

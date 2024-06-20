@@ -30,5 +30,5 @@ def pbar_desc(desc: str)-> str:
     return f"\033[94m{desc}\033[0m"
 
 class PathType:
-    """Class hint that str must be a path"""
+    """Class hint for path-like strings"""
     pass

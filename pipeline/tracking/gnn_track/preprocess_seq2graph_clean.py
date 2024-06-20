@@ -20,7 +20,7 @@ from pathlib import Path
 import re
 
 from pipeline.tracking.gnn_track.modules.resnet_2d.resnet import set_model_architecture, MLP #src_metric_learning.modules.resnet_2d.resnet
-from pipeline.utilities.data_utility import run_multithread, run_multiprocess, load_stack, get_img_prop
+from pipeline.utilities.data_utility import run_multithread, run_multiprocess, load_stack, get_exp_props
 from skimage.morphology import label
 
 

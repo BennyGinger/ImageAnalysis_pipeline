@@ -6,7 +6,7 @@ from cellpose.io import logger_setup, masks_flows_to_seg
 from pipeline.utilities.pipeline_utility import PathType
 from pathlib import Path
 from os.path import isfile
-from pipeline.utilities.data_utility import load_stack, create_save_folder, save_tif, run_multithread, run_multiprocess, get_img_prop, is_channel_in_lst
+from pipeline.utilities.data_utility import load_stack, create_save_folder, save_tif, run_multithread, run_multiprocess, get_exp_props, is_channel_in_lst
 
 # Default cellpose settings
 MODEL_SETTINGS = {'gpu':core.use_gpu(),
@@ -99,7 +99,7 @@ def cellpose_segmentation(img_paths: list[PathType], channel_seg: str, model_typ
     print(f"  ---> Segmenting cells as {file_type} for the '{channel_seg}' channel")
     
     # Get image property
-    frames, z_slices = get_img_prop(img_paths)
+    _, _, frames, z_slices = get_exp_props(img_paths)
     
     # Setup model and eval settings
     nuclear_marker,channels,metadata = unpack_kwargs(kwargs,channel_seg)

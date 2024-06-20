@@ -4,7 +4,7 @@ from pathlib import Path
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
 from os.path import join
-from pipeline.utilities.data_utility import load_stack, create_save_folder, run_multithread, get_img_prop, save_tif, is_channel_in_lst
+from pipeline.utilities.data_utility import load_stack, create_save_folder, run_multithread, get_exp_props, save_tif, is_channel_in_lst
 from pipeline.mask_transformation.complete_track import complete_track
 from cellpose.utils import stitch3D
 from cellpose.metrics import _intersection_over_union
@@ -35,7 +35,7 @@ def iou_tracking(img_paths: list[PathLike], channel_track: str, stitch_thres_per
     """
     
     # Set up tracking
-    frames, _ = get_img_prop(img_paths)
+    _, _, frames, _ = get_exp_props(img_paths)
     exp_path: Path = Path(img_paths[0]).parent.parent
     print(f" --> Tracking cells in {exp_path}")
     save_path: Path = Path(create_save_folder(exp_path,'Masks_IoU_Track'))

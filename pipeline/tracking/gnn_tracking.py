@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
-from pipeline.utilities.data_utility import load_stack, save_tif, get_img_prop
+from pipeline.utilities.data_utility import load_stack, save_tif, get_exp_props
 from pipeline.utilities.pipeline_utility import PathType
 from pipeline.tracking.gnn_track.inference_clean import predict
 from pipeline.tracking.gnn_track.postprocess_clean import Postprocess
@@ -65,7 +65,7 @@ def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_trav
     save_dir.mkdir(exist_ok=True)
     seg_fold_src = exp_path.joinpath(mask_fold_src)
     img_fold_src: Path = exp_path.joinpath(img_fold_src)
-    frames, z_slices = get_img_prop(list(img_fold_src.glob('*.tif')))
+    _, _, frames, z_slices = get_exp_props(list(img_fold_src.glob('*.tif')))
     model_dict = model_select(model=model)
     metadata = unpack_kwargs(kwargs)
 

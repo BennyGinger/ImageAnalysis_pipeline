@@ -209,28 +209,6 @@ def _save_tif(array: np.ndarray, save_path: PathType, um_per_pixel: tuple[float,
     imagej_metadata = {'finterval':finterval, 'unit': 'um'}
     imwrite(save_path,array.astype(np.uint16),imagej=True,metadata=imagej_metadata,resolution=get_resolution(um_per_pixel))
 
-def gen_input_data(exp_set: Experiment, img_sorted_frames: dict[str,list], channels: str | list[str], **kwargs)-> list[dict]:
-    """Generate input data for multi-processing or -threading. Add all additionnal arguments as kwargs
-
-    Args:
-        exp_set (Experiment): The experiment settings.
-        img_sorted_frames (dict[str,list]): List of imgs sorted by frames.
-        channels (list[str]): The list of channels to include.
-        **kwargs: Additional keyword arguments.
-
-    Returns:
-        list[dict]: A list of dictionaries representing the input data.
-
-    """
-    input_data = [{**kwargs,
-                   **{'imgs_path':img_sorted_frames[frame],
-                   'frame':frame,
-                   'channels':channels,
-                   'metadata':{'um_per_pixel':exp_set.analysis.um_per_pixel,
-                               'finterval':exp_set.analysis.interval_sec}}}
-                  for frame in range(exp_set.img_properties.n_frames)]
-    return input_data
-
 def run_multithread(func: Callable, input_data: Iterable, fixed_args: dict=None)-> list:
     """Run a function in multi-threading. It uses a lock to limit access of some functions to the different threads."""
     if not fixed_args:

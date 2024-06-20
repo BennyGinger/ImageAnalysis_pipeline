@@ -14,7 +14,7 @@ from pipeline.tracking.gnn_track.modules.resnet_2d.resnet import set_model_archi
 from pipeline.tracking.gnn_track.modules.resnet_2d.resnet import MLP as MLP_2D
 from pipeline.tracking.gnn_track.modules.resnet_3d.resnet import set_model_architecture as set_model_arch_3d
 from pipeline.tracking.gnn_track.modules.resnet_3d.resnet import MLP as MLP_3D
-from pipeline.utilities.data_utility import run_multithread, load_stack, get_img_prop
+from pipeline.utilities.data_utility import run_multithread, load_stack, get_exp_props
 from pipeline.utilities.pipeline_utility import progress_bar
 
 
@@ -48,7 +48,7 @@ def extract_img_features(img_fold_src: PathType, seg_fold_src: PathType, model_p
     exp_path = Path(img_fold_src).parent
     img_lst = sorted([str(file) for file in Path(img_fold_src).glob(f"*{channel}*.tif")])
     seg_lst = sorted([str(file) for file in Path(seg_fold_src).glob(f"*{channel}*.tif")])
-    n_frames, z_slices = get_img_prop(img_lst)
+    _, _, n_frames, z_slices = get_exp_props(img_lst)
     img_stack = load_stack(img_lst,channel,range(n_frames))
     seg_stack = load_stack(seg_lst,channel,range(n_frames))
     
