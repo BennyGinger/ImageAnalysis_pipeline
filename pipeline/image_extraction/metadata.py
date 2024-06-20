@@ -3,6 +3,7 @@ from os import sep, mkdir, PathLike
 from os.path import isdir
 from tifffile import TiffFile
 from nd2 import ND2File
+import warnings
 
 def get_tif_meta(img_path: PathLike) -> dict:
     tiff_meta = {}
@@ -104,29 +105,37 @@ def create_exp_folder(meta_dict: dict) -> dict:
         meta_dict['exp_path_list'].append(exp_path)
     return meta_dict
 
-def update_channel_names(meta_dict: dict, active_channel_list: list=[], full_channel_list: list=[]) -> dict:
-    if active_channel_list and len(active_channel_list)>meta_dict['full_n_channels']:
-        print(f"\n---- Warning: The number of active channels given ({len(active_channel_list)}) \
-              is greater than the number of channels in the image file ({meta_dict['full_n_channels']}). \
-              The active channels will renamed and set to the number of channel in the image ----")
-        meta_dict['active_channel_list'] = meta_dict['full_channel_list'] = [f'C{i+1}' for i in range(meta_dict['full_n_channels'])]
+def update_channel_names(meta_dict: dict, full_channel_list: list=None, active_channel_list: list=None) -> dict:
+    if not full_channel_list:
+        warnings.warn(f"\n---- Warning: No exp channels given. All channels will be automatically named ----")
+        meta_dict['full_channel_list'] = meta_dict['active_channel_list'] = [f'C{i+1}' for i in range(meta_dict['full_n_channels'])]
         return meta_dict
+    
+    if len(full_channel_list) != meta_dict['full_n_channels']:
+        raise ValueError(f"Number of channels in the image file ({meta_dict['full_n_channels']}) is different from the number of channels given ({len(full_channel_list)})")
+    
+    # Format the channel names and add them to the meta
+    meta_dict['full_channel_list'] = [format_label_name(label) for label in full_channel_list]
     
     if not active_channel_list:
-        print(f"\n---- Warning: No active channels given. All channels will be automatically named ----")
-        meta_dict['active_channel_list'] = meta_dict['full_channel_list'] = [f'C{i+1}' for i in range(meta_dict['full_n_channels'])]
+        meta_dict['active_channel_list'] = meta_dict['full_channel_list']
         return meta_dict
     
-    if not full_channel_list:
-        meta_dict['active_channel_list'] = meta_dict['full_channel_list']  = active_channel_list
-        return meta_dict
+    # Check if the active channels are in the full channel list
+    for channel in active_channel_list:
+        if channel not in full_channel_list:
+            raise ValueError(f"Channel {channel} not found in the full channel list")
     
-    meta_dict['active_channel_list'] = active_channel_list
-    meta_dict['full_channel_list'] = full_channel_list
+    # Format the channel names and add them to the meta
+    meta_dict['active_channel_list'] = [format_label_name(label) for label in active_channel_list]
     return meta_dict
 
+def format_label_name(label: str) -> str:
+    """Format the channel label name to be used in the pipeline. Must NOT contain any '_'."""
+    return label.replace('_','')
+
 # # # # # # # # main functions # # # # # # # # # 
-def get_metadata(img_path: PathLike, active_channel_list: list=[], full_channel_list: list=[])-> dict:
+def get_metadata(img_path: PathLike, active_channel_list: list=None, full_channel_list: list=None)-> dict:
     """Gather metadata from all image files (.nd2 and/or .tif) and is attributed to its own experiment folder"""
     
     print(f"\n-> Extracting metadata from \033[94m{img_path}\033[0m")
