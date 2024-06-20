@@ -45,7 +45,7 @@ def extract_img_features(img_fold_src: PathType, seg_fold_src: PathType, model_p
         return
     
     # Load the images and masks
-    exp_path = Path(img_fold_src).parent.parent
+    exp_path = Path(img_fold_src).parent
     img_lst = sorted([str(file) for file in Path(img_fold_src).glob(f"*{channel}*.tif")])
     seg_lst = sorted([str(file) for file in Path(seg_fold_src).glob(f"*{channel}*.tif")])
     n_frames, z_slices = get_img_prop(img_lst)

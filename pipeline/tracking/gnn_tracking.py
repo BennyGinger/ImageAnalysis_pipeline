@@ -202,7 +202,7 @@ def overwrite_extraction_feat(local_args: dict, save_dir: Path)-> bool:
 if __name__ == "__main__":
     from time import time
     
-    exp_path = '/home/Test_images/dia_fish/c1172-GCaMP-15%_Hypo-1-MaxIP_s1'
+    exp_path = '/home/Test_images/dia_fish/newtest/c1172-GCaMP-15%_Hypo-1-MaxIP_s1'
     start = time()
     gnn_tracking(exp_path=exp_path,
                  channel_to_track='RFP', 
@@ -213,7 +213,8 @@ if __name__ == "__main__":
                  overwrite=True,
                  decision_threshold=0.4,
                  manual_correct=False,
-                 trim_incomplete_tracks=False,
-                 ow_extract_feat=False)
+                 trim_incomplete_tracks=True,
+                #  ow_extract_feat=False
+                 )
     end = time()
     print(f"Time to process: {round(end-start,ndigits=3)} sec\n")

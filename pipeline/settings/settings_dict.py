@@ -1,10 +1,10 @@
 settings = {
-    "input_folder": '/home/Test_images/nd2/Run4',
+    "input_folder": '/home/Test_images/dia_fish/newtest',
     
     "optimization": False,
     
-    "init":{"active_channel_list": ['GFP','RFP'],
-            'full_channel_list': ['DAPI','GFP','RFP','iRed'],
+    "init":{"active_channel_list": ['RFP','GFP'],
+            'full_channel_list': ['RFP','GFP'],
             "overwrite": False},
     
     "bg_sub": (True,
@@ -28,8 +28,8 @@ settings = {
     "cellpose": (True,
                 {"channel_to_seg":"RFP", 
                 "model_type": "cyto2", #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
-                "diameter": 65.0,
-                "flow_threshold": 0.6,
+                "diameter": 15,
+                "flow_threshold": 0.7,
                 "cellprob_threshold":0,
                 "process_as_2D": True,
                 "save_as_npy": False,
