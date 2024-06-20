@@ -13,47 +13,65 @@ import numpy as np
 from tifffile import imread, imwrite
 
 
-def load_stack(img_paths: list[PathType | Path], channels: str | Iterable[str], frame_range: int | Iterable[int], return_2D: bool=False)-> np.ndarray:
-    """"Convert images to stack. If return_2D is True, return the max projection of the stack. The output shape is tzxyc,
-    with t, z and c being optional.
+def _load_images(img_paths: list[Path], channel: str, frame: int) -> list:
+    """Load images for a given channel and frame."""
+    return [imread(path) for path in img_paths if path.match(f"*{channel}*_f{frame+1:04}*")]
+
+def _load_frames(img_paths: list[Path], channel: str, frame_range: Iterable[int]) -> list:
+    """Load all frames for a given channel."""
+    return [_load_images(img_paths, channel, frame) for frame in frame_range]
+
+def _load_channels(img_paths: list[Path], channels: Iterable[str], frame_range: Iterable[int]) -> list:
+    """Load all channels."""
+    return [_load_frames(img_paths, channel, frame_range) for channel in channels]
+
+def _convert_to_stack(exp_list: list, channels: Iterable[str]) -> np.ndarray:
+    """Process the stack."""
+    if len(channels) == 1:
+        return np.squeeze(np.stack(exp_list))
+    else:
+        return np.moveaxis(np.squeeze(np.stack(exp_list)), [0], [-1])
+
+def _prepare_imgs(img_paths: list[PathType | Path], channels: str | Iterable[str], frame_range: int | Iterable[int]=None)-> tuple[list[Path],list[str],Iterable[int]]:
+    if frame_range is None:
+        _, _, frames, _ = get_exp_props(img_paths)
+        frame_range = range(frames)
     
-    Args:
-        img_list (list[PathType]): The list of images path.
-        channel_list (str | Iterable[str]): Name of the channel(s).
-        frame_range (int | Iterable[int]): The frame(s) to load.
-        return_2D (bool, optional): If True, return the max projection of the stack. Defaults to False.
-    Returns:
-        np.ndarray ([[F],[Z],Y,X,[C]]): The stack or the max projection of the stack."""
+    if channels is None:
+        channels, _, _, _ = get_exp_props(img_paths)
     
     # Convert to list if string or int
-    if isinstance(channels, str):
-        channels = [channels]
+    channels = [channels] if isinstance(channels, str) else channels
+    frame_range = [frame_range] if isinstance(frame_range, int) else frame_range
+
+    # check if channels are in the img_paths
+    for channel in channels:
+        if not is_channel_in_lst(channel, img_paths):
+            raise ValueError(f"Channel '{channel}' not found in the image paths")
     
-    if isinstance(frame_range, int):
-        frame_range = [frame_range]
+    # Convert img_path to Path object
+    img_paths = [Path(path) for path in img_paths]
+    return img_paths,channels,frame_range
+
+def load_stack(img_paths: list[PathType | Path], channels: str | Iterable[str]=None, frame_range: int | Iterable[int]=None, return_2D: bool=False) -> np.ndarray:
+    """Convert images to stack. If return_2D is True, return the max projection of the stack. The output shape is tzxyc,
+    with t, z and c being optional."""
+    
+    # Prepare images
+    img_paths, channels, frame_range = _prepare_imgs(img_paths, channels, frame_range)
+    
     # Load/Reload stack. Expected shape of images tzxyc
-    exp_list = []
-    for chan in channels:
-        chan_list = []
-        for frame in frame_range:
-            f_lst = []
-            for path in img_paths:
-                if chan in str(path) and str(path).__contains__(f'_f{frame+1:04d}'):
-                    f_lst.append(imread(path))
-            chan_list.append(f_lst)
-        exp_list.append(chan_list)
+    exp_list = _load_channels(img_paths, channels, frame_range)
+
     # Process stack
-    if len(channels)==1:
-        stack = np.squeeze(np.stack(exp_list))
-    else:
-        stack = np.moveaxis(np.squeeze(np.stack(exp_list)), [0], [-1])
-    
-    # If stack is already 2D or want to load 3D
-    if len(f_lst)==1 or not return_2D:
+    stack = _convert_to_stack(exp_list, channels)
+
+    # If stack is already 2D or want to load 3D, i.e. if frame list contains only one img
+    if len(exp_list[0][0]) == 1 or not return_2D:
         return stack
-    
+
     # For maxIP, if stack is time series, then z is in axis 1
-    if len(frame_range)>1:
+    if len(frame_range) > 1:
         return np.amax(stack, axis=1)
     # if not then z is axis 0
     else:
@@ -251,19 +269,24 @@ def run_multiprocess(func: Callable, input_data: Iterable, fixed_args: dict=None
                 outputs.append(output)
     return outputs
 
-def get_img_prop(img_paths: list[PathType])-> tuple[int,int]:
-    """Function that returns the number of frames and z_slices of a folder containing images.
-    The names of those images must match the pattern [C]_[S/d{1}]_[F/d{4}]_[Z/d{4}],
-    where C is a label of the channel name (str), S the serie number followed by 2 digits,
-    F the frames followed by 4 digits and Z the z_slices followed by 4 digits"""
-    # Gather all frames and all z_slice
-    frames = [re.search('_f\d{4}', str(path)).group() 
-                     for path in img_paths if re.search('_f\d{4}', str(path))]
-    z_slices = [re.search('_z\d{4}', str(path)).group() 
-                     for path in img_paths if re.search('_z\d{4}', str(path))]
-    return len(set(frames)),len(set(z_slices))
+def get_exp_props(img_paths: list[PathType | Path])-> tuple[list,int,int,int]:
+    """Function that extract basic properties of the experiment from the image paths. Images names are expected to be in the format: [C]_[s\d{2}]_[f\d{4}]_[z\d{4}] where C is the channel label (any), s\d{2} is the series, f\d{4} is the frame and z\d{4} is the z-slice. \d{2} means followed by 2 digits and \d{4} means by 4 digits.
+    
+    Returns:
+        tuple[list,int,int,int]: The list of channels, the number of series, the number of frames and the number of z-slices."""
+    # Convert to Path type
+    img_paths = [Path(path) for path in img_paths]
+    
+    channels = set(); series = set(); frames = set(); z_slices = set()
+    for path in img_paths:
+        chan, serie, frame, z_slice = path.stem.split('_')
+        channels.add(chan)
+        series.add(serie)
+        frames.add(frame)
+        z_slices.add(z_slice)
+    return list(channels),len(series),len(frames),len(z_slices)
 
-def is_channel_in_lst(channel: str, img_paths: list[PathType]) -> bool:
+def is_channel_in_lst(channel: str, img_paths: list[PathType | Path]) -> bool:
     """
     Check if a channel is in the list of image paths.
 
@@ -274,4 +297,14 @@ def is_channel_in_lst(channel: str, img_paths: list[PathType]) -> bool:
     Returns:
         bool: True if the channel is in the list, False otherwise.
     """
-    return any(channel in path for path in img_paths)
+    # Convert to Path type
+    img_paths = [Path(path) for path in img_paths]
+    return any(channel in path.stem for path in img_paths)
+
+
+if __name__ == '__main__':
+    path = '/home/Test_images/nd2/Run2/c2z25t23v1_nd2_s1/Images_Registered'
+    img_lst = list(Path(path).glob('*.tif'))
+    # frames, z_slice, channels = get_img_prop(img_lst)
+    stack = load_stack(img_lst,frame_range=[5,10])
+    print(stack.shape)
