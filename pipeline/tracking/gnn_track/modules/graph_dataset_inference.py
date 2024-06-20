@@ -87,26 +87,6 @@ class CellTrackDataset:
 
         self._process(split)
 
-    # FIXME: Not used...
-    def true_links(self, df_data):
-        """
-        Doing aggregation of the true links, i.e. which cell are truly connected
-        """
-        link_edges = []
-        # In the following loop- doing aggregation of the true links, i.e. which cell are truly connected
-        for id in np.unique(df_data.id.values):
-            mask_id = df_data.id.isin([id])  # find the places containing ids
-            nodes = df_data.index[mask_id].values
-            frames = df_data.frame_num[mask_id].values
-            for ind_node in range(0, nodes.shape[0] - 1):
-                # until the -2 - since we connect nodes in the graphs,
-                # so the last frame cells cant connect to the next frame's cells
-                if frames[ind_node] + self.jump_frames == frames[ind_node + 1]:
-                    link_edges.append([nodes[ind_node], nodes[ind_node + 1]])
-                    if not self.directed:
-                        link_edges.append([nodes[ind_node + 1], nodes[ind_node]])
-
-        return link_edges
 
     def filter_by_roi(self, df_data_curr, df_data_next):
         cols = ["centroid_row", "centroid_col"]
@@ -149,42 +129,28 @@ class CellTrackDataset:
             # find the places containing the specific frame index
             mask_frame = df_data.frame_num.isin([frame_ind])
             nodes = df_data.index[mask_frame].values.tolist()
-            # doing aggregation of the same frame links
-            if self.same_frame:
-                if self.self_loop:
-                    same_next_edge_index += [list(tup) for tup in itertools.product(nodes, nodes)]
-                else:
-                    same_next_edge_index += [list(tup) for tup in itertools.product(nodes, nodes) if tup[0] != tup[1]]
+            
             # doing aggregation of the links between 2 consecutive frames
+            # FIXME: We may be able to add the gap links here...
             if self.next_frame:
-                if frame_ind != iter_frames[-1]:
-                    # find the places containing the specific frame index
-                    mask_next_frame = df_data.frame_num.isin([iter_frames[loop_ind + 1]])
-                    next_nodes = df_data.index[mask_next_frame].values.tolist()
-                    if self.filter_edges:
-                        curr_list = self.filter_by_roi(df_data.loc[mask_frame, :], df_data.loc[mask_next_frame, :])
-                        curr_list = list(filter(lambda x: not (x in link_edges), curr_list))
-                    else:
-                        curr_list = [list(tup) for tup in itertools.product(nodes, next_nodes)
-                                     if not (list(tup) in link_edges)]
-                    if not self.directed:
-                        # take the opposite direction using [::-1] and merge one-by-one
-                        # with directed and undirected edges
-                        curr_list_opposite = [pairs[::-1] for pairs in curr_list]
-                        curr_list = list(itertools.chain.from_iterable(zip(curr_list, curr_list_opposite)))
-                    same_next_edge_index += curr_list
+                # find the places containing the specific frame index
+                mask_next_frame = df_data.frame_num.isin([iter_frames[loop_ind + 1]])
+                next_nodes = df_data.index[mask_next_frame].values.tolist()
+                # FIXME: I think most of the time we will filter the edges, so we can remove the if condition
+                if self.filter_edges:
+                    curr_list = self.filter_by_roi(df_data.loc[mask_frame, :], df_data.loc[mask_next_frame, :])
+                    curr_list = list(filter(lambda x: not (x in link_edges), curr_list))
+                else:
+                    curr_list = [list(tup) for tup in itertools.product(nodes, next_nodes)
+                                    if not (list(tup) in link_edges)]
+                # FIXME: Might be able to use undirected edges
+                if not self.directed:
+                    # take the opposite direction using [::-1] and merge one-by-one
+                    # with directed and undirected edges
+                    curr_list_opposite = [pairs[::-1] for pairs in curr_list]
+                    curr_list = list(itertools.chain.from_iterable(zip(curr_list, curr_list_opposite)))
+                same_next_edge_index += curr_list
         return same_next_edge_index
-
-    # FIXME: Not used...
-    def iterator_gt_creator(self, df_data):
-        frames = np.unique(df_data.frame_num)
-        gt = []
-        for ind in range(frames.shape[0] - 1):
-            curr_frame = frames[ind]
-            next_frame = frames[ind + 1]
-            mask_frames = df_data.frame_num.isin([curr_frame, next_frame])
-            gt.append(self.create_gt(df_data[mask_frames], curr_frame, next_frame))
-        return torch.cat(gt, axis=0)
 
     def create_gt(self, df_data, curr_frame, next_frame):
         """
@@ -249,6 +215,7 @@ class CellTrackDataset:
             res = self.normalize_array(res)
         return res
 
+    # FIXME: I think we can adjust the size of the roi to the max_travle dist, instead of this arbitrary value
     def bb_roi(self, df_data):
         if self.is_3d:
             cols = ['min_row_bb', 'min_col_bb', 'max_row_bb', 'max_col_bb',
@@ -355,8 +322,10 @@ class CellTrackDataset:
                 drop_col_list.append('seg_label')
                 warnings.warn("Find the seg label as part of the features and dropped it, please be aware")
 
+            print(f"{self.normalize_all_cols=}")
             dropped_df = df_data.drop(drop_col_list, axis=1)
             for feat in self.drop_feat:
+                
                 if feat in dropped_df.columns:
                     dropped_df = dropped_df.drop([feat], axis=1)
 
