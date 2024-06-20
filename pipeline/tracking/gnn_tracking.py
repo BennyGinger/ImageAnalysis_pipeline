@@ -176,6 +176,8 @@ def unpack_kwargs(kwargs: dict)-> dict:
 
 def overwrite_extraction_feat(local_args: dict, save_dir: Path)-> bool:
     """Function to check if the extraction features should be overwritten based on the arguments passed."""
+    if 'ow_extract_feat' in local_args['kwargs']:
+        return local_args['kwargs']['ow_extract_feat']
     
     def write_json(args: dict, path: Path)-> None:
         with open(path,'w') as file:
@@ -200,18 +202,7 @@ def overwrite_extraction_feat(local_args: dict, save_dir: Path)-> bool:
 if __name__ == "__main__":
     from time import time
     
-    input_folder = '/home/Test_images/nd2/Run4'
-    gnn_track = {"channel_to_track":"RFP",
-                   "model":"PhC-C2DH-U373", #neutrophil, Fluo-N2DH-SIM+, Fluo-N2DL-HeLa, Fluo-N3DH-SIM+ (implement from server first!), PhC-C2DH-U373
-                   'decision_threshold': 0.4, #between 0-1, 1=more interrupted tracks, 0= more tracks gets connected, checks for the confidence of the model for the connection of two cells
-                   'max_travel_dist':50,
-                   "mask_appear":5, # not implemented yet
-                   "manual_correct":False,
-                   "trim_incomplete_tracks":True,
-                   "overwrite":True}
-    
-    
-    exp_path = '/home/Test_images/nd2/Run4/c4z1t91v1_s1'
+    exp_path = '/home/Test_images/dia_fish/c1172-GCaMP-15%_Hypo-1-MaxIP_s1'
     start = time()
     gnn_tracking(exp_path=exp_path,
                  channel_to_track='RFP', 
@@ -222,6 +213,7 @@ if __name__ == "__main__":
                  overwrite=True,
                  decision_threshold=0.4,
                  manual_correct=False,
-                 trim_incomplete_tracks=False)
+                 trim_incomplete_tracks=False,
+                 ow_extract_feat=False)
     end = time()
     print(f"Time to process: {round(end-start,ndigits=3)} sec\n")
