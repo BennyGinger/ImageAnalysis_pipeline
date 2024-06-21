@@ -283,7 +283,6 @@ class CellTrackDataset:
         data_list = []
         df_list = []
         drop_col_list = []
-        is_first_time = True
         # find all the files in the curr_path
         files = [osp.join(curr_dir, f_name) for f_name in sorted(os.listdir(curr_dir)) if
                  self.type_file in f_name]
@@ -322,32 +321,28 @@ class CellTrackDataset:
                 drop_col_list.append('seg_label')
                 warnings.warn("Find the seg label as part of the features and dropped it, please be aware")
 
-            print(f"{self.normalize_all_cols=}")
-            dropped_df = df_data.drop(drop_col_list, axis=1)
+            trimmed_df = df_data.drop(drop_col_list, axis=1)
             for feat in self.drop_feat:
                 
-                if feat in dropped_df.columns:
-                    dropped_df = dropped_df.drop([feat], axis=1)
+                if feat in trimmed_df.columns:
+                    trimmed_df = trimmed_df.drop([feat], axis=1)
 
-            if is_first_time:
-                is_first_time = False
-                print(f"features: {dropped_df.columns}")
+            if ind == 0:
                 if self.normalize_all_cols:
-                    self.normalize_cols = np.ones((dropped_df.shape[-1]), dtype=bool)
+                    self.normalize_cols = np.ones((trimmed_df.shape[-1]), dtype=bool)
                 else:
-                    self.normalize_cols = np.array(
-                        ['feat' != name_col[:len('feat')] for name_col in dropped_df.columns])
+                    self.normalize_cols = np.array(['feat' in name_col for name_col in trimmed_df.columns])
 
                 if self.separate_models:
-                    self.separate_cols = np.array(['feat' != name_col[:len('feat')] for name_col in dropped_df.columns])
+                    self.separate_cols = np.array(['feat' in name_col for name_col in trimmed_df.columns])
 
 
             if not self.separate_models:
-                x = self.preprocess(dropped_df)
+                x = self.preprocess(trimmed_df)
                 if self.edge_feat_embed_dict['use_normalized_x']:
                     edge_feat = self.edge_feat_embedding(x, edge_index)
                 else:
-                    edge_feat = self.edge_feat_embedding(dropped_df.values, edge_index)
+                    edge_feat = self.edge_feat_embedding(trimmed_df.values, edge_index)
                 x = torch.FloatTensor(x)
                 edge_feat = torch.FloatTensor(edge_feat)
 
@@ -357,18 +352,18 @@ class CellTrackDataset:
                 data = Data(x=x, edge_index=edge_index, edge_feat=edge_feat)
             else:
                 if not self.edge_feat_embed_dict['use_normalized_x']:
-                    x = torch.FloatTensor(self.preprocess(dropped_df.loc[:, self.separate_cols]))
-                    x_2 = torch.FloatTensor(dropped_df.loc[:, np.logical_not(self.separate_cols)].values)
-                    edge_feat = self.edge_feat_embedding(dropped_df.values, edge_index)
+                    x = torch.FloatTensor(self.preprocess(trimmed_df.loc[:, self.separate_cols]))
+                    x_2 = torch.FloatTensor(trimmed_df.loc[:, np.logical_not(self.separate_cols)].values)
+                    edge_feat = self.edge_feat_embedding(trimmed_df.values, edge_index)
                 else:
-                    x = self.preprocess(dropped_df.loc[:, self.separate_cols])
-                    x_2 = dropped_df.loc[:, np.logical_not(self.separate_cols)].values
+                    x = self.preprocess(trimmed_df.loc[:, self.separate_cols])
+                    x_2 = trimmed_df.loc[:, np.logical_not(self.separate_cols)].values
                     edge_feat = self.edge_feat_embedding(np.concatenate((x, x_2), axis=-1), edge_index)
                     x = torch.FloatTensor(x)
                     x_2 = torch.FloatTensor(x_2)
 
                 edge_feat = torch.FloatTensor(edge_feat)
-                data = Data(x=x, x_2=x_2, edge_index=edge_index,  edge_feat=edge_feat)
+                data = Data(x=x, x_2=x_2, edge_index=edge_index, edge_feat=edge_feat)
 
             data_list.append(data)
             df_list.append(df_data)
