@@ -337,34 +337,20 @@ class CellTrackDataset:
                     self.separate_cols = np.array(['feat' not in name_col for name_col in trimmed_df.columns])
 
 
-            if not self.separate_models:
-                x = self.preprocess(trimmed_df)
-                if self.edge_feat_embed_dict['use_normalized_x']:
-                    edge_feat = self.edge_feat_embedding(x, edge_index)
-                else:
-                    edge_feat = self.edge_feat_embedding(trimmed_df.values, edge_index)
-                x = torch.FloatTensor(x)
-                edge_feat = torch.FloatTensor(edge_feat)
-
-                if torch.any(x.isnan()) or torch.any(edge_feat.isnan()):
-                    assert False, "inputs contain nan values"
-
-                data = Data(x=x, edge_index=edge_index, edge_feat=edge_feat)
+            if not self.edge_feat_embed_dict['use_normalized_x']:
+                x = torch.FloatTensor(self.preprocess(trimmed_df.loc[:, self.separate_cols]))
+                x_2 = torch.FloatTensor(trimmed_df.loc[:, np.logical_not(self.separate_cols)].values)
+                edge_feat = self.edge_feat_embedding(trimmed_df.values, edge_index)
             else:
-                if not self.edge_feat_embed_dict['use_normalized_x']:
-                    x = torch.FloatTensor(self.preprocess(trimmed_df.loc[:, self.separate_cols]))
-                    x_2 = torch.FloatTensor(trimmed_df.loc[:, np.logical_not(self.separate_cols)].values)
-                    edge_feat = self.edge_feat_embedding(trimmed_df.values, edge_index)
-                else:
-                    x = self.preprocess(trimmed_df.loc[:, self.separate_cols])
-                    x_2 = trimmed_df.loc[:, np.logical_not(self.separate_cols)].values
-                    edge_feat = self.edge_feat_embedding(np.concatenate((x, x_2), axis=-1), edge_index)
-                    x = torch.FloatTensor(x)
-                    x_2 = torch.FloatTensor(x_2)
+                x = self.preprocess(trimmed_df.loc[:, self.separate_cols])
+                x_2 = trimmed_df.loc[:, np.logical_not(self.separate_cols)].values
+                edge_feat = self.edge_feat_embedding(np.concatenate((x, x_2), axis=-1), edge_index)
+                x = torch.FloatTensor(x)
+                x_2 = torch.FloatTensor(x_2)
 
-                edge_feat = torch.FloatTensor(edge_feat)
-                # data = Data(x=x, x_2=x_2, edge_index=edge_index, edge_feat=edge_feat)
-                data = (x,x_2,edge_index,edge_feat)
+            edge_feat = torch.FloatTensor(edge_feat)
+            # data = Data(x=x, x_2=x_2, edge_index=edge_index, edge_feat=edge_feat)
+            data = (x,x_2,edge_index,edge_feat)
 
             data_list.append(data)
             df_list.append(df_data)
