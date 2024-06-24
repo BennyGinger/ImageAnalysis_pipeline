@@ -280,8 +280,6 @@ class CellTrackDataset:
         """
         curr_dir: str : path to the directory holds CSVs files to build the graph upon
         """
-        data_list = []
-        df_list = []
         drop_col_list = []
         # find all the files in the curr_path
         files = [osp.join(curr_dir, f_name) for f_name in sorted(os.listdir(curr_dir)) if
@@ -297,66 +295,56 @@ class CellTrackDataset:
         else:
             assert False, f"The provided num_frames {type(self.num_frames)} variable type is not supported"
 
-        for ind in range(0, num_files, self.overlap):
-            # break when the length of the graph is smaller than the rest number of frames
-            if ind + num_frames > num_files:
-                break
+        # read the current frame CSVs
+        temp_data = [pd.read_csv(files[ind_tmp]) for ind_tmp in range(num_frames)]
+        df_data = pd.concat(temp_data, axis=0).reset_index(drop=True)
 
-            # read the current frame CSVs
-            temp_data = [pd.read_csv(files[ind_tmp]) for ind_tmp in range(ind, ind + num_frames, self.jump_frames)]
-            df_data = pd.concat(temp_data, axis=0).reset_index(drop=True)
+        link_edges = []
+        if self.same_frame or self.next_frame:
+            link_edges += self.same_next_links(df_data, link_edges)
 
-            link_edges = []
-            if self.same_frame or self.next_frame:
-                link_edges += self.same_next_links(df_data, link_edges)
+        # convert to torch tensor
+        edge_index = [torch.tensor([lst], dtype=torch.long) for lst in link_edges]
+        edge_index = torch.cat(edge_index, dim=0).t().contiguous()
 
-            # convert to torch tensor
-            edge_index = [torch.tensor([lst], dtype=torch.long) for lst in link_edges]
-            edge_index = torch.cat(edge_index, dim=0).t().contiguous()
+        if not ('id' in drop_col_list) and 'id' in df_data.columns:
+            drop_col_list.append('id')
+            warnings.warn("Find the id label as part of the features and dropped it, please be aware")
+        if not ('seg_label' in drop_col_list) and 'seg_label' in df_data.columns:
+            drop_col_list.append('seg_label')
+            warnings.warn("Find the seg label as part of the features and dropped it, please be aware")
 
-            if not ('id' in drop_col_list) and 'id' in df_data.columns:
-                drop_col_list.append('id')
-                warnings.warn("Find the id label as part of the features and dropped it, please be aware")
-            if not ('seg_label' in drop_col_list) and 'seg_label' in df_data.columns:
-                drop_col_list.append('seg_label')
-                warnings.warn("Find the seg label as part of the features and dropped it, please be aware")
+        trimmed_df = df_data.drop(drop_col_list, axis=1)
+        for feat in self.drop_feat:
+            
+            if feat in trimmed_df.columns:
+                trimmed_df = trimmed_df.drop([feat], axis=1)
 
-            trimmed_df = df_data.drop(drop_col_list, axis=1)
-            for feat in self.drop_feat:
-                
-                if feat in trimmed_df.columns:
-                    trimmed_df = trimmed_df.drop([feat], axis=1)
+        if self.normalize_all_cols:
+            self.normalize_cols = np.ones((trimmed_df.shape[-1]), dtype=bool)
+        else:
+            self.normalize_cols = np.array(['feat' not in name_col for name_col in trimmed_df.columns])
 
-            if ind == 0:
-                if self.normalize_all_cols:
-                    self.normalize_cols = np.ones((trimmed_df.shape[-1]), dtype=bool)
-                else:
-                    self.normalize_cols = np.array(['feat' not in name_col for name_col in trimmed_df.columns])
-
-                if self.separate_models:
-                    self.separate_cols = np.array(['feat' not in name_col for name_col in trimmed_df.columns])
+        if self.separate_models:
+            self.separate_cols = np.array(['feat' not in name_col for name_col in trimmed_df.columns])
 
 
-            if not self.edge_feat_embed_dict['use_normalized_x']:
-                x = torch.FloatTensor(self.preprocess(trimmed_df.loc[:, self.separate_cols]))
-                x_2 = torch.FloatTensor(trimmed_df.loc[:, np.logical_not(self.separate_cols)].values)
-                edge_feat = self.edge_feat_embedding(trimmed_df.values, edge_index)
-            else:
-                x = self.preprocess(trimmed_df.loc[:, self.separate_cols])
-                x_2 = trimmed_df.loc[:, np.logical_not(self.separate_cols)].values
-                edge_feat = self.edge_feat_embedding(np.concatenate((x, x_2), axis=-1), edge_index)
-                x = torch.FloatTensor(x)
-                x_2 = torch.FloatTensor(x_2)
+        if not self.edge_feat_embed_dict['use_normalized_x']:
+            x = torch.FloatTensor(self.preprocess(trimmed_df.loc[:, self.separate_cols]))
+            x_2 = torch.FloatTensor(trimmed_df.loc[:, np.logical_not(self.separate_cols)].values)
+            edge_feat = self.edge_feat_embedding(trimmed_df.values, edge_index)
+        else:
+            x = self.preprocess(trimmed_df.loc[:, self.separate_cols])
+            x_2 = trimmed_df.loc[:, np.logical_not(self.separate_cols)].values
+            edge_feat = self.edge_feat_embedding(np.concatenate((x, x_2), axis=-1), edge_index)
+            x = torch.FloatTensor(x)
+            x_2 = torch.FloatTensor(x_2)
 
-            edge_feat = torch.FloatTensor(edge_feat)
-            # data = Data(x=x, x_2=x_2, edge_index=edge_index, edge_feat=edge_feat)
-            data = (x,x_2,edge_index,edge_feat)
+        edge_feat = torch.FloatTensor(edge_feat)
+        # data = Data(x=x, x_2=x_2, edge_index=edge_index, edge_feat=edge_feat)
+        data = (x,x_2,edge_index,edge_feat)
 
-            data_list.append(data)
-            df_list.append(df_data)
-            print(f"Finish frame index {ind}")
-
-        return data_list, df_list
+        return [data], [df_data]
 
     def _process(self, curr_mode: str):
         # Read data into huge `Data` list and store in dictionary.
