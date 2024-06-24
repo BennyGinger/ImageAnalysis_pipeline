@@ -70,7 +70,8 @@ class CellTrackDataset:
         for k, v_list in dirs_path.items():
             for ind, val in enumerate(v_list):
                 self.dirs_path[k][ind] = osp.join(main_path, val)
-                
+        
+        self.save_dir = main_path        
         
         self.modes = ["train", "valid", "test"]
         self.type_file = type_file
@@ -86,7 +87,7 @@ class CellTrackDataset:
         if self.jump_frames > 1:
             print(f"Pay attention! using {jump_frames} jump_frames can make problem in mitosis edges!")
 
-        self._process(split)
+        # self._process(split)
 
 
     def filter_by_roi(self, df_data_curr, df_data_next):
@@ -217,7 +218,7 @@ class CellTrackDataset:
         return res
 
     # FIXME: I think we can adjust the size of the roi to the max_travle dist, instead of this arbitrary value
-    def bb_roi(self, df_data):
+    def define_bbox_size(self, df_data: pd.DataFrame):
         if self.is_3d:
             cols = ['min_row_bb', 'min_col_bb', 'max_row_bb', 'max_col_bb',
                     'min_depth_bb', 'max_depth_bb']
@@ -272,36 +273,16 @@ class CellTrackDataset:
             diff_depth = np.abs(df_stats.diff_depth.values)
             self.curr_roi['depth'] = diff_depth.max() + self.mul_vals[2] * diff_depth.std()
 
-    def find_roi(self, df_data, curr_dir):
-        # temp_data = [pd.read_csv(file) for file in files]
-        # df_data = pd.concat(temp_data, axis=0).reset_index(drop=True)
-        self.bb_roi(df_data)
-
-    def create_graph(self, curr_dir, mode):
+    def create_graph(self):
         """
         curr_dir: str : path to the directory holds CSVs files to build the graph upon
         """
         drop_col_list = []
-        # find all the files in the curr_path
-        # files = [osp.join(curr_dir, f_name) for f_name in sorted(os.listdir(curr_dir)) if
-        #          self.type_file in f_name]
-        # print(f"Start with {curr_dir}")
-        # num_files = len(files)
-
-        # if self.num_frames == 'all':
-        #     num_frames = num_files
-        # elif isinstance(self.num_frames, int):
-        #     num_frames = self.num_frames
-        # else:
-        #     assert False, f"The provided num_frames {type(self.num_frames)} variable type is not supported"
-
-        # read the current frame CSVs
-        # temp_data = [pd.read_csv(files[ind_tmp]) for ind_tmp in range(num_frames)]
-        # df_data = pd.concat(temp_data, axis=0).reset_index(drop=True)
-        # print(f"{df_data.columns}")
-        save_path = Path(curr_dir).parent.joinpath('all_data_df.csv')
+        
+        save_path = Path(self.save_dir).joinpath('all_data_df.csv')
         df_data = pd.read_csv(save_path,index_col=False).reset_index(drop=True)
-        self.find_roi(df_data, curr_dir)
+        
+        self.define_bbox_size(df_data)
 
         link_edges = []
         if self.same_frame or self.next_frame:
@@ -346,9 +327,9 @@ class CellTrackDataset:
 
         edge_feat = torch.FloatTensor(edge_feat)
         # data = Data(x=x, x_2=x_2, edge_index=edge_index, edge_feat=edge_feat)
-        data = (x,x_2,edge_index,edge_feat)
+        data = (x, x_2, edge_index, edge_feat)
 
-        return [data], [df_data]
+        return [data]
 
     def _process(self, curr_mode: str):
         # Read data into huge `Data` list and store in dictionary.
