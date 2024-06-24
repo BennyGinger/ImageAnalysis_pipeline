@@ -331,10 +331,10 @@ class CellTrackDataset:
                 if self.normalize_all_cols:
                     self.normalize_cols = np.ones((trimmed_df.shape[-1]), dtype=bool)
                 else:
-                    self.normalize_cols = np.array(['feat' in name_col for name_col in trimmed_df.columns])
+                    self.normalize_cols = np.array(['feat' not in name_col for name_col in trimmed_df.columns])
 
                 if self.separate_models:
-                    self.separate_cols = np.array(['feat' in name_col for name_col in trimmed_df.columns])
+                    self.separate_cols = np.array(['feat' not in name_col for name_col in trimmed_df.columns])
 
 
             if not self.separate_models:
@@ -363,7 +363,8 @@ class CellTrackDataset:
                     x_2 = torch.FloatTensor(x_2)
 
                 edge_feat = torch.FloatTensor(edge_feat)
-                data = Data(x=x, x_2=x_2, edge_index=edge_index, edge_feat=edge_feat)
+                # data = Data(x=x, x_2=x_2, edge_index=edge_index, edge_feat=edge_feat)
+                data = (x,x_2,edge_index,edge_feat)
 
             data_list.append(data)
             df_list.append(df_data)

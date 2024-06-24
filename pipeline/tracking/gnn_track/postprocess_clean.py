@@ -41,7 +41,7 @@ class Postprocess(object):
         self.path_inference_output = path_inference_output
         self.cols = ["child_id", "parent_id", "start_frame"]
 
-        self.edge_index = (self._load_file(file1)).edge_index
+        self.edge_index = (self._load_file(file1))[2]
 
         self.df_preds = self._load_file(file2)
         self.output_pred = self._load_file(file3)

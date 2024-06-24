@@ -20,7 +20,8 @@ def predict(ckpt_path: PathType, save_dir: PathType, frames: int):
     data_train: CellTrackDataset = CellTrackDataset(**config_sets['dataset_params'], split='test')
     data_list, df_list = data_train.all_data['test']
     test_data, df_data = data_list[0], df_list[0]
-    x, x2, edge_index, edge_feature = test_data.x, test_data.x_2, test_data.edge_index, test_data.edge_feat
+    # x, x2, edge_index, edge_feature = test_data.x, test_data.x_2, test_data.edge_index, test_data.edge_feat
+    x, x2, edge_index, edge_feature = test_data
     
     
     trained_model = load_model(ckpt_path)
