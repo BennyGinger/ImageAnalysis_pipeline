@@ -34,7 +34,7 @@ def predict(ckpt_path: PathType, save_dir: PathType, frames: int):
     file2 = os.path.join(save_dir, 'all_data_df.csv')
     file3 = os.path.join(save_dir, 'raw_output.pt')
     print(f"Save inference files: \n - {file1} \n - {file2} \n - {file3}")
-    df_data.to_csv(file2)
+    df_data.to_csv(file2, index=False)
     torch.save(test_data, file1)
     torch.save(outputs, file3)
 

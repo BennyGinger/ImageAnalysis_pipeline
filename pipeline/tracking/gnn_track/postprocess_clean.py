@@ -51,7 +51,8 @@ class Postprocess(object):
         print(f"Load {file_path}")
         file_type = file_path.split('.')[-1]
         if file_type == 'csv':
-            file = pd.read_csv(file_path, index_col=0)
+            # file = pd.read_csv(file_path, index_col=0)
+            file = pd.read_csv(file_path)
         if file_type == 'pt':
             file = torch.load(file_path)
         return file

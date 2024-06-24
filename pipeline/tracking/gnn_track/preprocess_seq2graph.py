@@ -37,9 +37,9 @@ def extract_img_features(img_fold_src: PathType, seg_fold_src: PathType, model_p
         channel (str): The channel to extract the features from."""
         
         
-    save_path = Path(save_dir).joinpath("csv")
+    save_path = Path(save_dir).joinpath('all_data_df.csv')
     
-    if any(file.match('frame_*') for file in save_path.glob('*.csv')) and not overwrite:
+    if save_path.exists() and not overwrite:
         # Log
         print(f" --> Image features have already been extracted for the '{channel}' channel")
         return
@@ -68,9 +68,12 @@ def extract_img_features(img_fold_src: PathType, seg_fold_src: PathType, model_p
     # Extract features
     print(f"  ---> Extracting image features")
     trunk, embedder = initialize_models(model_params,z_slices)
-    fixed_args = {'output_csv': save_dir, 'trunk': trunk, 'embedder': embedder, 'img_frames': img_frames}
-    for frame_idx in progress_bar(range(n_frames)):
-        _extract_feat(frame_idx, **fixed_args)
+    fixed_args = {'trunk': trunk, 'embedder': embedder, 'img_frames': img_frames}
+    
+    dfs = [_extract_feat(frame_idx, **fixed_args) for frame_idx in progress_bar(range(n_frames))]
+    df = pd.concat(dfs, axis=0)
+    df.to_csv(save_path, index=False)
+        
 
 
 
@@ -310,15 +313,15 @@ def extract_freature_metric_learning(padded_images: list[np.ndarray], trunk: tor
 
     return embedded_img.numpy().squeeze()
 
-def _extract_feat(frame_idx: int, output_csv: PathType, trunk: torch.nn.Module, embedder: torch.nn.Module, img_frames: list[FramesPreProcessing]):
+def _extract_feat(frame_idx: int, trunk: torch.nn.Module, embedder: torch.nn.Module, img_frames: list[FramesPreProcessing])-> pd.DataFrame:
     
     frame = img_frames[frame_idx]
     
     embedded_array = extract_freature_metric_learning(frame.padded_images, trunk, embedder)
     # Construct csv
-    construct_csv(output_csv, frame_idx, frame, embedded_array)
+    return construct_csv(frame_idx, frame, embedded_array)
 
-def construct_csv(output_path: PathType | str, frame_idx: int, frame: FramesPreProcessing, embedded_array: np.ndarray)-> None:
+def construct_csv(frame_idx: int, frame: FramesPreProcessing, embedded_array: np.ndarray)-> pd.DataFrame:
     
     feat_cols = [f'feat_{i}' for i in range(embedded_array.shape[1])]
     embedded_df = pd.DataFrame(embedded_array, columns=feat_cols)
@@ -327,9 +330,10 @@ def construct_csv(output_path: PathType | str, frame_idx: int, frame: FramesPreP
     df['frame_num'] = frame_idx
     
     # Save the data
-    save_path = Path(output_path).joinpath("csv").joinpath(f"frame_{frame_idx:04d}.csv")
-    save_path.parent.mkdir(exist_ok=True, parents=True)
-    df.to_csv(save_path, index=False)
+    # save_path = Path(output_path).joinpath("csv").joinpath(f"frame_{frame_idx:04d}.csv")
+    # save_path.parent.mkdir(exist_ok=True, parents=True)
+    # df.to_csv(save_path, index=False)
+    return df
 
 
 

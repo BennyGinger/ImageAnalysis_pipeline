@@ -3,6 +3,7 @@ import os.path as osp
 from collections.abc import Iterable
 
 import itertools
+from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
@@ -271,9 +272,9 @@ class CellTrackDataset:
             diff_depth = np.abs(df_stats.diff_depth.values)
             self.curr_roi['depth'] = diff_depth.max() + self.mul_vals[2] * diff_depth.std()
 
-    def find_roi(self, files, curr_dir):
-        temp_data = [pd.read_csv(file) for file in files]
-        df_data = pd.concat(temp_data, axis=0).reset_index(drop=True)
+    def find_roi(self, df_data, curr_dir):
+        # temp_data = [pd.read_csv(file) for file in files]
+        # df_data = pd.concat(temp_data, axis=0).reset_index(drop=True)
         self.bb_roi(df_data)
 
     def create_graph(self, curr_dir, mode):
@@ -282,22 +283,25 @@ class CellTrackDataset:
         """
         drop_col_list = []
         # find all the files in the curr_path
-        files = [osp.join(curr_dir, f_name) for f_name in sorted(os.listdir(curr_dir)) if
-                 self.type_file in f_name]
-        print(f"Start with {curr_dir}")
-        num_files = len(files)
-        self.find_roi(files, curr_dir)
+        # files = [osp.join(curr_dir, f_name) for f_name in sorted(os.listdir(curr_dir)) if
+        #          self.type_file in f_name]
+        # print(f"Start with {curr_dir}")
+        # num_files = len(files)
 
-        if self.num_frames == 'all':
-            num_frames = num_files
-        elif isinstance(self.num_frames, int):
-            num_frames = self.num_frames
-        else:
-            assert False, f"The provided num_frames {type(self.num_frames)} variable type is not supported"
+        # if self.num_frames == 'all':
+        #     num_frames = num_files
+        # elif isinstance(self.num_frames, int):
+        #     num_frames = self.num_frames
+        # else:
+        #     assert False, f"The provided num_frames {type(self.num_frames)} variable type is not supported"
 
         # read the current frame CSVs
-        temp_data = [pd.read_csv(files[ind_tmp]) for ind_tmp in range(num_frames)]
-        df_data = pd.concat(temp_data, axis=0).reset_index(drop=True)
+        # temp_data = [pd.read_csv(files[ind_tmp]) for ind_tmp in range(num_frames)]
+        # df_data = pd.concat(temp_data, axis=0).reset_index(drop=True)
+        # print(f"{df_data.columns}")
+        save_path = Path(curr_dir).parent.joinpath('all_data_df.csv')
+        df_data = pd.read_csv(save_path,index_col=False).reset_index(drop=True)
+        self.find_roi(df_data, curr_dir)
 
         link_edges = []
         if self.same_frame or self.next_frame:
