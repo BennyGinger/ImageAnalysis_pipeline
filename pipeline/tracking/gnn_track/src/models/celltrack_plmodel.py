@@ -71,8 +71,8 @@ class CellTrackLitModel(LightningModule):
             "val/loss": [],
         }
 
-    def forward(self, x, edge_index, edge_feat):
-        return self.model(x, edge_index, edge_feat)
+    def forward(self, x, edge_index):
+        return self.model(x, edge_index)
 
     def _compute_loss(self, outputs, edge_labels):
         edge_sum = edge_labels.sum()

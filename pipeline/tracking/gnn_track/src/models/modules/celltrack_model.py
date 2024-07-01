@@ -25,7 +25,7 @@ class CellTrack_Model(nn.Module):
 
         self.edge_classifier = MLP(**edge_classifier_dic)
 
-    def forward(self, x, edge_index, edge_feat):
+    def forward(self, x, edge_index,):
         x1, x2 = x
         x_init = torch.cat((x1, x2), dim=-1)
         src, trg = edge_index

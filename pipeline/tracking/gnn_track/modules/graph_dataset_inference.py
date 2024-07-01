@@ -207,16 +207,6 @@ class CellTrackDataset:
             array[:, self.normalize_cols] = scaler.fit_transform(array[:, self.normalize_cols])
         return array
 
-    def edge_feat_embedding(self, x, edge_index):
-        src, trg = edge_index
-        sub_x = x[src] - x[trg]
-        abs_sub = np.abs(sub_x)
-        res = abs_sub ** 2 if self.edge_feat_embed_dict['p'] == 2 else abs_sub
-        # try to preprocess edge features embedding - min-max normalization or z-score normalization ...
-        if self.edge_feat_embed_dict['normalized_features']:
-            res = self.normalize_array(res)
-        return res
-
     # FIXME: I think we can adjust the size of the roi to the max_travle dist, instead of this arbitrary value
     def define_bbox_size(self, df_data: pd.DataFrame):
         if self.is_3d:
@@ -314,22 +304,12 @@ class CellTrackDataset:
             self.separate_cols = np.array(['feat' not in name_col for name_col in trimmed_df.columns])
 
 
-        if not self.edge_feat_embed_dict['use_normalized_x']:
-            x = torch.FloatTensor(self.preprocess(trimmed_df.loc[:, self.separate_cols]))
-            x_2 = torch.FloatTensor(trimmed_df.loc[:, np.logical_not(self.separate_cols)].values)
-            edge_feat = self.edge_feat_embedding(trimmed_df.values, edge_index)
-        else:
-            x = self.preprocess(trimmed_df.loc[:, self.separate_cols])
-            x_2 = trimmed_df.loc[:, np.logical_not(self.separate_cols)].values
-            edge_feat = self.edge_feat_embedding(np.concatenate((x, x_2), axis=-1), edge_index)
-            x = torch.FloatTensor(x)
-            x_2 = torch.FloatTensor(x_2)
-
-        edge_feat = torch.FloatTensor(edge_feat)
-        # data = Data(x=x, x_2=x_2, edge_index=edge_index, edge_feat=edge_feat)
-        data = (x, x_2, edge_index, edge_feat)
-
-        return [data]
+        x = self.preprocess(trimmed_df.loc[:, self.separate_cols])
+        x = torch.FloatTensor(x)
+        x_2 = trimmed_df.loc[:, np.logical_not(self.separate_cols)].values
+        x_2 = torch.FloatTensor(x_2)
+        
+        return x, x_2, edge_index
 
     def _process(self, curr_mode: str):
         # Read data into huge `Data` list and store in dictionary.

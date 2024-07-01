@@ -18,20 +18,22 @@ def predict(ckpt_path: PathType, save_dir: PathType, frames: int):
     config_sets = load_configuration_settings(ckpt_path, save_dir,frames)
 
     data_train: CellTrackDataset = CellTrackDataset(**config_sets['dataset_params'], split='test')
-    data_list = data_train.create_graph()
-    test_data = data_list[0]
-    x, x2, edge_index, edge_feature = test_data
+    # data_list = data_train.create_graph()
+    test_data = data_train.create_graph()
+    # test_data = data_list[0]
+    x, x2, edge_index = test_data
+    # tup = (x,x2)
+    # tup, edge_index, edge_feature = test_data
     
-    tup = (x,x2)
     trained_model = load_model(ckpt_path)
     # make prediction
     # outputs = trained_model((x, x2), edge_index, edge_feature.float())
-    outputs = trained_model(tup, edge_index, edge_feature.float())
+    # outputs = trained_model((x,x2), edge_index, edge_feature)
+    outputs = trained_model((x,x2), edge_index)
     
     
     os.makedirs(save_dir, exist_ok=True)
     file1 = os.path.join(save_dir, 'pytorch_geometric_data.pt')
-    file2 = os.path.join(save_dir, 'all_data_df.csv')
     file3 = os.path.join(save_dir, 'raw_output.pt')
     torch.save(test_data, file1)
     torch.save(outputs, file3)
