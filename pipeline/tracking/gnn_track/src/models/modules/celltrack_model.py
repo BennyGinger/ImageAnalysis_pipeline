@@ -25,19 +25,19 @@ class CellTrack_Model(nn.Module):
 
         self.edge_classifier = MLP(**edge_classifier_dic)
 
-    def forward(self, x, edge_index,):
-        x1, x2 = x
-        x_init = torch.cat((x1, x2), dim=-1)
+    def forward(self, node_features, edge_index,):
+        cell_feat, cell_param = node_features
+        x_init = torch.cat((cell_feat, cell_param), dim=-1)
         src, trg = edge_index
         similarity1 = self.distance(x_init[src], x_init[trg])
         abs_init = torch.abs(x_init[src] - x_init[trg])
-        x1 = self.handcrafted_node_embedding(x1)
-        x2 = self.learned_node_embedding(x2)
-        x = torch.cat((x1, x2), dim=-1)
+        cell_feat = self.handcrafted_node_embedding(cell_feat)
+        cell_param = self.learned_node_embedding(cell_param)
+        node_features = torch.cat((cell_feat, cell_param), dim=-1)
         src, trg = edge_index
-        similarity2 = self.distance(x[src], x[trg])
-        edge_feat_in = torch.cat((abs_init, similarity1[:, None], x[src], x[trg], torch.abs(x[src] - x[trg]), similarity2[:, None]), dim=-1)
+        similarity2 = self.distance(node_features[src], node_features[trg])
+        edge_feat_in = torch.cat((abs_init, similarity1[:, None], node_features[src], node_features[trg], torch.abs(node_features[src] - node_features[trg]), similarity2[:, None]), dim=-1)
         edge_init_features = self.learned_edge_embedding(edge_feat_in)
-        edge_feat_mp = self.message_passing(x, edge_index, edge_init_features)
+        edge_feat_mp = self.message_passing(node_features, edge_index, edge_init_features)
         pred = self.edge_classifier(edge_feat_mp).squeeze()
         return pred

@@ -304,12 +304,11 @@ class CellTrackDataset:
             self.separate_cols = np.array(['feat' not in name_col for name_col in trimmed_df.columns])
 
 
-        x = self.preprocess(trimmed_df.loc[:, self.separate_cols])
-        x = torch.FloatTensor(x)
-        x_2 = trimmed_df.loc[:, np.logical_not(self.separate_cols)].values
-        x_2 = torch.FloatTensor(x_2)
+        cell_feat = torch.FloatTensor(self.preprocess(trimmed_df.loc[:, self.separate_cols]))
+        cell_params = torch.FloatTensor(trimmed_df.loc[:, np.logical_not(self.separate_cols)].values)
+        node_features = (cell_feat, cell_params)
         
-        return x, x_2, edge_index
+        return node_features, edge_index
 
     def _process(self, curr_mode: str):
         # Read data into huge `Data` list and store in dictionary.
