@@ -9,13 +9,13 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-def predict(ckpt_path: PathType, save_dir: PathType, frames: int):
+def predict(ckpt_path: PathType, save_dir: Path, frames: int):
     """Inference with trained model.
     It loads trained model from checkpoint.
     Then it creates graph and make prediction.
     """
 
-    config_sets = load_configuration_settings(ckpt_path, save_dir,frames)
+    config_sets = load_configuration_settings(ckpt_path,save_dir,frames)
 
     data_train: CellTrackDataset = CellTrackDataset(**config_sets['dataset_params'], split='test')
     node_features, edge_index = data_train.create_graph()
@@ -25,12 +25,11 @@ def predict(ckpt_path: PathType, save_dir: PathType, frames: int):
     # make prediction
     outputs = trained_model(node_features, edge_index)
     
-    
-    os.makedirs(save_dir, exist_ok=True)
-    file1 = os.path.join(save_dir, 'pytorch_geometric_data.pt')
-    file3 = os.path.join(save_dir, 'raw_output.pt')
-    torch.save((node_features, edge_index), file1)
-    torch.save(outputs, file3)
+    # save results
+    graph_path = save_dir.joinpath('pytorch_geometric_data.pt')
+    torch.save((node_features, edge_index), graph_path)
+    preds = save_dir.joinpath('raw_output.pt')
+    torch.save(outputs, preds)
 
 def load_configuration_settings(ckpt_path: PathType, save_dir: PathType, frames: int)-> dict:
     
@@ -52,7 +51,7 @@ def load_model(ckpt_path: PathType)-> CellTrackLitModel:
     # load model from checkpoint model __init__ parameters will be loaded from ckpt automatically you can also pass some parameter explicitly to override it
     trained_model = CellTrackLitModel.load_from_checkpoint(checkpoint_path=ckpt_path)
 
-    # switch to evaluation mode
+    # switch to test mode
     trained_model.eval()
     trained_model.freeze()
     return trained_model
