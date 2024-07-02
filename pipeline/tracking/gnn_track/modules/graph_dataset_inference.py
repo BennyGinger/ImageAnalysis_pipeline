@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import os.path as osp
 from collections.abc import Iterable
@@ -90,69 +91,70 @@ class CellTrackDataset:
         # self._process(split)
 
 
-    def filter_by_roi(self, df_data_curr, df_data_next):
-        cols = ["centroid_row", "centroid_col"]
+    def filter_by_roi(self, df_data_curr: pd.DataFrame, df_data_next: pd.DataFrame)-> list[tuple[int,int]]:
+        # Columns to consider for ROI calculation
+        cents_cols = ["centroid_row", "centroid_col"]
         if self.is_3d:
-            cols.append("centroid_depth")
-        df_data_curr_ceter, df_data_next_ceter = df_data_curr.loc[:, cols], df_data_next.loc[:, cols]
+            cents_cols.append("centroid_depth")
+        
+        # Extract ROI columns from current and next frame data
+        curr_centers, next_centers = df_data_curr.loc[:, cents_cols], df_data_next.loc[:, cents_cols]
 
-        curr_list = []
+        
+        index_pairs = []
 
-        for ind in df_data_curr_ceter.index.values:
-            row_coord, col_coord = df_data_curr_ceter.centroid_row[ind], df_data_curr_ceter.centroid_col[ind]
+        for cell_idx in curr_centers.index.values:
+            # Extract the centroid coordinates for the current cell
+            row_coord, col_coord = curr_centers.centroid_row[cell_idx], curr_centers.centroid_col[cell_idx]
             max_row, min_row = row_coord + self.curr_roi['row'], row_coord - self.curr_roi['row']
             max_col, min_col = col_coord + self.curr_roi['col'], col_coord - self.curr_roi['col']
 
-            row_vals, col_vals = df_data_next_ceter.centroid_row.values, df_data_next_ceter.centroid_col.values
+            # Create masks to find cells within the ROI in the next frame
+            row_vals, col_vals = next_centers.centroid_row.values, next_centers.centroid_col.values
             mask_row = np.bitwise_and(min_row <= row_vals, row_vals <= max_row)
             mask_col = np.bitwise_and(min_col <= col_vals, col_vals <= max_col)
             mask_all = np.bitwise_and(mask_row, mask_col)
 
             if self.is_3d:
-                depth_coord = df_data_curr_ceter.centroid_depth[ind]
+                depth_coord = curr_centers.centroid_depth[cell_idx]
                 max_depth, min_depth = depth_coord + self.curr_roi['depth'], depth_coord - self.curr_roi['depth']
-                depth_vals = df_data_next_ceter.centroid_depth.values
+                depth_vals = next_centers.centroid_depth.values
                 mask_depth = np.bitwise_and(min_depth <= depth_vals, depth_vals <= max_depth)
                 mask_all = np.bitwise_and(mask_all, mask_depth)
 
-            next_indices = df_data_next_ceter.index[mask_all].values
-            curr_indices = np.ones_like(next_indices) * ind
-            curr_list += np.concatenate((curr_indices[:, None], next_indices[:, None]), -1).tolist()
-        return curr_list
+            # Find indices of next frame cells within the ROI
+            next_indices = next_centers.index[mask_all].values
+            # Pair each next frame index with the current frame index
+            curr_indices = np.ones_like(next_indices) * cell_idx
+            index_pairs += np.concatenate((curr_indices[:, None], next_indices[:, None]), -1).tolist()
+        return index_pairs
 
-    def same_next_links(self, df_data, link_edges):
+    def link_all_edges(self, df_data: pd.DataFrame)-> list[tuple[int,int]]:
         """
         doing aggregation of the same frame links + the links between 2 consecutive frames
         """
         # In the following loop- doing aggregation of the same frame links + the links between 2 consecutive frames
-        same_next_edge_index = []
-        iter_frames = np.unique(df_data.frame_num.values)
-        for loop_ind, frame_ind in enumerate(iter_frames[:-1]):
-            # find the places containing the specific frame index
+        linked_edges = []
+        for frame_ind in np.unique(df_data.frame_num.values)[:-1]:
+            # Find all cells in the given frame
             mask_frame = df_data.frame_num.isin([frame_ind])
-            nodes = df_data.index[mask_frame].values.tolist()
             
             # doing aggregation of the links between 2 consecutive frames
             # FIXME: We may be able to add the gap links here...
-            if self.next_frame:
-                # find the places containing the specific frame index
-                mask_next_frame = df_data.frame_num.isin([iter_frames[loop_ind + 1]])
-                next_nodes = df_data.index[mask_next_frame].values.tolist()
-                # FIXME: I think most of the time we will filter the edges, so we can remove the if condition
-                if self.filter_edges:
-                    curr_list = self.filter_by_roi(df_data.loc[mask_frame, :], df_data.loc[mask_next_frame, :])
-                    curr_list = list(filter(lambda x: not (x in link_edges), curr_list))
-                else:
-                    curr_list = [list(tup) for tup in itertools.product(nodes, next_nodes)
-                                    if not (list(tup) in link_edges)]
-                # FIXME: Might be able to use undirected edges
-                if not self.directed:
-                    # take the opposite direction using [::-1] and merge one-by-one
-                    # with directed and undirected edges
-                    curr_list_opposite = [pairs[::-1] for pairs in curr_list]
-                    curr_list = list(itertools.chain.from_iterable(zip(curr_list, curr_list_opposite)))
-                same_next_edge_index += curr_list
-        return same_next_edge_index
+            # Find all cells in the given consecutive frames
+            mask_next_frame = df_data.frame_num.isin([frame_ind + 1])
+            
+            frame_edges = self.filter_by_roi(df_data.loc[mask_frame, :], df_data.loc[mask_next_frame, :])
+            
+            # FIXME: Might be able to use undirected edges
+            if not self.directed:
+                # take the opposite direction using [::-1] and merge one-by-one
+                # with directed and undirected edges
+                opposite_edges = [pairs[::-1] for pairs in frame_edges]
+                frame_edges = list(itertools.chain.from_iterable(zip(frame_edges, opposite_edges)))
+            
+            linked_edges.extend(frame_edges)
+        return linked_edges
 
     def create_gt(self, df_data, curr_frame, next_frame):
         """
@@ -180,33 +182,19 @@ class CellTrackDataset:
             y = one_hot(y, num_classes=num_classes).flatten()
         return y
 
-    def preprocess(self, dropped_df):
-        array = dropped_df.values
-        if self.normalize:
-            array = self.normalize_array(array)
-        return array
-
-    def normalize_array(self, array):
-        """
-        input:
-        - array (numpy.ndarray): array should be normalized
-        - norm_col (numpy.ndarray): columns should be normalized
-        output:
-        - array (numpy.ndarray): normalized array
-        """
-        if self.which_preprocess == 'MinMax':
-            scaler = MinMaxScaler()
-        elif self.which_preprocess == 'Standard':
+    def scale_cell_params(self, trimmed_params_df: pd.DataFrame)-> np.ndarray:
+        # Convert df to array
+        array = trimmed_params_df.values
+        
+        # Initialize the scaler
+        if self.which_preprocess == 'Standard':
             scaler = StandardScaler()
         else:
             scaler = MinMaxScaler()
-        # array[:, self.normalize_cols] = scaler.fit_transform(array[:, self.normalize_cols])
-        if self.separate_models:
-            array = scaler.fit_transform(array)
-        else:
-            array[:, self.normalize_cols] = scaler.fit_transform(array[:, self.normalize_cols])
-        return array
-
+        
+        # Normalize the array. NOTE: Originally 2 different way of normalization was used, but all the model uses separate_models, so I removed the other one.
+        return scaler.fit_transform(array)
+    
     # FIXME: I think we can adjust the size of the roi to the max_travle dist, instead of this arbitrary value
     def define_bbox_size(self, df_data: pd.DataFrame):
         if self.is_3d:
@@ -274,39 +262,21 @@ class CellTrackDataset:
         
         self.define_bbox_size(df_data)
 
-        link_edges = []
-        if self.same_frame or self.next_frame:
-            link_edges += self.same_next_links(df_data, link_edges)
-
-        # convert to torch tensor
+        ## Create the edges and convert to torch tensor
+        link_edges = self.link_all_edges(df_data)
         edge_index = [torch.tensor([lst], dtype=torch.long) for lst in link_edges]
         edge_index = torch.cat(edge_index, dim=0).t().contiguous()
 
-        if not ('id' in drop_col_list) and 'id' in df_data.columns:
-            drop_col_list.append('id')
-            warnings.warn("Find the id label as part of the features and dropped it, please be aware")
-        if not ('seg_label' in drop_col_list) and 'seg_label' in df_data.columns:
-            drop_col_list.append('seg_label')
-            warnings.warn("Find the seg label as part of the features and dropped it, please be aware")
+        # Remove the mask label column
+        trimmed_df = df_data.drop('seg_label', axis=1)
 
-        trimmed_df = df_data.drop(drop_col_list, axis=1)
-        for feat in self.drop_feat:
-            
-            if feat in trimmed_df.columns:
-                trimmed_df = trimmed_df.drop([feat], axis=1)
-
-        if self.normalize_all_cols:
-            self.normalize_cols = np.ones((trimmed_df.shape[-1]), dtype=bool)
-        else:
-            self.normalize_cols = np.array(['feat' not in name_col for name_col in trimmed_df.columns])
-
-        if self.separate_models:
-            self.separate_cols = np.array(['feat' not in name_col for name_col in trimmed_df.columns])
-
-
-        cell_feat = torch.FloatTensor(self.preprocess(trimmed_df.loc[:, self.separate_cols]))
-        cell_params = torch.FloatTensor(trimmed_df.loc[:, np.logical_not(self.separate_cols)].values)
-        node_features = (cell_feat, cell_params)
+        # Separate the columns into cell parameters and cell features
+        self.separate_cols = np.array(['feat' not in name_col for name_col in trimmed_df.columns])
+        
+        # Create the node features tensors
+        cell_params = torch.FloatTensor(self.scale_cell_params(trimmed_df.loc[:, self.separate_cols]))
+        cell_feat = torch.FloatTensor(trimmed_df.loc[:, np.logical_not(self.separate_cols)].values)
+        node_features = (cell_params, cell_feat)
         
         return node_features, edge_index
 

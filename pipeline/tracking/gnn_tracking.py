@@ -11,6 +11,7 @@ from skimage.measure import regionprops_table
 from matplotlib.colors import cnames
 from pandas import DataFrame
 import json
+from time import time
 
 import numpy as np #TODO remove later!
 
@@ -74,8 +75,10 @@ def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_trav
     extract_img_features(img_fold_src,seg_fold_src,model_dict['model_metric'],save_dir,channel_to_track,ow_extract_feat)
     
     # Run the model    
+    start = time()
     predict(ckpt_path=model_dict['model_lightning'], save_dir=save_dir, frames=frames)
-
+    end = time()
+    print(f"Time to predict: {round(end-start,ndigits=3)} sec\n")
     # Postprocess the model output
     is_3d = True if z_slices > 1 else False
     pp = Postprocess(is_3d=is_3d, type_masks='tif', merge_operation='AND', decision_threshold=decision_threshold,
