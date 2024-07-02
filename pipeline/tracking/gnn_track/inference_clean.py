@@ -9,18 +9,17 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-def predict(ckpt_path: PathType, save_dir: Path, frames: int):
+def predict(ckpt_path: PathType, save_dir: Path, max_travel_pix: int, is_3d: bool = False, directed: bool = True):
     """Inference with trained model.
     It loads trained model from checkpoint.
     Then it creates graph and make prediction.
     """
-
-    config_sets = load_configuration_settings(ckpt_path,save_dir,frames)
-
-    data_train: CellTrackDataset = CellTrackDataset(**config_sets['dataset_params'], split='test')
+    # Create graph
+    data_train: CellTrackDataset = CellTrackDataset(save_dir,max_travel_pix,is_3d,directed)
     node_features, edge_index = data_train.create_graph()
     
     # load model from checkpoint
+    print(f"   ---> Load model from: \033[94m{ckpt_path}\033[0m")
     trained_model = load_model(ckpt_path)
     # make prediction
     outputs = trained_model(node_features, edge_index)
@@ -30,20 +29,6 @@ def predict(ckpt_path: PathType, save_dir: Path, frames: int):
     torch.save((node_features, edge_index), graph_path)
     preds = save_dir.joinpath('raw_output.pt')
     torch.save(outputs, preds)
-
-def load_configuration_settings(ckpt_path: PathType, save_dir: PathType, frames: int)-> dict:
-    
-    print(f"   ---> Load model from: \033[94m{ckpt_path}\033[0m")
-    
-    parent_path = Path(ckpt_path).parent
-    config_path = parent_path.joinpath('.hydra/config.yaml')
-    with open(config_path) as file:
-        config_settings = yaml.full_load(file)['datamodule']
-
-    config_settings['dataset_params']['num_frames'] = frames 
-    config_settings['dataset_params']['main_path'] = save_dir
-    config_settings['dataset_params']['dirs_path']['test'] = ['']
-    return config_settings
 
 def load_model(ckpt_path: PathType)-> CellTrackLitModel:
     """Load model from checkpoint.

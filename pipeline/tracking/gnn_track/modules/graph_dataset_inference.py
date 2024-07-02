@@ -1,59 +1,22 @@
 from __future__ import annotations
-import os
-import os.path as osp
-from collections.abc import Iterable
-
+from dataclasses import field, dataclass
 import itertools
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
-
+from sklearn.preprocessing import MinMaxScaler
 import torch
-from torch.nn.functional import one_hot
-from torch_geometric.data import Data
 
-import warnings
-warnings.simplefilter('always')
 
+@dataclass
 class CellTrackDataset:
-    def __init__(self,
-                 num_frames,
-                 type_file,
-                 dirs_path,
-                 main_path,
-                 edge_feat_embed_dict,
-                 normalize_all_cols,
-                 mul_vals=[2, 2, 2],
-                 produce_gt='simple',
-                 split='train',
-                 exp_name='',
-                 overlap=1,
-                 jump_frames=1,
-                 filter_edges=False,
-                 directed=True,
-                 same_frame=True, #TODO False?
-                 next_frame=True,
-                 separate_models=False,
-                 one_hot_label=True,
-                 self_loop=True,
-                 normalize=True,
-                 debug_visualization=False,
-                 which_preprocess='MinMax',
-                 drop_feat=[]
-                 ):
-        # List of int, to scale up the ROI: [2, 2, 2] for 3D and [2, 2] for 2D
-        self.mul_vals = mul_vals
+    save_dir: Path
+    max_travel_pix: int
+    is_3d: bool=False
+    directed: bool=True
+    curr_roi: dict[str,int] = field(init=False)
         
-        # The experiment name must contain the string '3D' or 2D
-        self.is_3d = True if '3D' in exp_name else False
         
-        # Create a dict with train or test as keys and a list of paths as values to be processed
-        self.save_dir = main_path        
-        
-        self.directed = directed
-
-
     def filter_by_roi(self, df_curr: pd.DataFrame, df_next: pd.DataFrame)-> list[tuple[int,int]]:
         
         # Columns to consider for ROI calculation
@@ -129,7 +92,6 @@ class CellTrackDataset:
         # Scale the array
         return scaler.fit_transform(array)
     
-    # FIXME: I think we can adjust the size of the roi to the max_travle dist, instead of this arbitrary value
     def define_bbox_size(self, df: pd.DataFrame)-> None:
         if self.is_3d:
             cols = ['min_row_bb', 'min_col_bb', 'max_row_bb', 'max_col_bb',
@@ -141,14 +103,17 @@ class CellTrackDataset:
         max_row = np.abs(bb_feat.min_row_bb.values - bb_feat.max_row_bb.values).max()
         max_col = np.abs(bb_feat.min_col_bb.values - bb_feat.max_col_bb.values).max()
 
-        self.curr_roi = {'row': max_row * self.mul_vals[0], 'col': max_col * self.mul_vals[1]}
+        increase_factor = self.max_travel_pix * 2
+        self.curr_roi = {'row': max_row + increase_factor, 'col': max_col + increase_factor}
         if self.is_3d:
             max_depth = np.abs(bb_feat.min_depth_bb.values - bb_feat.max_depth_bb.values).max()
-            self.curr_roi['depth'] = max_depth * self.mul_vals[2]
+            self.curr_roi['depth'] = max_depth * self.max_travel_pix
 
     def create_graph(self)-> tuple[tuple[torch.FloatTensor,torch.FloatTensor], torch.Tensor]:
         # Load the data from the CSV file
         save_path = Path(self.save_dir).joinpath('all_data_df.csv')
+        print(f"   ---> Create graph from: \033[94m{save_path}\033[0m")
+        
         df_data = pd.read_csv(save_path,index_col=False).reset_index(drop=True)
         
         # Define the bounding box size
@@ -163,11 +128,11 @@ class CellTrackDataset:
         trimmed_df = df_data.drop('seg_label', axis=1)
 
         # Separate the columns into cell parameters and cell features
-        self.separate_cols = np.array(['feat' not in name_col for name_col in trimmed_df.columns])
+        separate_cols = np.array(['feat' not in name_col for name_col in trimmed_df.columns])
         
         # Create the node features tensors
-        cell_params = torch.FloatTensor(self.scale_cell_params(trimmed_df.loc[:, self.separate_cols]))
-        cell_feat = torch.FloatTensor(trimmed_df.loc[:, np.logical_not(self.separate_cols)].values)
+        cell_params = torch.FloatTensor(self.scale_cell_params(trimmed_df.loc[:, separate_cols]))
+        cell_feat = torch.FloatTensor(trimmed_df.loc[:, np.logical_not(separate_cols)].values)
         node_features = (cell_params, cell_feat)
         
         return node_features, edge_index
