@@ -23,7 +23,7 @@ MODEL = {**BUILD_IN_MODEL, **IN_HOUSE_MODEL}
 # [ ] Need to test the 3D tracking
 ################################## Main function ##################################
 
-def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_travel_dist: int, img_fold_src: str, mask_fold_src: str, overwrite: bool=False, decision_threshold: float=0.5, manual_correct: bool=False, trim_incomplete_tracks: bool=False, directed: bool=False, **kwargs)-> None:
+def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_travel_dist: int, img_fold_src: str, seg_fold_src: str, overwrite: bool=False, decision_threshold: float=0.5, manual_correct: bool=False, trim_incomplete_tracks: bool=False, directed: bool=False, **kwargs)-> None:
     """
     Perform GNN Tracking based cell tracking on a list of experiments.
 
@@ -32,8 +32,8 @@ def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_trav
         channel_seg (str): Channel name for segmentation.
         model (str): name of the model (at the moment only 'neutrophil' or 'neutrophil_old')
         overwrite (bool, optional): Flag to overwrite existing tracking results. Defaults to False.
-        img_fold_src (str): Source folder path for images.
-        mask_fold_src (str): Source folder path for masks.
+        img_fold_src (str): Source folder name for images.
+        mask_fold_src (str): Source folder name for masks.
         morph: bool=False (not included yet)
         mask_appear (int, optional): Number of times a mask should appear to be considered valid. Defaults to 2.
         decision_threshold (float, optional): #0 to 1, 1=more interrupted tracks, 0= more tracks gets connected.(Source: ChatGPT) Defaults to 0.5.
@@ -61,56 +61,80 @@ def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_trav
     # Track images
     print(f" --> Tracking cells for the '{channel_to_track}' channel")
     
-    # Prepare tracking
-    prediction_dir: Path = exp_path.joinpath('gnn_files')
-    prediction_dir.mkdir(exist_ok=True)
-    seg_fold_src = exp_path.joinpath(mask_fold_src)
-    img_fold_src: Path = exp_path.joinpath(img_fold_src)
-    _, _, frames, z_slices = get_exp_props(list(img_fold_src.glob('*.tif')))
-    model_dict = model_select(model=model)
-    metadata = unpack_kwargs(kwargs)
+    ## Prepare tracking
+    # Set all the paths
+    img_paths, preds_dir, seg_paths, model_path, ckpt_path = set_all_paths(exp_path, model, img_fold_src, seg_fold_src)
+    # Get the properties of the experiment
+    _, _, frames, z_slices = get_exp_props(list(img_paths.glob('*.tif')))
+    is_3d = True if z_slices > 1 else False
 
     # Create csv files
-    ow_extract_feat = overwrite_extraction_feat(passed_args,prediction_dir)
-    extract_img_features(img_fold_src,seg_fold_src,model_dict['model_metric'],prediction_dir,channel_to_track,ow_extract_feat)
+    ow_extract_feat = overwrite_extraction_feat(passed_args,preds_dir)
+    extract_img_features(img_paths=img_paths,
+                         seg_paths=seg_paths,
+                         model_path=model_path,
+                         save_dir=preds_dir,
+                         channel=channel_to_track,
+                         overwrite=ow_extract_feat)
     
     # Run the model    
     start = time()
-    predict(ckpt_path=model_dict['model_lightning'], prediction_dir=prediction_dir, is_3d=True if z_slices > 1 else False, max_travel_pix=max_travel_dist, directed=directed)
+    predict(ckpt_path=ckpt_path,
+            prediction_dir=preds_dir,
+            is_3d=is_3d,
+            max_travel_pix=max_travel_dist, 
+            directed=directed)
     end = time()
     print(f"Time to predict: {round(end-start,ndigits=3)} sec\n")
     
-    
-    start = time()
     # Postprocess the model output
-    is_3d = True if z_slices > 1 else False
-    pp = Postprocess(is_3d=is_3d, merge_operation='AND', decision_threshold=decision_threshold,
-                    prediction_dir=prediction_dir, directed=directed, seg_fold_src=seg_fold_src, max_travel_dist=max_travel_dist)
+    start = time()
+    pp = Postprocess(is_3d=is_3d,
+                     seg_paths=seg_paths,
+                     preds_dir=preds_dir,
+                     decision_threshold=decision_threshold,
+                     merge_operation='AND',
+                     max_travel_dist=max_travel_dist,
+                     directed=directed)
     
-    pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
-    # np.savetxt("/home/Fabian/ImageData/all_frames_traject.csv", all_frames_traject, delimiter=",")
-    # np.savetxt("/home/Fabian/ImageData/trajectory_same_label.csv", trajectory_same_label, delimiter=",")
+    all_frames_traject, trajectory_same_label, str_track = pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
+    all_frames_path = preds_dir.joinpath(f'all_frames_traject.csv')
+    traj_path = preds_dir.joinpath(f'trajectory_same_label.csv')
+    str_track_path = preds_dir.joinpath(f'str_track.csv')
+    print(f"{all_frames_traject.shape = }")
+    np.savetxt(all_frames_path, all_frames_traject, delimiter=",")
+    np.savetxt(traj_path, trajectory_same_label, delimiter=",")
+    with open(str_track_path, 'w') as file:
+        file.write(str_track)
 
     pp.fill_mask_labels(debug=False)
     end = time()
     print(f"Time to postprocess: {round(end-start,ndigits=3)} sec\n")
     
-    #relabel the masks from ID 1 until n and add metadata
+    # Relabel the masks from ID 1 until n and add metadata
+    metadata = unpack_kwargs(kwargs)
     relabel_masks(frames,save_path,channel_to_track,metadata,trim_incomplete_tracks)
     
     if manual_correct: #write mdf file to manual correct the tracks later
         prepare_manual_correct(frames,save_path,channel_to_track,exp_path)
 
 
+
+
 ################################## Helper functions ##################################
-def model_select(model: str)-> dict:
+def set_all_paths(exp_path: Path, model: str, img_fold_src: Path, seg_fold_src: Path)-> tuple[Path, Path, Path, Path, Path]:
+    # Create save directory
+    preds_dir: Path = exp_path.joinpath('gnn_files')
+    preds_dir.mkdir(exist_ok=True)
+    # Get paths for the images and seg masks
+    seg_paths = exp_path.joinpath(seg_fold_src)
+    img_paths: Path = exp_path.joinpath(img_fold_src)
+    # Get the model paths
     if model not in MODEL:
         raise AttributeError(f"{model =} is not a valid modelname.")
-    
-    model_dict = {"model_metric": f"/home/ImageAnalysis_pipeline/pipeline/tracking/gnn_track/models/{model}/all_params.pth",
-                  "model_lightning": f"/home/ImageAnalysis_pipeline/pipeline/tracking/gnn_track/models/{model}/{MODEL[model]}"}
-    
-    return model_dict
+    model_path = Path(f"/home/ImageAnalysis_pipeline/pipeline/tracking/gnn_track/models/{model}/all_params.pth")
+    ckpt_path = Path(f"/home/ImageAnalysis_pipeline/pipeline/tracking/gnn_track/models/{model}/{MODEL[model]}")
+    return img_paths,preds_dir,seg_paths,model_path,ckpt_path
 
 def create_mdf_file(exp_path: Path, points_df, channel_seg):
     mdf_lst = []
@@ -204,7 +228,7 @@ def overwrite_extraction_feat(local_args: dict, save_dir: Path)-> bool:
         args_dict = json.load(file)
     
     # Check if any of those key/value pairs are different
-    key_ref = ['img_fold_src','mask_fold_src','model']
+    key_ref = ['img_fold_src','seg_fold_src','model']
     for key in key_ref:
         if args_dict[key] != local_args[key]:
             write_json(local_args,args_path)
@@ -221,7 +245,7 @@ if __name__ == "__main__":
                  model="PhC-C2DH-U373",
                  max_travel_dist=10,
                  img_fold_src="Images_Registered",
-                 mask_fold_src="Masks_Cellpose",
+                 seg_fold_src="Masks_Cellpose",
                  overwrite=True,
                  decision_threshold=0.4,
                  manual_correct=False,

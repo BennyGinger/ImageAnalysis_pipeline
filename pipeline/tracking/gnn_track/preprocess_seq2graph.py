@@ -22,22 +22,22 @@ PROPERTIES = ['label', 'area', 'bbox', 'centroid', 'major_axis_length', 'minor_a
 
 # [ ]: Test 3D.
 ############################ Main function ############################
-def extract_img_features(img_fold_src: PathType, seg_fold_src: PathType, model_param_path: PathType, save_dir: PathType, channel: str, overwrite: bool)-> None:
+def extract_img_features(img_paths: Path, seg_paths: Path, model_path: Path, save_dir: Path, channel: str, overwrite: bool)-> None:
     """Main function to extract the image features using the metric learning model. 
     
     Args:
-        img_fold_src (PathType): The path to the folder containing the images.
+        img_fold_src (Path): The path to the folder containing the images.
         
-        seg_fold_src (PathType): The path to the folder containing the segmentation masks.
+        seg_fold_src (Path): The path to the folder containing the segmentation masks.
         
-        model_param_path (PathType): The path to the model parameters file.
+        model_param_path (Path): The path to the model parameters file.
         
-        save_dir (PathType): The path to the folder to save the extracted features.
+        save_dir (Path): The path to the folder to save the extracted features.
         
         channel (str): The channel to extract the features from."""
         
         
-    df_feat_path = Path(save_dir).joinpath('df_feat.csv')
+    df_feat_path = save_dir.joinpath('df_feat.csv')
     
     if df_feat_path.exists() and not overwrite:
         # Log
@@ -45,16 +45,16 @@ def extract_img_features(img_fold_src: PathType, seg_fold_src: PathType, model_p
         return
     
     # Load the images and masks
-    exp_path = Path(img_fold_src).parent
-    img_lst = sorted([str(file) for file in Path(img_fold_src).glob(f"*{channel}*.tif")])
-    seg_lst = sorted([str(file) for file in Path(seg_fold_src).glob(f"*{channel}*.tif")])
+    exp_path = img_paths.parent
+    img_lst = sorted([str(file) for file in img_paths.glob(f"*{channel}*.tif")])
+    seg_lst = sorted([str(file) for file in seg_paths.glob(f"*{channel}*.tif")])
     _, _, n_frames, z_slices = get_exp_props(img_lst)
     img_stack = load_stack(img_lst,channel,range(n_frames))
     seg_stack = load_stack(seg_lst,channel,range(n_frames))
     
     
     # Get the roi shape and pad value
-    model_params: dict = torch.load(model_param_path)
+    model_params: dict = torch.load(model_path)
     if z_slices > 1:
         model_roi_shape = (model_params['roi']['depth'], model_params['roi']['row'], model_params['roi']['col'])
     else:

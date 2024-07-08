@@ -1,13 +1,10 @@
 from __future__ import annotations
 import os
-import os.path as osp
 from pathlib import Path
-from typing import Any
 import torch
 import pandas as pd
 import numpy as np
-from skimage import io
-from pipeline.tracking.gnn_track.src.models.modules.celltrack_model import CellTrack_Model
+from tifffile import imwrite, imread
 import warnings
 
 from tqdm import trange
@@ -17,24 +14,24 @@ import imageio
 
 class Postprocess():
     def __init__(self,
-                 is_3d,
-                 seg_fold_src: Path,
-                 prediction_dir,
-                 decision_threshold,
-                 merge_operation,
-                 max_travel_dist,
-                 directed,
+                 is_3d: bool,
+                 seg_paths: Path,
+                 preds_dir: Path,
+                 decision_threshold: float,
+                 merge_operation: str,
+                 max_travel_dist: int,
+                 directed: bool,
                  ):
 
         self.is_3d = is_3d
         
         # Load the segmentation files
-        self.seg_fold_src = seg_fold_src
-        self.seg_paths = sorted(list(self.seg_fold_src.glob('*.tif')))
+        self.seg_paths = seg_paths
+        self.seg_paths_lst = sorted(list(self.seg_paths.glob('*.tif')))
 
         # Load the prediction data
-        self.prediction_dir = prediction_dir
-        self._load_prediction_data()
+        self.preds_dir = preds_dir
+        self.load_prediction_data()
         
         
         self.max_travel_dist = max_travel_dist
@@ -43,13 +40,13 @@ class Postprocess():
         self.directed = directed
         self.cols = ["child_id", "parent_id", "start_frame"]
         
-        self.find_connected_edges()
+        self.connected_edges = self.find_connected_edges()
 
-    def _load_prediction_data(self)-> None:
+    def load_prediction_data(self)-> None:
         # Get the file paths
-        edge_path = self.prediction_dir.joinpath('edge_indexes.pt')
-        df_path = self.prediction_dir.joinpath('df_feat.csv')
-        pred_path = self.prediction_dir.joinpath('raw_preds.pt')
+        edge_path = self.preds_dir.joinpath('edge_indexes.pt')
+        df_path = self.preds_dir.joinpath('df_feat.csv')
+        pred_path = self.preds_dir.joinpath('raw_preds.pt')
         # Load the files
         self.edge_index: torch.Tensor = self._load_tensor(edge_path)
         self.df_feat: pd.DataFrame = self._load_df(df_path)
@@ -65,18 +62,17 @@ class Postprocess():
         print(f"Load {file_path}")
         return torch.load(file_path)
 
-    def find_connected_edges(self)-> None: #outputs are propably the confidence scores of the model, whether two cells are connected
-        """Determines if edges are connected based on the confidence scores from the model and the decision threshold."""
+    def find_connected_edges(self)-> np.ndarray:
+        """Determines if edges are connected based on the confidence scores from the model and the decision threshold. The function returns the connected edges as a boolean-like (0-1) array."""
         
         if self.directed:
             # Scaling the output to 0-1
             preds_soft = torch.sigmoid(self.preds) 
-            self.preds_hard: np.ndarray = (preds_soft > self.decision_threshold).int().numpy()
-        else:
-            self.preds_hard = self.merge_match_edges()
+            return (preds_soft > self.decision_threshold).int().numpy()
+        return self.merge_match_edges()
     
     def merge_match_edges(self)-> np.ndarray: 
-        """Merge the two directions of the edge index based on the confidence scores from the model and the decision threshold. The merge operation can be 'AVG', 'OR', or 'AND', where 'AVG' takes the average of the two directions, 'OR' where at least one directions is above descision threshold, and 'AND' where both directions are above the threshold. The function returns the merged predictions."""
+        """Merge the two directions of the edge index based on the confidence scores from the model and the decision threshold. The merge operation can be 'AVG', 'OR', or 'AND', where 'AVG' takes the average of the two directions, 'OR' where at least one directions is above descision threshold, and 'AND' where both directions are above the threshold. The function returns the merged predictions as a boolean-like (0-1) array."""
         
         # Remove the second direction of the edge index
         self.edge_index = self.edge_index.detach().clone()[:, ::2]
@@ -111,7 +107,7 @@ class Postprocess():
     
     
     def save_csv(self, df_file, file_name):
-        full_name = os.path.join(self.prediction_dir, f"postprocess_data")
+        full_name = os.path.join(self.preds_dir, f"postprocess_data")
         os.makedirs(full_name, exist_ok=True)
         full_name = os.path.join(full_name, file_name)
         df_file.to_csv(full_name)
@@ -254,12 +250,11 @@ class Postprocess():
         return str_track
 
     def create_trajectory(self):
-        edge_index, df, outputs_hard = self.edge_index, self.df_feat, self.preds_hard
         self.flag_id0_terminate = False
         # extract values from arguments
-        connected_indices = edge_index[:, outputs_hard.bool()]
+        connected_indices = self.edge_index[:, self.connected_edges.bool()]
         # find number of frames for iterations
-        frame_nums, counts = np.unique(df.frame_num, return_counts=True)
+        frame_nums, counts = np.unique(self.df_feat.frame_num, return_counts=True)
         all_frames_traject = np.zeros((frame_nums.shape[0], counts.max())) #crearing matrix with shape (rows=frames, column=max num of label in frame)
         # intialize the matrix with -2 meaning empty cell, -1 means end of trajectory,
         # other value means the number of node in the graph
@@ -267,7 +262,7 @@ class Postprocess():
         str_track = ''
         df_parents = []
         for frame_ind in frame_nums: #loop through the frames
-            nodes_indices = df[df.frame_num==frame_ind].index.values # find the places containing frame_ind, nodes_indices: unique value for every node
+            nodes_indices = self.df_feat[self.df_feat.frame_num==frame_ind].index.values # find the places containing frame_ind, nodes_indices: unique value for every node
             # filter the places with the specific frame_ind and take the corresponding indices
 
             next_frame_indices = np.array([])
@@ -284,11 +279,11 @@ class Postprocess():
                     
                     next_frame_ind = connected_indices[1, ind_place][0]#.numpy().squeeze() #get the ID of the potential cells in the next frame
                     if self.is_3d:
-                        next_frame = df.loc[next_frame_ind, ["centroid_depth", "centroid_row", "centroid_col"]].values
-                        curr_node = df.loc[i, ["centroid_depth", "centroid_row", "centroid_col"]].values
+                        next_frame = self.df_feat.loc[next_frame_ind, ["centroid_depth", "centroid_row", "centroid_col"]].values
+                        curr_node = self.df_feat.loc[i, ["centroid_depth", "centroid_row", "centroid_col"]].values
                     else:
-                        next_frame = df.loc[next_frame_ind, ["centroid_row", "centroid_col"]].values #getting the centroid position for the potential connection points
-                        curr_node = df.loc[i, ["centroid_row", "centroid_col"]].values #getting the original centroid
+                        next_frame = self.df_feat.loc[next_frame_ind, ["centroid_row", "centroid_col"]].values #getting the centroid position for the potential connection points
+                        curr_node = self.df_feat.loc[i, ["centroid_row", "centroid_col"]].values #getting the original centroid
                     
                     distance = np.sqrt(((next_frame - curr_node) ** 2).sum(axis=-1)) #get the euclidean distance between the node and the possible cells to connect
 
@@ -320,7 +315,7 @@ class Postprocess():
                     cell_starts.append(i)
             # num_starts = 0
             if num_starts > 0:
-                df_parents.append(self.find_parent_cell(frame_ind, all_frames_traject, df, cell_starts))
+                df_parents.append(self.find_parent_cell(frame_ind, all_frames_traject, self.df_feat, cell_starts))
 
         all_frames_traject = all_frames_traject.astype(int)
 
@@ -340,23 +335,22 @@ class Postprocess():
 
     def get_pred(self, idx):
         pred = None
-        if len(self.seg_paths):
-            im_path = self.seg_paths[idx]
-            pred = io.imread(im_path) #load Image
+        if len(self.seg_paths_lst):
+            im_path = self.seg_paths_lst[idx]
+            pred = imread(im_path) #load Image
             if self.is_3d and len(pred.shape) != 3:
                 pred = np.stack(imageio.mimread(im_path))
                 assert len(pred.shape) == 3, f"Expected 3d dimiension! but {pred.shape}"
         return pred
 
     def create_save_dir(self):
-        save_tra_dir = osp.join(self.seg_fold_src, f"../Masks_GNN_Track") 
-        self.save_tra_dir =save_tra_dir
-        os.makedirs(self.save_tra_dir, exist_ok=True)
+        self.save_tra_dir = self.seg_paths.joinpath(f"Masks_GNN_Track")
+        self.save_tra_dir.mkdir(exist_ok=True)
 
     def save_new_pred(self, new_pred, idx):
-        file_name = osp.basename(self.seg_paths[idx])
-        full_dir = osp.join(self.save_tra_dir, file_name)
-        io.imsave(full_dir, new_pred.astype(np.uint16))
+        file_name = self.seg_paths_lst[idx].name
+        full_dir = self.save_tra_dir.joinpath(file_name)
+        imwrite(full_dir, new_pred.astype(np.uint16))
 
     def check_ids_consistent(self, frame_ind, pred_ids, curr_ids):
 
@@ -444,9 +438,9 @@ if __name__== "__main__":
     pp = Postprocess(is_3d=is_3d,
                      type_masks='tif', merge_operation=merge_operation,
                      decision_threshold=0.5,
-                     prediction_dir=path_inference_output,
+                     preds_dir=path_inference_output,
                      directed=directed, max_travel_dist=50,
-                     seg_fold_src=path_Seg_result)
+                     seg_paths=path_Seg_result)
     all_frames_traject, trajectory_same_label, str_track = pp.create_trajectory()
     pp.fill_mask_labels(debug=False)
 
