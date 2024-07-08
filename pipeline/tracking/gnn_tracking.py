@@ -79,6 +79,7 @@ def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_trav
     predict(ckpt_path=model_dict['model_lightning'], save_dir=save_dir, is_3d=True if z_slices > 1 else False, max_travel_pix=max_travel_dist)
     end = time()
     print(f"Time to predict: {round(end-start,ndigits=3)} sec\n")
+    
     # Postprocess the model output
     is_3d = True if z_slices > 1 else False
     pp = Postprocess(is_3d=is_3d, type_masks='tif', merge_operation='AND', decision_threshold=decision_threshold,

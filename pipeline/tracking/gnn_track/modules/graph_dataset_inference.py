@@ -9,15 +9,15 @@ import torch
 
 
 @dataclass
-class CellTrackDataset:
+class CellTrackGraph:
     save_dir: Path
     max_travel_pix: int
     is_3d: bool=False
     directed: bool=True
     curr_roi: dict[str,int] = field(init=False)
         
-        
     def filter_by_roi(self, df_curr: pd.DataFrame, df_next: pd.DataFrame)-> list[tuple[int,int]]:
+        """Filter the edges between the cells in the consecutive frames based on the ROI. The ROI is defined by the macx cell size and the max_travel_pix parameter. The ROI is used to filter out cells edges that are too far apart."""
         
         # Columns to consider for ROI calculation
         cents_cols = ["centroid_row", "centroid_col"]
@@ -56,9 +56,7 @@ class CellTrackDataset:
         return index_pairs
 
     def link_all_edges(self, df: pd.DataFrame)-> list[tuple[int,int]]:
-        """
-        Create a list of tuples, where each tuple represents an edge between two cells in consecutive frames.
-        """
+        """Create the edges between the cells in the consecutive frames, meaning determine all potential links between the cells in the consecutive frames. Edges are then filtered based on the ROI (that take in account the cell size and the max_travel_pix parameter)."""
         # In the following loop- doing aggregation of the same frame links + the links between 2 consecutive frames
         linked_edges = []
         for frame_ind in np.unique(df.frame_num.values)[:-1]:
@@ -83,6 +81,8 @@ class CellTrackDataset:
         return linked_edges
 
     def scale_cell_params(self, params_df: pd.DataFrame)-> np.ndarray:
+        """Scale the cell parameters between 0-1, using MinMaxScaler."""
+        
         # Convert df to array
         array = params_df.values
         
@@ -93,6 +93,8 @@ class CellTrackDataset:
         return scaler.fit_transform(array)
     
     def define_bbox_size(self, df: pd.DataFrame)-> None:
+        """Define the bounding box size for the ROI, meaning the largest cell size in the dataset. The size of the bbox is then increased by twice the max_travel_pix parameter to account for cell movement. The ROI is used to filter out cells edges that are too far apart."""
+        
         if self.is_3d:
             cols = ['min_row_bb', 'min_col_bb', 'max_row_bb', 'max_col_bb',
                     'min_depth_bb', 'max_depth_bb']
@@ -110,6 +112,9 @@ class CellTrackDataset:
             self.curr_roi['depth'] = max_depth * self.max_travel_pix
 
     def create_graph(self)-> tuple[tuple[torch.FloatTensor,torch.FloatTensor], torch.Tensor]:
+        """Create the graph from the data. Normalize and scale the extracted features and cell parameters to create the node features. Also return the edge index (all cell-cell links in the consecutive frames)."""
+        
+        
         # Load the data from the CSV file
         save_path = Path(self.save_dir).joinpath('all_data_df.csv')
         print(f"   ---> Create graph from: \033[94m{save_path}\033[0m")

@@ -337,12 +337,6 @@ def construct_csv(frame_idx: int, frame: FramesPreProcessing, embedded_array: np
 
 
 
-
-
-        
-    
-
-
 if __name__ == "__main__":
     from time import time
     
