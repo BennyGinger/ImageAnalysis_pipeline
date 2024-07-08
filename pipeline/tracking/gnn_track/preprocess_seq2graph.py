@@ -37,9 +37,9 @@ def extract_img_features(img_fold_src: PathType, seg_fold_src: PathType, model_p
         channel (str): The channel to extract the features from."""
         
         
-    save_path = Path(save_dir).joinpath('all_data_df.csv')
+    df_feat_path = Path(save_dir).joinpath('df_feat.csv')
     
-    if save_path.exists() and not overwrite:
+    if df_feat_path.exists() and not overwrite:
         # Log
         print(f" --> Image features have already been extracted for the '{channel}' channel")
         return
@@ -72,7 +72,7 @@ def extract_img_features(img_fold_src: PathType, seg_fold_src: PathType, model_p
     
     dfs = [_extract_feat(frame_idx, **fixed_args) for frame_idx in progress_bar(range(n_frames))]
     df = pd.concat(dfs, axis=0)
-    df.to_csv(save_path, index=False)
+    df.to_csv(df_feat_path, index=False)
         
 
 

@@ -13,7 +13,7 @@ class CellTrackGraph:
     save_dir: Path
     max_travel_pix: int
     is_3d: bool=False
-    directed: bool=True
+    directed: bool=False
     curr_roi: dict[str,int] = field(init=False)
         
     def filter_by_roi(self, df_curr: pd.DataFrame, df_next: pd.DataFrame)-> list[tuple[int,int]]:
@@ -116,21 +116,21 @@ class CellTrackGraph:
         
         
         # Load the data from the CSV file
-        save_path = Path(self.save_dir).joinpath('all_data_df.csv')
-        print(f"   ---> Create graph from: \033[94m{save_path}\033[0m")
+        df_feat_path = Path(self.save_dir).joinpath('df_feat.csv')
+        print(f"   ---> Create graph from: \033[94m{df_feat_path}\033[0m")
         
-        df_data = pd.read_csv(save_path,index_col=False).reset_index(drop=True)
+        df_feat = pd.read_csv(df_feat_path,index_col=False).reset_index(drop=True)
         
         # Define the bounding box size
-        self.define_bbox_size(df_data)
+        self.define_bbox_size(df_feat)
 
         # Create the edges and convert to torch tensor
-        link_edges = self.link_all_edges(df_data)
+        link_edges = self.link_all_edges(df_feat)
         edge_index = [torch.tensor([lst], dtype=torch.long) for lst in link_edges]
         edge_index = torch.cat(edge_index, dim=0).t().contiguous()
 
         # Remove the mask label column
-        trimmed_df = df_data.drop('seg_label', axis=1)
+        trimmed_df = df_feat.drop('seg_label', axis=1)
 
         # Separate the columns into cell parameters and cell features
         separate_cols = np.array(['feat' not in name_col for name_col in trimmed_df.columns])

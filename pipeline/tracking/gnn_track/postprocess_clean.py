@@ -1,9 +1,13 @@
+from __future__ import annotations
 import os
 import os.path as osp
+from pathlib import Path
+from typing import Any
 import torch
 import pandas as pd
 import numpy as np
 from skimage import io
+from pipeline.tracking.gnn_track.src.models.modules.celltrack_model import CellTrack_Model
 import warnings
 
 from tqdm import trange
@@ -11,54 +15,103 @@ warnings.filterwarnings("ignore")
 import imageio
 
 
-class Postprocess(object):
+class Postprocess():
     def __init__(self,
                  is_3d,
-                 type_masks,
-                 merge_operation,
+                 seg_fold_src: Path,
+                 prediction_dir,
                  decision_threshold,
-                 path_inference_output,
+                 merge_operation,
                  max_travel_dist,
-                 path_seg_result,
                  directed,
                  ):
 
-        file1 = os.path.join(path_inference_output, 'pytorch_geometric_data.pt')
-        file2 = os.path.join(path_inference_output, 'all_data_df.csv')
-        file3 = os.path.join(path_inference_output, 'raw_output.pt')
-
-        self.dir_result = dir_results = path_seg_result
-        self.results = []
-        if os.path.exists(dir_results):
-            self.results = [os.path.join(dir_results, fname) for fname in sorted(os.listdir(dir_results)) #path of segmentation masks in correct order
-                            if type_masks in fname]
-
-        self.max_travel_dist = max_travel_dist
         self.is_3d = is_3d
+        
+        # Load the segmentation files
+        self.seg_fold_src = seg_fold_src
+        self.seg_paths = sorted(list(self.seg_fold_src.glob('*.tif')))
+
+        # Load the prediction data
+        self.prediction_dir = prediction_dir
+        self._load_prediction_data()
+        
+        
+        self.max_travel_dist = max_travel_dist
         self.merge_operation = merge_operation
-        self.decision_threshold = decision_threshold
+        self.decision_threshold: float = decision_threshold
         self.directed = directed
-        self.path_inference_output = path_inference_output
         self.cols = ["child_id", "parent_id", "start_frame"]
-
-        self.edge_index = (self._load_file(file1))[1]
-
-        self.df_preds = self._load_file(file2)
-        self.output_pred = self._load_file(file3)
+        
         self.find_connected_edges()
 
-    def _load_file(self, file_path):
-        print(f"Load {file_path}")
-        file_type = file_path.split('.')[-1]
-        if file_type == 'csv':
-            # file = pd.read_csv(file_path, index_col=0)
-            file = pd.read_csv(file_path)
-        if file_type == 'pt':
-            file = torch.load(file_path)
-        return file
+    def _load_prediction_data(self)-> None:
+        # Get the file paths
+        edge_path = self.prediction_dir.joinpath('edge_indexes.pt')
+        df_path = self.prediction_dir.joinpath('df_feat.csv')
+        pred_path = self.prediction_dir.joinpath('raw_preds.pt')
+        # Load the files
+        self.edge_index: torch.Tensor = self._load_tensor(edge_path)
+        self.df_feat: pd.DataFrame = self._load_df(df_path)
+        self.preds: torch.Tensor = self._load_tensor(pred_path)
 
+    @staticmethod
+    def _load_df(file_path: Path)-> pd.DataFrame:
+        print(f"Load {file_path}")
+        return pd.read_csv(file_path,index_col=False).reset_index(drop=True)
+    
+    @staticmethod
+    def _load_tensor(file_path: Path)-> torch.Tensor:
+        print(f"Load {file_path}")
+        return torch.load(file_path)
+
+    def find_connected_edges(self)-> None: #outputs are propably the confidence scores of the model, whether two cells are connected
+        """Determines if edges are connected based on the confidence scores from the model and the decision threshold."""
+        
+        if self.directed:
+            # Scaling the output to 0-1
+            preds_soft = torch.sigmoid(self.preds) 
+            self.preds_hard: np.ndarray = (preds_soft > self.decision_threshold).int().numpy()
+        else:
+            self.preds_hard = self.merge_match_edges()
+    
+    def merge_match_edges(self)-> np.ndarray: 
+        """Merge the two directions of the edge index based on the confidence scores from the model and the decision threshold. The merge operation can be 'AVG', 'OR', or 'AND', where 'AVG' takes the average of the two directions, 'OR' where at least one directions is above descision threshold, and 'AND' where both directions are above the threshold. The function returns the merged predictions."""
+        
+        # Remove the second direction of the edge index
+        self.edge_index = self.edge_index.detach().clone()[:, ::2]
+        
+        # Deep copy the predictions
+        self.preds = self.preds.detach().clone()
+        
+        # Get the confidence scores for the two directions
+        clock_pred = self.preds[::2]
+        clock_soft = torch.sigmoid(clock_pred)
+        anticlock_pred = self.preds[1::2]
+        anticlock_soft = torch.sigmoid(anticlock_pred)
+
+        ## Connect the edges based on the confidence scores of the two directions
+        # Using the average of the two directions
+        if self.merge_operation == 'AVG':
+            avg_soft = (clock_soft + anticlock_soft) / 2.0
+            return (avg_soft > self.decision_threshold).int().numpy()
+        
+        clock_hard = (clock_soft > self.decision_threshold).int()
+        anticlock_hard = (anticlock_soft > self.decision_threshold).int()
+        
+        # With at least one of the directions is above the threshold
+        if self.merge_operation == 'OR':
+            return np.bitwise_or(clock_hard, anticlock_hard)
+        
+        # With both directions are above the threshold
+        if self.merge_operation == 'AND':
+            return np.bitwise_and(clock_hard, anticlock_hard)
+    
+    
+    
+    
     def save_csv(self, df_file, file_name):
-        full_name = os.path.join(self.path_inference_output, f"postprocess_data")
+        full_name = os.path.join(self.prediction_dir, f"postprocess_data")
         os.makedirs(full_name, exist_ok=True)
         full_name = os.path.join(full_name, file_name)
         df_file.to_csv(full_name)
@@ -67,8 +120,7 @@ class Postprocess(object):
         full_name = os.path.join(output_folder, file_name)
         with open(full_name, "w") as text_file:
             text_file.write(str_txt)
-            
-            
+                   
 # all_frames_traject, frame_ind, i, next_node_ind
     def insert_in_specific_col(self, all_frames_traject, frame_ind, curr_node, next_node):
         if curr_node in all_frames_traject[frame_ind, :]: #check if the node where we found a connection for has already a track in the earlier frames and connect the next cell to it
@@ -201,45 +253,8 @@ class Postprocess(object):
 
         return str_track
 
-    def merge_match_edges(self, edge_index, output_pred): 
-        #function looks for both ways of the tensor to see if connections where established and 
-        # checks for conficence in comparison to the decission threshold
-        #AND, OR, AVG: how to bring the two confidence lists together
-        assert torch.all(edge_index[:, ::2] == edge_index[[1, 0], 1::2]), \
-            "The results don't match!"
-        edge_index = edge_index[:, ::2]
-        in_output_pred = output_pred[::2]
-        out_output_pred = output_pred[1::2]
-
-        if self.merge_operation == 'OR' or self.merge_operation == 'AND':
-            in_outputs_soft = torch.sigmoid(in_output_pred)
-            in_outputs_hard = (in_outputs_soft > self.decision_threshold).int()
-
-            out_outputs_soft = torch.sigmoid(out_output_pred)
-            out_outputs_hard = (out_outputs_soft > self.decision_threshold).int()
-
-            final_outputs_hard = np.bitwise_or(in_outputs_hard, out_outputs_hard) if self.merge_operation == 'OR' \
-                else np.bitwise_and(in_outputs_hard, out_outputs_hard)
-
-        elif self.merge_operation == 'AVG':
-            avg_outputs_soft = torch.sigmoid(in_output_pred) + torch.sigmoid(out_output_pred)
-            avg_outputs_soft = avg_outputs_soft / 2.0
-            final_outputs_hard = (avg_outputs_soft > self.decision_threshold).int()
-
-        return final_outputs_hard, edge_index
-
-    def find_connected_edges(self): #outputs are propably the confidence scores of the model, whether two cells are connected
-        edge_index, outputs = self.edge_index, self.output_pred
-        if not self.directed:
-            final_outputs_hard, edge_index = self.merge_match_edges(edge_index.detach().clone(), outputs.detach().clone())
-            self.outputs_hard = final_outputs_hard
-            self.edge_index = edge_index
-        else:
-            outputs_soft = torch.sigmoid(outputs) #created values between 0 and 1 for the confidence
-            self.outputs_hard = (outputs_soft > self.decision_threshold).int() #when confidence from the model is superior to the decision threshold, connection is accepted
-
     def create_trajectory(self):
-        edge_index, df, outputs_hard = self.edge_index, self.df_preds, self.outputs_hard
+        edge_index, df, outputs_hard = self.edge_index, self.df_feat, self.preds_hard
         self.flag_id0_terminate = False
         # extract values from arguments
         connected_indices = edge_index[:, outputs_hard.bool()]
@@ -325,8 +340,8 @@ class Postprocess(object):
 
     def get_pred(self, idx):
         pred = None
-        if len(self.results):
-            im_path = self.results[idx]
+        if len(self.seg_paths):
+            im_path = self.seg_paths[idx]
             pred = io.imread(im_path) #load Image
             if self.is_3d and len(pred.shape) != 3:
                 pred = np.stack(imageio.mimread(im_path))
@@ -334,12 +349,12 @@ class Postprocess(object):
         return pred
 
     def create_save_dir(self):
-        save_tra_dir = osp.join(self.dir_result, f"../Masks_GNN_Track") 
+        save_tra_dir = osp.join(self.seg_fold_src, f"../Masks_GNN_Track") 
         self.save_tra_dir =save_tra_dir
         os.makedirs(self.save_tra_dir, exist_ok=True)
 
     def save_new_pred(self, new_pred, idx):
-        file_name = osp.basename(self.results[idx])
+        file_name = osp.basename(self.seg_paths[idx])
         full_dir = osp.join(self.save_tra_dir, file_name)
         io.imsave(full_dir, new_pred.astype(np.uint16))
 
@@ -368,7 +383,7 @@ class Postprocess(object):
     def fill_mask_labels(self, debug=False):
         self.create_save_dir()
         all_frames_traject, trajectory_same_label = self.all_frames_traject, self.trajectory_same_label
-        df = self.df_preds
+        df = self.df_feat
         n_rows, _ = all_frames_traject.shape
 
         count_diff_vals = 0
@@ -405,6 +420,7 @@ class Postprocess(object):
         print(f"Number of different vals: {count_diff_vals}")
         self.save_txt(self.file_str, self.save_tra_dir, 'res_track.txt')
 
+
 if __name__== "__main__":
     import argparse
 
@@ -428,9 +444,9 @@ if __name__== "__main__":
     pp = Postprocess(is_3d=is_3d,
                      type_masks='tif', merge_operation=merge_operation,
                      decision_threshold=0.5,
-                     path_inference_output=path_inference_output,
+                     prediction_dir=path_inference_output,
                      directed=directed, max_travel_dist=50,
-                     path_seg_result=path_Seg_result)
+                     seg_fold_src=path_Seg_result)
     all_frames_traject, trajectory_same_label, str_track = pp.create_trajectory()
     pp.fill_mask_labels(debug=False)
 

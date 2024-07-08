@@ -23,7 +23,7 @@ MODEL = {**BUILD_IN_MODEL, **IN_HOUSE_MODEL}
 # [ ] Need to test the 3D tracking
 ################################## Main function ##################################
 
-def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_travel_dist: int, img_fold_src: str, mask_fold_src: str, overwrite: bool=False, decision_threshold: float=0.5, manual_correct: bool=False, trim_incomplete_tracks: bool=False,**kwargs)-> None:
+def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_travel_dist: int, img_fold_src: str, mask_fold_src: str, overwrite: bool=False, decision_threshold: float=0.5, manual_correct: bool=False, trim_incomplete_tracks: bool=False, directed: bool=False, **kwargs)-> None:
     """
     Perform GNN Tracking based cell tracking on a list of experiments.
 
@@ -62,8 +62,8 @@ def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_trav
     print(f" --> Tracking cells for the '{channel_to_track}' channel")
     
     # Prepare tracking
-    save_dir: Path = exp_path.joinpath('gnn_files')
-    save_dir.mkdir(exist_ok=True)
+    prediction_dir: Path = exp_path.joinpath('gnn_files')
+    prediction_dir.mkdir(exist_ok=True)
     seg_fold_src = exp_path.joinpath(mask_fold_src)
     img_fold_src: Path = exp_path.joinpath(img_fold_src)
     _, _, frames, z_slices = get_exp_props(list(img_fold_src.glob('*.tif')))
@@ -71,25 +71,29 @@ def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_trav
     metadata = unpack_kwargs(kwargs)
 
     # Create csv files
-    ow_extract_feat = overwrite_extraction_feat(passed_args,save_dir)
-    extract_img_features(img_fold_src,seg_fold_src,model_dict['model_metric'],save_dir,channel_to_track,ow_extract_feat)
+    ow_extract_feat = overwrite_extraction_feat(passed_args,prediction_dir)
+    extract_img_features(img_fold_src,seg_fold_src,model_dict['model_metric'],prediction_dir,channel_to_track,ow_extract_feat)
     
     # Run the model    
     start = time()
-    predict(ckpt_path=model_dict['model_lightning'], save_dir=save_dir, is_3d=True if z_slices > 1 else False, max_travel_pix=max_travel_dist)
+    predict(ckpt_path=model_dict['model_lightning'], prediction_dir=prediction_dir, is_3d=True if z_slices > 1 else False, max_travel_pix=max_travel_dist, directed=directed)
     end = time()
     print(f"Time to predict: {round(end-start,ndigits=3)} sec\n")
     
+    
+    start = time()
     # Postprocess the model output
     is_3d = True if z_slices > 1 else False
-    pp = Postprocess(is_3d=is_3d, type_masks='tif', merge_operation='AND', decision_threshold=decision_threshold,
-                    path_inference_output=save_dir, directed=True, path_seg_result=seg_fold_src, max_travel_dist=max_travel_dist)
+    pp = Postprocess(is_3d=is_3d, merge_operation='AND', decision_threshold=decision_threshold,
+                    prediction_dir=prediction_dir, directed=directed, seg_fold_src=seg_fold_src, max_travel_dist=max_travel_dist)
     
     pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
     # np.savetxt("/home/Fabian/ImageData/all_frames_traject.csv", all_frames_traject, delimiter=",")
     # np.savetxt("/home/Fabian/ImageData/trajectory_same_label.csv", trajectory_same_label, delimiter=",")
 
     pp.fill_mask_labels(debug=False)
+    end = time()
+    print(f"Time to postprocess: {round(end-start,ndigits=3)} sec\n")
     
     #relabel the masks from ID 1 until n and add metadata
     relabel_masks(frames,save_path,channel_to_track,metadata,trim_incomplete_tracks)
@@ -222,7 +226,7 @@ if __name__ == "__main__":
                  decision_threshold=0.4,
                  manual_correct=False,
                  trim_incomplete_tracks=True,
-                #  ow_extract_feat=False
-                 )
+                 directed=False,
+                )
     end = time()
     print(f"Time to process: {round(end-start,ndigits=3)} sec\n")
