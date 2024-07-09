@@ -254,85 +254,102 @@ class Postprocess():
         # extract values from arguments
         connected_indices = self.edge_index[:, self.connected_edges]
         # find number of frames for iterations
-        frame_nums, counts = np.unique(self.df_feat.frame_num, return_counts=True)
-        all_frames_traject = np.zeros((frame_nums.shape[0], counts.max())) #crearing matrix with shape (rows=frames, column=max num of label in frame)
+        frame_nums, mask_count = np.unique(self.df_feat.frame_num, return_counts=True)
+        trajectory_matrix = np.zeros((frame_nums.shape[0], mask_count.max())) #crearing matrix with shape (rows=frames, column=max num of label in frame)
         # intialize the matrix with -2 meaning empty cell, -1 means end of trajectory,
         # other value means the number of node in the graph
-        all_frames_traject[:, :] = -2
+        trajectory_matrix[:, :] = -2
         str_track = ''
         df_parents = []
         for frame_ind in frame_nums: #loop through the frames
-            nodes_indices = self.df_feat[self.df_feat.frame_num==frame_ind].index.values # find the places containing frame_ind, nodes_indices: unique value for every node
+            # find the places containing frame_ind, nodes_indices: unique value for every node
+            nodes_indices = self.df_feat[self.df_feat.frame_num==frame_ind].index.values 
             # filter the places with the specific frame_ind and take the corresponding indices
 
             next_frame_indices = np.array([])
 
             if frame_ind == 0:  # for the first frame, we should fill the first row with node indices
-                all_frames_traject[frame_ind, :nodes_indices.shape[0]] = nodes_indices
+                trajectory_matrix[frame_ind, :nodes_indices.shape[0]] = nodes_indices
                 df_parents.append(self.fill_first_frame(nodes_indices))
 
             num_starts = 0
             cell_starts = []
-            for i in nodes_indices: #loop through the nodes in one frame
-                if i in connected_indices[0, :]:
-                    ind_place = np.argwhere(connected_indices[0, :] == i) # find all potential connections
-                    
-                    next_frame_ind = connected_indices[1, ind_place][0]#.numpy().squeeze() #get the ID of the potential cells in the next frame
-                    if self.is_3d:
-                        next_frame = self.df_feat.loc[next_frame_ind, ["centroid_depth", "centroid_row", "centroid_col"]].values
-                        curr_node = self.df_feat.loc[i, ["centroid_depth", "centroid_row", "centroid_col"]].values
-                    else:
-                        next_frame = self.df_feat.loc[next_frame_ind, ["centroid_row", "centroid_col"]].values #getting the centroid position for the potential connection points
-                        curr_node = self.df_feat.loc[i, ["centroid_row", "centroid_col"]].values #getting the original centroid
-                    
-                    distance = np.sqrt(((next_frame - curr_node) ** 2).sum(axis=-1)) #get the euclidean distance between the node and the possible cells to connect
-
-                    distance_mask = distance < self.max_travel_dist #check that distances are inside the max_travel distance
-                    filtered_distance = distance[distance_mask] #apply the filter on the array
-                    if filtered_distance.size == 0:
-                        next_node_ind = -1
-                    else:
-                        min_index = np.argmin(filtered_distance) #get the smalest distance index in the filtered array
-                        nearest_cell = np.where(distance_mask)[0][min_index] #get back the index from the original array
-                        next_node_ind = int(next_frame_ind[nearest_cell])
+            for node_idx in nodes_indices: #loop through the nodes in one frame
+                next_node_ind = self._determine_next_node(connected_indices, node_idx)
                         
-                    if not next_node_ind==-1:  
-                        condition = connected_indices[1,:] == next_node_ind #delete already assigned nodes from the list to avoid several cells with the same ID per frame
-                        connected_indices = connected_indices[:,~condition]  
-                else:
-                    # we dont find the current node in the edge indices matrix - meaning we dont have a connection
-                    # for the node - in this case we end the trajectory and the cell
-                    if i == 0:
-                        self.flag_id0_terminate = True #only needed if the cell with node 0 terminates after first frame. To make sure to give it a proper ID later
-                    next_node_ind = -1
-                        
-                next_frame_indices = np.append(next_frame_indices, next_node_ind) #add the next node index or -1 for track stop into the next_frame_indices list
+                # Build the next frame indices
+                next_frame_indices = np.append(next_frame_indices, next_node_ind)
+                
                 # count the number of starting trajectories
-                start, all_frames_traject = self.insert_in_specific_col(all_frames_traject, frame_ind, i, next_node_ind)
-                num_starts += start
-
-                if start == 1:  # append the id of the cell to the list
-                    cell_starts.append(i)
-            # num_starts = 0
+                start_new_track, trajectory_matrix = self.insert_in_specific_col(trajectory_matrix, frame_ind, node_idx, next_node_ind)
+                num_starts += start_new_track
+                
+                if start_new_track == 1:  # append the id of the cell to the list
+                    cell_starts.append(node_idx)
+                    
+            
             if num_starts > 0:
-                df_parents.append(self.find_parent_cell(frame_ind, all_frames_traject, self.df_feat, cell_starts))
+                df_parents.append(self.find_parent_cell(frame_ind, trajectory_matrix, self.df_feat, cell_starts))
 
-        all_frames_traject = all_frames_traject.astype(int)
+        trajectory_matrix = trajectory_matrix.astype(int)
 
         # create csv contains all the relevant information for the res_track.txt
         df_parents_all = pd.concat(df_parents, axis=0).reset_index(drop=True)
-        df_track_res, trajectory_same_label = self.set_all_info(df_parents_all, all_frames_traject)
+        df_track_res, trajectory_same_label = self.set_all_info(df_parents_all, trajectory_matrix)
 
         # convert csv to res_track.txt and res_track_real.txt
         str_track = self.df2str(df_track_res)
 
-        self.all_frames_traject = all_frames_traject
+        self.all_frames_traject = trajectory_matrix
         self.trajectory_same_label = trajectory_same_label
         self.df_track = df_track_res
         self.file_str = str_track
         
-        return all_frames_traject, trajectory_same_label, str_track
+        return trajectory_matrix, trajectory_same_label, str_track
 
+    def _determine_next_node(self, connected_indices: torch.Tensor, node_idx: int)-> int:
+        # If there are no connections for the node
+        if node_idx not in connected_indices[0, :]:
+            if node_idx == 0:
+                self.flag_id0_terminate = True
+            return -1
+        
+        # Find all potential connections
+        current_idx = np.argwhere(connected_indices[0, :] == node_idx)
+        next_frame_idx = connected_indices[1, current_idx][0]
+                
+        # Get the euclidean distance between the node and the possible cells to connect
+        filtered_distance, distance_mask = self._calc_distance(node_idx, next_frame_idx)
+        
+        # If there are no cells to connect  
+        if filtered_distance.size == 0:
+            return -1
+        
+        # Find the nearest cell to connect
+        min_idx = np.argmin(filtered_distance)
+        nearest_cell: int = np.where(distance_mask)[0][min_idx]
+        next_node_ind = int(next_frame_idx[nearest_cell])
+        
+        # Delete already assigned nodes from the list to avoid several cells with the same ID per frame         
+        condition = connected_indices[1,:] == next_node_ind 
+        connected_indices = connected_indices[:,~condition]
+        return next_node_ind
+    
+    def _calc_distance(self, node_idx: int, next_frame_ind: torch.Tensor)-> tuple[np.ndarray, np.ndarray]:
+        
+        centroid_cols = ["centroid_depth", "centroid_row", "centroid_col"] if self.is_3d else ["centroid_row", "centroid_col"]
+        
+        # Extract the centroid positions
+        next_frame = self.df_feat.loc[next_frame_ind, centroid_cols].values
+        curr_node = self.df_feat.loc[node_idx, centroid_cols].values
+        
+        # Get the euclidean distance between the node and the possible cells to connect
+        distance: np.ndarray = np.sqrt(((next_frame - curr_node) ** 2).sum(axis=-1))
+        
+        # Filter the distance based on the max_travel_dist
+        distance_mask = distance < self.max_travel_dist 
+        return distance[distance_mask], distance_mask
+    
     def get_pred(self, idx):
         pred = None
         if len(self.seg_paths_lst):
@@ -344,7 +361,7 @@ class Postprocess():
         return pred
 
     def create_save_dir(self):
-        self.save_tra_dir = self.seg_paths.joinpath(f"Masks_GNN_Track")
+        self.save_tra_dir = self.seg_paths.parent.joinpath(f"Masks_GNN_Track")
         self.save_tra_dir.mkdir(exist_ok=True)
 
     def save_new_pred(self, new_pred, idx):
@@ -416,37 +433,35 @@ class Postprocess():
 
 
 if __name__== "__main__":
-    import argparse
+    from time import time
+    from pipeline.tracking.gnn_tracking import relabel_masks
+    
+    preds_dir=Path('/home/Test_images/dia_fish/newtest/c1172-GCaMP-15%_Hypo-1-MaxIP_s1/gnn_files')
+    
+    
+    start = time()
+    pp = Postprocess(is_3d=False,
+                     seg_paths=Path('/home/Test_images/dia_fish/newtest/c1172-GCaMP-15%_Hypo-1-MaxIP_s1/Masks_Cellpose'),
+                     preds_dir=preds_dir,
+                     decision_threshold=0.4,
+                     merge_operation='AND',
+                     max_travel_dist=10,
+                     directed=False)
+    
+    all_frames_traject, trajectory_same_label, str_track = pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
+    all_frames_path = preds_dir.joinpath(f'all_frames_traject.csv')
+    traj_path = preds_dir.joinpath(f'trajectory_same_label.csv')
+    str_track_path = preds_dir.joinpath(f'str_track.csv')
+    np.savetxt(all_frames_path, all_frames_traject, delimiter=",")
+    np.savetxt(traj_path, trajectory_same_label, delimiter=",")
+    with open(str_track_path, 'w') as file:
+        file.write(str_track)
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-modality', type=str, required=True, help='2D/3D modality')
-    parser.add_argument('-iseg', type=str, required=True, help='segmentation output directory')
-    parser.add_argument('-oi', type=str, required=True, help='inference output directory')
-
-    args = parser.parse_args()
-
-    modality = args.modality
-    assert modality == '2D' or modality == '3D'
-
-    path_inference_output = args.oi
-    path_Seg_result = args.iseg
-
-    is_3d = '3d' in modality.lower()
-    directed = True
-    merge_operation = 'AND'
-
-    pp = Postprocess(is_3d=is_3d,
-                     type_masks='tif', merge_operation=merge_operation,
-                     decision_threshold=0.5,
-                     preds_dir=path_inference_output,
-                     directed=directed, max_travel_dist=50,
-                     seg_paths=path_Seg_result)
-    all_frames_traject, trajectory_same_label, str_track = pp.create_trajectory()
     pp.fill_mask_labels(debug=False)
-
-
-
-
+    end = time()
+    print(f"Time to postprocess: {round(end-start,ndigits=3)} sec\n")
+    metadata = {'finterval':None, 'um_per_pixel':None}
+    relabel_masks(76,preds_dir.parent.joinpath('Masks_GNN_Track'),'RFP',metadata,True)
 
 
 
