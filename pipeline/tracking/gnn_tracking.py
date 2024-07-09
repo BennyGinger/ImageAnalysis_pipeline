@@ -101,7 +101,6 @@ def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_trav
     all_frames_path = preds_dir.joinpath(f'all_frames_traject.csv')
     traj_path = preds_dir.joinpath(f'trajectory_same_label.csv')
     str_track_path = preds_dir.joinpath(f'str_track.csv')
-    print(f"{all_frames_traject.shape = }")
     np.savetxt(all_frames_path, all_frames_traject, delimiter=",")
     np.savetxt(traj_path, trajectory_same_label, delimiter=",")
     with open(str_track_path, 'w') as file:

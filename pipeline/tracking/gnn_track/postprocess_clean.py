@@ -62,16 +62,16 @@ class Postprocess():
         print(f"Load {file_path}")
         return torch.load(file_path)
 
-    def find_connected_edges(self)-> np.ndarray:
+    def find_connected_edges(self)-> torch.Tensor:
         """Determines if edges are connected based on the confidence scores from the model and the decision threshold. The function returns the connected edges as a boolean-like (0-1) array."""
         
         if self.directed:
             # Scaling the output to 0-1
             preds_soft = torch.sigmoid(self.preds) 
-            return (preds_soft > self.decision_threshold).int().numpy()
-        return self.merge_match_edges()
+            return (preds_soft >= self.decision_threshold)
+        return self.merge_edges()
     
-    def merge_match_edges(self)-> np.ndarray: 
+    def merge_edges(self)-> torch.Tensor: 
         """Merge the two directions of the edge index based on the confidence scores from the model and the decision threshold. The merge operation can be 'AVG', 'OR', or 'AND', where 'AVG' takes the average of the two directions, 'OR' where at least one directions is above descision threshold, and 'AND' where both directions are above the threshold. The function returns the merged predictions as a boolean-like (0-1) array."""
         
         # Remove the second direction of the edge index
@@ -82,26 +82,26 @@ class Postprocess():
         
         # Get the confidence scores for the two directions
         clock_pred = self.preds[::2]
-        clock_soft = torch.sigmoid(clock_pred)
+        clock_scaled = torch.sigmoid(clock_pred)
         anticlock_pred = self.preds[1::2]
-        anticlock_soft = torch.sigmoid(anticlock_pred)
+        anticlock_scaled = torch.sigmoid(anticlock_pred)
 
         ## Connect the edges based on the confidence scores of the two directions
         # Using the average of the two directions
         if self.merge_operation == 'AVG':
-            avg_soft = (clock_soft + anticlock_soft) / 2.0
-            return (avg_soft > self.decision_threshold).int().numpy()
+            avg_soft = (clock_scaled + anticlock_scaled) / 2.0
+            return (avg_soft >= self.decision_threshold)
         
-        clock_hard = (clock_soft > self.decision_threshold).int()
-        anticlock_hard = (anticlock_soft > self.decision_threshold).int()
+        clock_bool = (clock_scaled >= self.decision_threshold)
+        anticlock_bool = (anticlock_scaled >= self.decision_threshold)
         
         # With at least one of the directions is above the threshold
         if self.merge_operation == 'OR':
-            return np.bitwise_or(clock_hard, anticlock_hard)
+            return torch.logical_or(clock_bool, anticlock_bool)
         
         # With both directions are above the threshold
         if self.merge_operation == 'AND':
-            return np.bitwise_and(clock_hard, anticlock_hard)
+            return torch.logical_and(clock_bool, anticlock_bool)
     
     
     
@@ -252,7 +252,7 @@ class Postprocess():
     def create_trajectory(self):
         self.flag_id0_terminate = False
         # extract values from arguments
-        connected_indices = self.edge_index[:, self.connected_edges.bool()]
+        connected_indices = self.edge_index[:, self.connected_edges]
         # find number of frames for iterations
         frame_nums, counts = np.unique(self.df_feat.frame_num, return_counts=True)
         all_frames_traject = np.zeros((frame_nums.shape[0], counts.max())) #crearing matrix with shape (rows=frames, column=max num of label in frame)
