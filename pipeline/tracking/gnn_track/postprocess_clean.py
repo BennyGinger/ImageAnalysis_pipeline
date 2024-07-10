@@ -104,6 +104,142 @@ class Postprocess():
             return torch.logical_and(clock_bool, anticlock_bool)
     
     
+    def create_trajectory(self):
+        self.flag_id0_terminate = False
+        # extract values from arguments
+        connected_indices = self.edge_index[:, self.connected_edges]
+        # find number of frames for iterations
+        frames, mask_count = np.unique(self.df_feat.frame_num, return_counts=True)
+        self.trajectory_matrix = np.zeros((frames.shape[0], mask_count.max())) #crearing matrix with shape (rows=frames, column=max num of label in frame)
+        # intialize the matrix with -2 meaning empty cell, -1 means end of trajectory,
+        # other value means the number of node in the graph
+        self.trajectory_matrix[:, :] = -2
+        str_track = ''
+        df_parents = []
+        for frame in frames: #loop through the frames
+            # Select all the nodes in the current frame
+            nodes = self.df_feat[self.df_feat.frame_num==frame].index.values
+
+            # If first frame, fill the matrix and the first frame parents
+            if frame == 0:
+                self.trajectory_matrix[frame, :nodes.shape[0]] = nodes
+                df_parents.append(self.fill_first_frame(nodes))
+
+            cell_starts = self.determine_node_trajectory(connected_indices, frame, nodes)
+                    
+            if cell_starts:
+                df_parents.append(self.find_parent_cell(frame, self.trajectory_matrix, self.df_feat, cell_starts))
+
+        self.trajectory_matrix = self.trajectory_matrix.astype(int)
+
+        # create csv contains all the relevant information for the res_track.txt
+        df_parents_all = pd.concat(df_parents, axis=0).reset_index(drop=True)
+        df_track_res, trajectory_same_label = self.set_all_info(df_parents_all, self.trajectory_matrix)
+
+        # convert csv to res_track.txt and res_track_real.txt
+        str_track = self.df2str(df_track_res)
+
+        self.trajectory_same_label = trajectory_same_label
+        self.df_track = df_track_res
+        self.file_str = str_track
+        
+        return self.trajectory_matrix, trajectory_same_label, str_track
+
+    def determine_node_trajectory(self, connected_indices: torch.Tensor, frame: int, nodes: list[int]):
+        cell_starts = []
+        for curr_node in nodes: #loop through the nodes in one frame
+            next_node = self._determine_next_node(connected_indices, curr_node)
+                        
+                # Start a new track?
+            new_track = self.start_new_track(curr_node, frame)
+                
+                # Add the next node to the matrix
+            self.update_matrix_with_next_node(frame, curr_node, next_node)
+                
+                # If the current node is not connected, add it to the list of cells to start a new track
+            if new_track:
+                cell_starts.append(curr_node)
+        return cell_starts
+    
+    def _determine_next_node(self, connected_indices: torch.Tensor, node_idx: int)-> int:
+        # If there are no connections for the node
+        if node_idx not in connected_indices[0, :]:
+            if node_idx == 0:
+                self.flag_id0_terminate = True
+            return -1
+        
+        # Find all potential connections
+        current_idx = np.argwhere(connected_indices[0, :] == node_idx)
+        next_frame_idx = connected_indices[1, current_idx][0]
+                
+        # Get the euclidean distance between the node and the possible cells to connect
+        filtered_distance, distance_mask = self._calc_distance(node_idx, next_frame_idx)
+        
+        # If there are no cells to connect  
+        if filtered_distance.size == 0:
+            return -1
+        
+        # Find the nearest cell to connect
+        min_idx = np.argmin(filtered_distance)
+        nearest_cell: int = np.where(distance_mask)[0][min_idx]
+        next_node_ind = int(next_frame_idx[nearest_cell])
+        
+        # Delete already assigned nodes from the list to avoid several cells with the same ID per frame         
+        condition = connected_indices[1,:] == next_node_ind 
+        connected_indices = connected_indices[:,~condition]
+        return next_node_ind
+    
+    def _calc_distance(self, node_idx: int, next_frame_ind: torch.Tensor)-> tuple[np.ndarray, np.ndarray]:
+        
+        centroid_cols = ["centroid_depth", "centroid_row", "centroid_col"] if self.is_3d else ["centroid_row", "centroid_col"]
+        
+        # Extract the centroid positions
+        next_frame = self.df_feat.loc[next_frame_ind, centroid_cols].values
+        curr_node = self.df_feat.loc[node_idx, centroid_cols].values
+        
+        # Get the euclidean distance between the node and the possible cells to connect
+        distance: np.ndarray = np.sqrt(((next_frame - curr_node) ** 2).sum(axis=-1))
+        
+        # Filter the distance based on the max_travel_dist
+        distance_mask = distance < self.max_travel_dist 
+        return distance[distance_mask], distance_mask
+    
+    def start_new_track(self, curr_node: int, frame_ind: int)-> bool:
+        if curr_node in self.trajectory_matrix[frame_ind, :]:
+            return False
+        return True
+    
+    def update_matrix_with_next_node(self, frame_idx: int, curr_node: int, next_node: int)-> None:
+        # If the current node already connected, update the matrix with the next node
+        if curr_node in self.trajectory_matrix[frame_idx, :]:
+            current_idx = np.argwhere(self.trajectory_matrix[frame_idx, :] == curr_node)
+            self.assign_next_node(frame_idx, next_node, current_idx)
+            return
+        
+        # Start a new track, look for the next empty space (-2)
+        current_idx = np.argwhere(self.trajectory_matrix[frame_idx, :] == -2)
+        # If there's no empty space, add a new column
+        if current_idx.size == 0: 
+            current_idx = self.expand_matrix(frame_idx)
+        # Select the nearest empty space
+        current_idx = current_idx.min()
+        # Add the current node to the matrix
+        self.trajectory_matrix[frame_idx, current_idx] = curr_node
+        self.assign_next_node(frame_idx, next_node, current_idx)
+
+    def expand_matrix(self, frame_idx: int)-> np.ndarray:
+        new_col = -2 * np.ones((self.trajectory_matrix.shape[0], 1), dtype=self.trajectory_matrix.dtype)
+        self.trajectory_matrix = np.append(self.trajectory_matrix, new_col, axis=1)
+        current_idx = np.argwhere(self.trajectory_matrix[frame_idx, :] == -2)
+        return current_idx
+
+    def assign_next_node(self, frame_idx: int, next_node: int, current_idx: int)-> None:
+        # Update, only if frame is not the last one
+        if frame_idx + 1 < self.trajectory_matrix.shape[0]:
+            self.trajectory_matrix[frame_idx + 1, current_idx] = next_node
+    
+    
+    
     
     
     def save_csv(self, df_file, file_name):
@@ -117,27 +253,6 @@ class Postprocess():
         with open(full_name, "w") as text_file:
             text_file.write(str_txt)
                    
-# all_frames_traject, frame_ind, i, next_node_ind
-    def insert_in_specific_col(self, all_frames_traject, frame_ind, curr_node, next_node):
-        if curr_node in all_frames_traject[frame_ind, :]: #check if the node where we found a connection for has already a track in the earlier frames and connect the next cell to it
-            flag = 0 #no start of a new track
-            ind_place = np.argwhere(all_frames_traject[frame_ind, :] == curr_node)
-            if frame_ind + 1 < all_frames_traject.shape[0]: #if its the last frame, we dont do a connection
-                all_frames_traject[frame_ind + 1, ind_place] = next_node
-        else: #if the current node was not connected before, we start a new track
-            flag = 1 #flag for start of a new track
-            ind_place = np.argwhere(all_frames_traject[frame_ind, :] == -2) #check for empty (-2) space to put the track
-            while ind_place.size == 0: #if there is not enough space, add a new colum for that track
-                new_col = -2 * np.ones((all_frames_traject.shape[0], 1), dtype=all_frames_traject.dtype)
-                all_frames_traject = np.append(all_frames_traject, new_col, axis=1)
-                ind_place = np.argwhere(all_frames_traject[frame_ind, :] == -2)
-            ind_place = ind_place.min()
-            all_frames_traject[frame_ind, ind_place] = curr_node
-            if frame_ind + 1 < all_frames_traject.shape[0]: #write the connection for the next frame, if not in the last frame
-                all_frames_traject[frame_ind + 1, ind_place] = next_node
-
-        return flag, all_frames_traject #return the updated trajectorys and the flag if there was a new start of track or not
-
     def fill_first_frame(self, cell_starts):
         df_parent = pd.DataFrame(index=range(len(cell_starts)), columns=self.cols)
         df_parent.loc[:, ["start_frame", "parent_id"]] = 0
@@ -249,106 +364,8 @@ class Postprocess():
 
         return str_track
 
-    def create_trajectory(self):
-        self.flag_id0_terminate = False
-        # extract values from arguments
-        connected_indices = self.edge_index[:, self.connected_edges]
-        # find number of frames for iterations
-        frame_nums, mask_count = np.unique(self.df_feat.frame_num, return_counts=True)
-        trajectory_matrix = np.zeros((frame_nums.shape[0], mask_count.max())) #crearing matrix with shape (rows=frames, column=max num of label in frame)
-        # intialize the matrix with -2 meaning empty cell, -1 means end of trajectory,
-        # other value means the number of node in the graph
-        trajectory_matrix[:, :] = -2
-        str_track = ''
-        df_parents = []
-        for frame_ind in frame_nums: #loop through the frames
-            # find the places containing frame_ind, nodes_indices: unique value for every node
-            nodes_indices = self.df_feat[self.df_feat.frame_num==frame_ind].index.values 
-            # filter the places with the specific frame_ind and take the corresponding indices
-
-            next_frame_indices = np.array([])
-
-            if frame_ind == 0:  # for the first frame, we should fill the first row with node indices
-                trajectory_matrix[frame_ind, :nodes_indices.shape[0]] = nodes_indices
-                df_parents.append(self.fill_first_frame(nodes_indices))
-
-            num_starts = 0
-            cell_starts = []
-            for node_idx in nodes_indices: #loop through the nodes in one frame
-                next_node_ind = self._determine_next_node(connected_indices, node_idx)
-                        
-                # Build the next frame indices
-                next_frame_indices = np.append(next_frame_indices, next_node_ind)
-                
-                # count the number of starting trajectories
-                start_new_track, trajectory_matrix = self.insert_in_specific_col(trajectory_matrix, frame_ind, node_idx, next_node_ind)
-                num_starts += start_new_track
-                
-                if start_new_track == 1:  # append the id of the cell to the list
-                    cell_starts.append(node_idx)
-                    
-            
-            if num_starts > 0:
-                df_parents.append(self.find_parent_cell(frame_ind, trajectory_matrix, self.df_feat, cell_starts))
-
-        trajectory_matrix = trajectory_matrix.astype(int)
-
-        # create csv contains all the relevant information for the res_track.txt
-        df_parents_all = pd.concat(df_parents, axis=0).reset_index(drop=True)
-        df_track_res, trajectory_same_label = self.set_all_info(df_parents_all, trajectory_matrix)
-
-        # convert csv to res_track.txt and res_track_real.txt
-        str_track = self.df2str(df_track_res)
-
-        self.all_frames_traject = trajectory_matrix
-        self.trajectory_same_label = trajectory_same_label
-        self.df_track = df_track_res
-        self.file_str = str_track
-        
-        return trajectory_matrix, trajectory_same_label, str_track
-
-    def _determine_next_node(self, connected_indices: torch.Tensor, node_idx: int)-> int:
-        # If there are no connections for the node
-        if node_idx not in connected_indices[0, :]:
-            if node_idx == 0:
-                self.flag_id0_terminate = True
-            return -1
-        
-        # Find all potential connections
-        current_idx = np.argwhere(connected_indices[0, :] == node_idx)
-        next_frame_idx = connected_indices[1, current_idx][0]
-                
-        # Get the euclidean distance between the node and the possible cells to connect
-        filtered_distance, distance_mask = self._calc_distance(node_idx, next_frame_idx)
-        
-        # If there are no cells to connect  
-        if filtered_distance.size == 0:
-            return -1
-        
-        # Find the nearest cell to connect
-        min_idx = np.argmin(filtered_distance)
-        nearest_cell: int = np.where(distance_mask)[0][min_idx]
-        next_node_ind = int(next_frame_idx[nearest_cell])
-        
-        # Delete already assigned nodes from the list to avoid several cells with the same ID per frame         
-        condition = connected_indices[1,:] == next_node_ind 
-        connected_indices = connected_indices[:,~condition]
-        return next_node_ind
     
-    def _calc_distance(self, node_idx: int, next_frame_ind: torch.Tensor)-> tuple[np.ndarray, np.ndarray]:
-        
-        centroid_cols = ["centroid_depth", "centroid_row", "centroid_col"] if self.is_3d else ["centroid_row", "centroid_col"]
-        
-        # Extract the centroid positions
-        next_frame = self.df_feat.loc[next_frame_ind, centroid_cols].values
-        curr_node = self.df_feat.loc[node_idx, centroid_cols].values
-        
-        # Get the euclidean distance between the node and the possible cells to connect
-        distance: np.ndarray = np.sqrt(((next_frame - curr_node) ** 2).sum(axis=-1))
-        
-        # Filter the distance based on the max_travel_dist
-        distance_mask = distance < self.max_travel_dist 
-        return distance[distance_mask], distance_mask
+
     
     def get_pred(self, idx):
         pred = None
@@ -393,7 +410,7 @@ class Postprocess():
 
     def fill_mask_labels(self, debug=False):
         self.create_save_dir()
-        all_frames_traject, trajectory_same_label = self.all_frames_traject, self.trajectory_same_label
+        all_frames_traject, trajectory_same_label = self.trajectory_matrix, self.trajectory_same_label
         df = self.df_feat
         n_rows, _ = all_frames_traject.shape
 
