@@ -69,9 +69,9 @@ class Postprocess():
             # Scaling the output to 0-1
             preds_soft = torch.sigmoid(self.preds) 
             return (preds_soft >= self.decision_threshold)
-        return self.merge_edges()
+        return self._merge_edges()
     
-    def merge_edges(self)-> torch.Tensor: 
+    def _merge_edges(self)-> torch.Tensor: 
         """Merge the two directions of the edge index based on the confidence scores from the model and the decision threshold. The merge operation can be 'AVG', 'OR', or 'AND', where 'AVG' takes the average of the two directions, 'OR' where at least one directions is above descision threshold, and 'AND' where both directions are above the threshold. The function returns the merged predictions as a boolean-like (0-1) array."""
         
         # Remove the second direction of the edge index
@@ -108,6 +108,7 @@ class Postprocess():
         self.flag_id0_terminate = False
         # extract values from arguments
         connected_indices = self.edge_index[:, self.connected_edges]
+        
         # find number of frames for iterations
         frames, mask_count = np.unique(self.df_feat.frame_num, return_counts=True)
         self.trajectory_matrix = np.zeros((frames.shape[0], mask_count.max())) #crearing matrix with shape (rows=frames, column=max num of label in frame)
@@ -123,10 +124,10 @@ class Postprocess():
             # If first frame, fill the matrix and the first frame parents
             if frame == 0:
                 self.trajectory_matrix[frame, :nodes.shape[0]] = nodes
-                df_parents.append(self.fill_first_frame(nodes))
+                df_parents.append(self._initialize_parent_dataframe(nodes))
 
-            cell_starts = self.determine_node_trajectory(connected_indices, frame, nodes)
-                    
+            cell_starts = self._determine_node_trajectory(connected_indices, frame, nodes)
+            
             if cell_starts:
                 df_parents.append(self.find_parent_cell(frame, self.trajectory_matrix, self.df_feat, cell_starts))
 
@@ -145,23 +146,17 @@ class Postprocess():
         
         return self.trajectory_matrix, trajectory_same_label, str_track
 
-    def determine_node_trajectory(self, connected_indices: torch.Tensor, frame: int, nodes: list[int]):
-        cell_starts = []
-        for curr_node in nodes: #loop through the nodes in one frame
-            next_node = self._determine_next_node(connected_indices, curr_node)
+    def _determine_node_trajectory(self, connected_indices: torch.Tensor, frame: int, nodes: list[int]):
+        new_tracks = []
+        for curr_node in nodes:
+            # Find the next node to connect
+            next_node = self._find_next_node(connected_indices, curr_node)
                         
-                # Start a new track?
-            new_track = self.start_new_track(curr_node, frame)
-                
-                # Add the next node to the matrix
-            self.update_matrix_with_next_node(frame, curr_node, next_node)
-                
-                # If the current node is not connected, add it to the list of cells to start a new track
-            if new_track:
-                cell_starts.append(curr_node)
-        return cell_starts
+            # Add the next node to the matrix
+            new_tracks.extend(self._update_matrix_with_next_node(frame, curr_node, next_node))
+        return new_tracks
     
-    def _determine_next_node(self, connected_indices: torch.Tensor, node_idx: int)-> int:
+    def _find_next_node(self, connected_indices: torch.Tensor, node_idx: int)-> int:
         # If there are no connections for the node
         if node_idx not in connected_indices[0, :]:
             if node_idx == 0:
@@ -185,8 +180,8 @@ class Postprocess():
         next_node_ind = int(next_frame_idx[nearest_cell])
         
         # Delete already assigned nodes from the list to avoid several cells with the same ID per frame         
-        condition = connected_indices[1,:] == next_node_ind 
-        connected_indices = connected_indices[:,~condition]
+        assigned_node = connected_indices[1,:] == next_node_ind 
+        connected_indices = connected_indices[:,~assigned_node]
         return next_node_ind
     
     def _calc_distance(self, node_idx: int, next_frame_ind: torch.Tensor)-> tuple[np.ndarray, np.ndarray]:
@@ -204,36 +199,35 @@ class Postprocess():
         distance_mask = distance < self.max_travel_dist 
         return distance[distance_mask], distance_mask
     
-    def start_new_track(self, curr_node: int, frame_ind: int)-> bool:
-        if curr_node in self.trajectory_matrix[frame_ind, :]:
-            return False
-        return True
-    
-    def update_matrix_with_next_node(self, frame_idx: int, curr_node: int, next_node: int)-> None:
+    def _update_matrix_with_next_node(self, frame_idx: int, curr_node: int, next_node: int)-> list[int]:
+        """Update the trajectory matrix with the next node. If the current node is not connected, find the next node to connect or create a new track.
+        Return the index of the cells, as a list, that started a new track."""
+        
         # If the current node already connected, update the matrix with the next node
         if curr_node in self.trajectory_matrix[frame_idx, :]:
             current_idx = np.argwhere(self.trajectory_matrix[frame_idx, :] == curr_node)
-            self.assign_next_node(frame_idx, next_node, current_idx)
-            return
+            self._assign_next_node(frame_idx, next_node, current_idx)
+            return []
         
         # Start a new track, look for the next empty space (-2)
         current_idx = np.argwhere(self.trajectory_matrix[frame_idx, :] == -2)
         # If there's no empty space, add a new column
         if current_idx.size == 0: 
-            current_idx = self.expand_matrix(frame_idx)
+            current_idx = self._expand_matrix(frame_idx)
         # Select the nearest empty space
         current_idx = current_idx.min()
         # Add the current node to the matrix
         self.trajectory_matrix[frame_idx, current_idx] = curr_node
-        self.assign_next_node(frame_idx, next_node, current_idx)
+        self._assign_next_node(frame_idx, next_node, current_idx)
+        return [curr_node]
 
-    def expand_matrix(self, frame_idx: int)-> np.ndarray:
+    def _expand_matrix(self, frame_idx: int)-> np.ndarray:
         new_col = -2 * np.ones((self.trajectory_matrix.shape[0], 1), dtype=self.trajectory_matrix.dtype)
         self.trajectory_matrix = np.append(self.trajectory_matrix, new_col, axis=1)
         current_idx = np.argwhere(self.trajectory_matrix[frame_idx, :] == -2)
         return current_idx
 
-    def assign_next_node(self, frame_idx: int, next_node: int, current_idx: int)-> None:
+    def _assign_next_node(self, frame_idx: int, next_node: int, current_idx: int)-> None:
         # Update, only if frame is not the last one
         if frame_idx + 1 < self.trajectory_matrix.shape[0]:
             self.trajectory_matrix[frame_idx + 1, current_idx] = next_node
@@ -253,10 +247,10 @@ class Postprocess():
         with open(full_name, "w") as text_file:
             text_file.write(str_txt)
                    
-    def fill_first_frame(self, cell_starts):
-        df_parent = pd.DataFrame(index=range(len(cell_starts)), columns=self.cols)
+    def _initialize_parent_dataframe(self, starting_cells: list[int])-> pd.DataFrame:
+        df_parent = pd.DataFrame(index=range(len(starting_cells)), columns=self.cols)
         df_parent.loc[:, ["start_frame", "parent_id"]] = 0
-        df_parent.loc[:, "child_id"] = cell_starts
+        df_parent.loc[:, "child_id"] = starting_cells
         return df_parent
 
     def find_parent_cell(self, frame_ind, all_frames_traject, df, cell_starts): #TODO implement gap frames
@@ -363,9 +357,6 @@ class Postprocess():
             str_track += f"{L} {B} {E} {P}\n"
 
         return str_track
-
-    
-
     
     def get_pred(self, idx):
         pred = None
@@ -477,8 +468,8 @@ if __name__== "__main__":
     pp.fill_mask_labels(debug=False)
     end = time()
     print(f"Time to postprocess: {round(end-start,ndigits=3)} sec\n")
-    metadata = {'finterval':None, 'um_per_pixel':None}
-    relabel_masks(76,preds_dir.parent.joinpath('Masks_GNN_Track'),'RFP',metadata,True)
+    # metadata = {'finterval':None, 'um_per_pixel':None}
+    # relabel_masks(76,preds_dir.parent.joinpath('Masks_GNN_Track'),'RFP',metadata,True)
 
 
 

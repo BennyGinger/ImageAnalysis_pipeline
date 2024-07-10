@@ -63,19 +63,16 @@ class CellTrackGraph:
             # Find all cells in the given frame
             mask_frame = df.frame_num.isin([frame_ind])
             
-            # doing aggregation of the links between 2 consecutive frames
             # FIXME: We may be able to add the gap links here...
             # Find all cells in the given consecutive frames
             mask_next_frame = df.frame_num.isin([frame_ind + 1])
             
             frame_edges = self.filter_by_roi(df.loc[mask_frame, :], df.loc[mask_next_frame, :])
             
-            # FIXME: Might be able to use undirected edges
             if not self.directed:
-                # take the opposite direction using [::-1] and merge one-by-one
-                # with directed and undirected edges
-                opposite_edges = [pairs[::-1] for pairs in frame_edges]
-                frame_edges = list(itertools.chain.from_iterable(zip(frame_edges, opposite_edges)))
+                # Add the reversed edges
+                reversed_edges = [pairs[::-1] for pairs in frame_edges]
+                frame_edges = list(itertools.chain.from_iterable(zip(frame_edges, reversed_edges)))
             
             linked_edges.extend(frame_edges)
         return linked_edges
