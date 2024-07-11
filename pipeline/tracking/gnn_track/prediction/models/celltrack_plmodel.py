@@ -5,8 +5,8 @@ from torch import optim
 from torch.optim import lr_scheduler
 
 from pytorch_lightning import LightningModule
-from metrics import Countspecific, ClassificationMetrics #src.metrics.metrics
-import celltrack_model as celltrack_model #src.models.modules.
+from pipeline.tracking.gnn_track.prediction.models.metrics import Countspecific, ClassificationMetrics
+from pipeline.tracking.gnn_track.prediction.models.celltrack_model import CellTrack_Model
 
 
 class CellTrackLitModel(LightningModule):
@@ -34,17 +34,14 @@ class CellTrackLitModel(LightningModule):
         weight_decay: float = 0.0005,
         **kwargs
     ):
+    
         super().__init__()
 
         # this line ensures params passed to LightningModule will be saved to ckpt
         # it also allows to access params with 'self.hparams' attribute
         self.save_hyperparameters()
-        self.separate_models = separate_models
-        if self.separate_models:
-            model_attr = getattr(celltrack_model, model_params.target)
-            self.model = model_attr(**model_params.kwargs)
-        else:
-            assert False, "Variable separate_models should be set to True!"
+        self.model = CellTrack_Model(**model_params.kwargs)
+        
         self.sample = sample
         self.weight_loss = weight_loss
 
@@ -71,8 +68,8 @@ class CellTrackLitModel(LightningModule):
             "val/loss": [],
         }
 
-    def forward(self, x, edge_index, edge_feat):
-        return self.model(x, edge_index, edge_feat)
+    def forward(self, x, edge_index):
+        return self.model(x, edge_index)
 
     def _compute_loss(self, outputs, edge_labels):
         edge_sum = edge_labels.sum()

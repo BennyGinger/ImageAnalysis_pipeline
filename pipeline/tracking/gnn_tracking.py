@@ -2,9 +2,9 @@ from __future__ import annotations
 from pathlib import Path
 from pipeline.utilities.data_utility import load_stack, save_tif, get_exp_props
 from pipeline.utilities.pipeline_utility import PathType
-from pipeline.tracking.gnn_track.inference_clean import predict
-from pipeline.tracking.gnn_track.postprocess_clean import Postprocess
-from pipeline.tracking.gnn_track.preprocess_seq2graph import extract_img_features
+from pipeline.tracking.gnn_track.prediction.prediction import predict
+from pipeline.tracking.gnn_track.postprocess.postprocess_clean import Postprocess
+from pipeline.tracking.gnn_track.feature_extraction.feature_extraction import extract_img_features
 from pipeline.mask_transformation.complete_track import trim_incomplete_track
 from skimage.segmentation import relabel_sequential
 from skimage.measure import regionprops_table

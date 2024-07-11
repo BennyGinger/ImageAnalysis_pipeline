@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 from torch.nn.modules.distance import CosineSimilarity
 
-from pipeline.tracking.gnn_track.src.models.modules.mlp import MLP
-import pipeline.tracking.gnn_track.src.models.modules.edge_mpnn as edge_mpnn
+from pipeline.tracking.gnn_track.prediction.models.mlp import MLP
+from pipeline.tracking.gnn_track.prediction.models.edge_mpnn import CellTrack_GNN
 
 
 class CellTrack_Model(nn.Module):
@@ -20,8 +20,7 @@ class CellTrack_Model(nn.Module):
         self.learned_node_embedding = MLP(**learned_NodeEncoder_dic)
         self.learned_edge_embedding = MLP(**intialize_EdgeEncoder_dic)
 
-        edge_mpnn_class = getattr(edge_mpnn, message_passing.target)
-        self.message_passing = edge_mpnn_class(**message_passing.kwargs)
+        self.message_passing = CellTrack_GNN(**message_passing.kwargs)
 
         self.edge_classifier = MLP(**edge_classifier_dic)
 

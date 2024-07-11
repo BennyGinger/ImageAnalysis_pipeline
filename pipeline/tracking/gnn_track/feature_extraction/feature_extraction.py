@@ -1,6 +1,5 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from pipeline.utilities.pipeline_utility import PathType
 from typing import Any
 import torch
 import numpy as np
@@ -10,10 +9,10 @@ from skimage.measure import regionprops_table
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from pipeline.tracking.gnn_track.modules.resnet_2d.resnet import set_model_architecture as set_model_arch_2d
-from pipeline.tracking.gnn_track.modules.resnet_2d.resnet import MLP as MLP_2D
-from pipeline.tracking.gnn_track.modules.resnet_3d.resnet import set_model_architecture as set_model_arch_3d
-from pipeline.tracking.gnn_track.modules.resnet_3d.resnet import MLP as MLP_3D
+from pipeline.tracking.gnn_track.feature_extraction.resnet_2d.resnet import set_model_architecture as set_model_arch_2d
+from pipeline.tracking.gnn_track.feature_extraction.resnet_2d.resnet import MLP as MLP_2D
+from pipeline.tracking.gnn_track.feature_extraction.resnet_3d.resnet import set_model_architecture as set_model_arch_3d
+from pipeline.tracking.gnn_track.feature_extraction.resnet_3d.resnet import MLP as MLP_3D
 from pipeline.utilities.data_utility import run_multithread, load_stack, get_exp_props
 from pipeline.utilities.pipeline_utility import progress_bar
 
