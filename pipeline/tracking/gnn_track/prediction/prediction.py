@@ -12,8 +12,8 @@ from sklearn.preprocessing import MinMaxScaler
 
 ######################## Main function ########################
 def predict(ckpt_path: PathType, prediction_dir: Path, max_travel_pix: int, is_3d: bool=False, directed: bool=False)-> None:
-    """ Normalize and scale extracted features and cell parameters to create the node features together with the edge indexes (all cell-cell links in the consecutive frames). This graph is then used to make predictions using the trained model."""
-    
+    """ Construct the graph from the data and make the prediction using the trained model. Save the results in the prediction directory."""
+    print(f" --> Predict cell track connections using the trained model: \033[94m{ckpt_path}\033[0m")
     # Create graph
     graph = get_graph(prediction_dir, max_travel_pix, is_3d, directed)
     
@@ -42,14 +42,13 @@ def load_model(ckpt_path: PathType)-> CellTrackLitModel:
 
 def get_graph(save_dir: Path, max_travel_pix: int, is_3d: bool, directed: bool)-> tuple[tuple[torch.FloatTensor,torch.FloatTensor], torch.Tensor]:
     """Create the graph from the data. Normalize and scale the extracted features and cell parameters to create the node features. Also return the edge index (all cell-cell links in the consecutive frames)."""
-    
     graph_data: Graph = Graph(save_dir,max_travel_pix,is_3d,directed)
     return graph_data.create_graph()
 
 def make_prediction(ckpt_path: PathType, node_features: tuple[torch.FloatTensor,torch.FloatTensor], edge_index: torch.Tensor)-> torch.Tensor:
     """Predict the cell tracks using the trained model."""
     
-    print(f"   ---> Load model from: \033[94m{ckpt_path}\033[0m")
+    print(f"  ---> Make prediction")
     trained_model: CellTrackLitModel = load_model(ckpt_path)
     predictions: torch.Tensor = trained_model(node_features, edge_index)
     return predictions
@@ -160,7 +159,7 @@ class Graph:
         
         # Load the data from the CSV file
         df_feat_path = Path(self.save_dir).joinpath('df_feat.csv')
-        print(f"   ---> Create graph from: \033[94m{df_feat_path}\033[0m")
+        print(f"  ---> Create graph from: \033[94m{df_feat_path}\033[0m")
         
         df_feat = pd.read_csv(df_feat_path,index_col=False).reset_index(drop=True)
         

@@ -40,7 +40,7 @@ def extract_img_features(img_paths: Path, seg_paths: Path, model_path: Path, sav
     
     if df_feat_path.exists() and not overwrite:
         # Log
-        print(f" --> Image features have already been extracted for the '{channel}' channel")
+        print(f"  ---> Image features have already been extracted for the '{channel}' channel")
         return
     
     # Load the images and masks
