@@ -119,13 +119,15 @@ class Postprocess():
         
         # Create csv contains all the relevant information for the res_track.txt
         df_parents = pd.concat(parents_df_lst, axis=0).reset_index(drop=True)
-        self.df_track, self.trajectory_same_label = self.set_all_info(df_parents, self.trajectory_matrix)
+        self.df_track, self.trajectory_same_label = self.set_all_info(df_parents)
+        
         # Convert csv to res_track.txt
         self.file_str = self._df_to_str(self.df_track)
 
         return self.trajectory_matrix, self.trajectory_same_label, self.file_str
 
     def _build_trajectory_matrix(self, connected_indices: torch.Tensor, frames: list[int])-> list[pd.DataFrame]:
+        
         df_parents = []
         for frame in frames:
             # Select all the nodes in the current frame
@@ -134,33 +136,38 @@ class Postprocess():
             # If first frame, fill the matrix and the first frame parents
             if frame == 0:
                 self.trajectory_matrix[frame, :nodes.shape[0]] = nodes
-                df_parents.append(self._initialize_parent_df(nodes))
+                df = self._initialize_parent_df(nodes)
+                df_parents.append(df)
 
             new_tracks = self._find_trajectory_nodes(connected_indices, frame, nodes)
             if new_tracks:
-                df_parents.append(self._find_parent_cell(frame, new_tracks))
+                df = self._find_parent_cell(frame, new_tracks)
+                df_parents.append(df)
+                
         return df_parents
 
     def _find_trajectory_nodes(self, connected_indices: torch.Tensor, frame: int, nodes: list[int])-> list[int]:
         new_tracks = []
-        for curr_node in nodes:
+        for node_idx in nodes:
             # Find the next node to connect
-            next_node = self._find_next_node(connected_indices, curr_node)
+            next_node = self._get_next_node(connected_indices, node_idx)
                         
             # Add the next node to the matrix
-            new_tracks.extend(self._update_matrix_with_next_node(frame, curr_node, next_node))
+            starting_node = self._update_matrix_with_next_node(frame, node_idx, next_node)
+            new_tracks.extend(starting_node)
         return new_tracks
     
-    def _find_next_node(self, connected_indices: torch.Tensor, node_idx: int)-> int:
+    def _get_next_node(self, connected_indices: torch.Tensor, node_idx: int)-> int:
         # If there are no connections for the node
         if node_idx not in connected_indices[0, :]:
+            # FIXME: I'm not sure this is relevent as we set all cells from frame 0 as starting cells, so I don't see how we can have a situation where a starting cell is not connected
             if node_idx == 0:
                 self.flag_id0_terminate = True
             return -1
         
         # Find all potential connections
-        current_idx = np.argwhere(connected_indices[0, :] == node_idx)
-        next_frame_idx = connected_indices[1, current_idx][0]
+        connected_idx = np.argwhere(connected_indices[0, :] == node_idx)
+        next_frame_idx = connected_indices[1, connected_idx][0]
                 
         # Get the euclidean distance between the node and the possible cells to connect
         filtered_distance, distance_mask = self._calc_distance(node_idx, next_frame_idx)
@@ -194,27 +201,27 @@ class Postprocess():
         distance_mask = distance < self.max_travel_dist 
         return distance[distance_mask], distance_mask
     
-    def _update_matrix_with_next_node(self, frame_idx: int, curr_node: int, next_node: int)-> list[int]:
+    def _update_matrix_with_next_node(self, frame_idx: int, node_idx: int, next_node: int)-> list[int]:
         """Update the trajectory matrix with the next node. If the current node is not connected, find the next node to connect or create a new track.
         Return the index of the cells, as a list, that started a new track."""
         
-        # If the current node already connected, update the matrix with the next node
-        if curr_node in self.trajectory_matrix[frame_idx, :]:
-            current_idx = np.argwhere(self.trajectory_matrix[frame_idx, :] == curr_node)
-            self._assign_next_node(frame_idx, next_node, current_idx)
+        # If the current node already connected, update the loacated track with the next node
+        if node_idx in self.trajectory_matrix[frame_idx, :]:
+            track_idx = np.argwhere(self.trajectory_matrix[frame_idx, :] == node_idx)
+            self._assign_next_node(frame_idx, next_node, track_idx)
             return []
         
         # Start a new track, look for the next empty space (-2)
-        current_idx = np.argwhere(self.trajectory_matrix[frame_idx, :] == -2)
+        track_idx = np.argwhere(self.trajectory_matrix[frame_idx, :] == -2)
         # If there's no empty space, add a new column
-        if current_idx.size == 0: 
-            current_idx = self._expand_matrix(frame_idx)
+        if track_idx.size == 0: 
+            track_idx = self._expand_matrix(frame_idx)
         # Select the nearest empty space
-        current_idx = current_idx.min()
+        track_idx = track_idx.min()
         # Add the current node to the matrix
-        self.trajectory_matrix[frame_idx, current_idx] = curr_node
-        self._assign_next_node(frame_idx, next_node, current_idx)
-        return [curr_node]
+        self.trajectory_matrix[frame_idx, track_idx] = node_idx
+        self._assign_next_node(frame_idx, next_node, track_idx)
+        return [node_idx]
 
     def _expand_matrix(self, frame_idx: int)-> np.ndarray:
         new_col = -2 * np.ones((self.trajectory_matrix.shape[0], 1), dtype=self.trajectory_matrix.dtype)
@@ -252,7 +259,7 @@ class Postprocess():
         return str_track
     
     def _find_parent_cell(self, frame_idx: int, new_tracks: list[int])-> pd.DataFrame: #TODO implement gap frames
-        
+        """Function that try to find the parent cell for each cell that started in the frame. Return a dataframe with the parent-child relationship."""
         # Find all the cells that ended in the frame
         end_idx = np.argwhere(self.trajectory_matrix[frame_idx, :] == -1)
         # Find the previous index that terminated
@@ -316,39 +323,39 @@ class Postprocess():
 
         return df.reset_index(drop=True)
 
-    def set_all_info(self, df_parents_all, all_frames_traject):
+    def set_all_info(self, df_parents: pd.DataFrame)-> tuple[pd.DataFrame, np.ndarray]:
 
-        iterate_childs = df_parents_all.child_id.values
-        frames_traject_same_label = all_frames_traject.copy()
+        iterate_childs = df_parents.child_id.values
+        frames_traject_same_label = self.trajectory_matrix.copy()
         for ind, child_ind in enumerate(iterate_childs):
             # find the place where we store the child_ind in the trajectory matrix
             # validate that only one place exists
-            coordinates_child = np.argwhere(all_frames_traject == child_ind)
+            coordinates_child = np.argwhere(self.trajectory_matrix == child_ind)
             n_places = coordinates_child.shape[0]
 
             assert n_places == 1, f"Problem! find {n_places} places which the current child appears"
 
             coordinates_child = coordinates_child.squeeze()
             row, col = coordinates_child
-            s_frame = df_parents_all.loc[ind, "start_frame"]
+            s_frame = df_parents.loc[ind, "start_frame"]
             assert row == s_frame, f"Problem! start frame {s_frame} is not equal to row {row}"
 
             # take the specific col from 'row' down
-            curr_col = all_frames_traject[row:, col]
+            curr_col = self.trajectory_matrix[row:, col]
             last_ind = np.argwhere(curr_col == -1)
             if last_ind.size != 0:
                 last_ind = last_ind[0].squeeze()
                 curr_col = curr_col[:last_ind]
             e_frame = row + curr_col.shape[0] - 1
 
-            df_parents_all.loc[ind, "end_frame"] = int(e_frame)
+            df_parents.loc[ind, "end_frame"] = int(e_frame)
             curr_id = curr_col[-1]
-            df_parents_all.loc[ind, "child_id"] = curr_id
+            df_parents.loc[ind, "child_id"] = curr_id
             frames_traject_same_label[row:e_frame + 1, col] = curr_id
 
-        assert not(df_parents_all.isnull().values.any()), "Problem! dataframe contains NaN values"
-        df_parents_all = self.clean_repetition(df_parents_all.astype(int))
-        return df_parents_all.astype(int), frames_traject_same_label
+        assert not(df_parents.isnull().values.any()), "Problem! dataframe contains NaN values"
+        df_parents = self.clean_repetition(df_parents.astype(int))
+        return df_parents.astype(int), frames_traject_same_label
     
     def get_pred(self, idx):
         pred = None
