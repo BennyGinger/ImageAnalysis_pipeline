@@ -8,7 +8,6 @@ from tifffile import imwrite, imread
 import warnings
 
 from tqdm import trange
-warnings.filterwarnings("ignore")
 import imageio
 
 
@@ -28,10 +27,6 @@ class Postprocess():
         self.seg_paths = seg_paths
         self.seg_paths_lst = sorted(list(self.seg_paths.glob('*.tif')))
 
-        # Load the prediction data
-        self.preds_dir = preds_dir
-        print(f" --> Postprocess the GNN predictions from \033[94m{self.preds_dir}\033[0m")
-        self._load_prediction_data()
         
         
         self.max_travel_dist = max_travel_dist
@@ -40,21 +35,32 @@ class Postprocess():
         self.directed = directed
         self.cols = ["child_id", "parent_id", "start_frame"]
         
-        self.connected_edges = self.find_connected_edges()
+        # Load the prediction data
+        self.preds_dir = preds_dir
+        print(f" --> Postprocess the GNN predictions from \033[94m{self.preds_dir}\033[0m")
+        edge_index = self._load_prediction_data()
+        # Remove the second direction of the edge index
+        if not self.directed:
+            edge_index = edge_index[:, ::2]
+        
+        # get the connected edges
+        connected_mask = self.find_connected_edges()
+        self.connected_edges = edge_index[: , connected_mask]
         
 
-    def _load_prediction_data(self)-> None:
+    def _load_prediction_data(self)-> torch.Tensor:
         # Get the file paths
         edge_path = self.preds_dir.joinpath('edge_indexes.pt')
         df_path = self.preds_dir.joinpath('df_feat.csv')
         pred_path = self.preds_dir.joinpath('raw_preds.pt')
         
         # Load the files, for tensors, we detach and clone to avoid any in-place operations
-        self.edge_index: torch.Tensor = self._load_tensor(edge_path).detach().clone()
+        edge_index: torch.Tensor = self._load_tensor(edge_path).detach().clone()
         self.preds: torch.Tensor = self._load_tensor(pred_path).detach().clone()
         self.df_feat: pd.DataFrame = self._load_df(df_path)
         # Scaling predictions between 0-1
         self.preds = torch.sigmoid(self.preds)
+        return edge_index
         
 
     @staticmethod
@@ -70,8 +76,6 @@ class Postprocess():
         
         if self.directed:
             return (self.preds >= self.decision_threshold)
-        # Remove the second direction of the edge index
-        self.edge_index = self.edge_index[:, ::2]
         return self._merge_edges()
     
     def _merge_edges(self)-> torch.Tensor: 
@@ -102,11 +106,9 @@ class Postprocess():
             return torch.logical_and(clock_bool, anticlock_bool)
     
     
-    
+    # BUG: Find a way to get arround the df_parents and the df_track, I don't think this is useful
     def create_trajectory(self)-> tuple[np.ndarray, np.ndarray, str]:
         self.flag_id0_terminate = False
-        # extract values from arguments
-        connected_indices = self.edge_index[:, self.connected_edges]
         
         # Find number of frames for iterations
         frames, mask_count = np.unique(self.df_feat.frame_num, return_counts=True)
@@ -116,19 +118,19 @@ class Postprocess():
         self.trajectory_matrix[:, :] = -2
         
         # Iterate over the frames to build the trajectory matrix
-        parents_df_lst = self._build_trajectory_matrix(connected_indices, list(frames))
+        parents_df_lst = self._build_trajectory_matrix(list(frames))
         self.trajectory_matrix = self.trajectory_matrix.astype(int)
         
         # Create csv contains all the relevant information for the res_track.txt
         df_parents = pd.concat(parents_df_lst, axis=0).reset_index(drop=True)
-        self.df_track, self.finalised_tracks = self.set_all_info(df_parents)
+        self.df_track, self.finalised_tracks = self._set_all_info(df_parents)
         
         # Convert csv to res_track.txt
         self.file_str = self._df_to_str(self.df_track)
 
         return self.trajectory_matrix, self.finalised_tracks, self.file_str
 
-    def _build_trajectory_matrix(self, connected_indices: torch.Tensor, frames: list[int])-> list[pd.DataFrame]:
+    def _build_trajectory_matrix(self, frames: list[int])-> list[pd.DataFrame]:
         
         df_parents = []
         for frame in frames:
@@ -141,27 +143,27 @@ class Postprocess():
                 df = self._initialize_parent_df(nodes)
                 df_parents.append(df)
 
-            new_tracks = self._find_trajectory_nodes(connected_indices, frame, nodes)
+            new_tracks = self._find_trajectory_nodes(frame, nodes)
             if new_tracks:
                 df = self._find_parent_cell(frame, new_tracks)
                 df_parents.append(df)
                 
         return df_parents
 
-    def _find_trajectory_nodes(self, connected_indices: torch.Tensor, frame: int, nodes: list[int])-> list[int]:
+    def _find_trajectory_nodes(self, frame: int, nodes: list[int])-> list[int]:
         new_tracks = []
         for node_idx in nodes:
             # Find the next node to connect
-            next_node = self._get_next_node(connected_indices, node_idx)
+            next_node = self._get_next_node(node_idx)
                         
             # Add the next node to the matrix
             starting_node = self._update_matrix_with_next_node(frame, node_idx, next_node)
             new_tracks.extend(starting_node)
         return new_tracks
     
-    def _get_next_node(self, connected_indices: torch.Tensor, node_idx: int)-> int:
+    def _get_next_node(self, node_idx: int)-> int:
         # Find all potential connections
-        connected_idx = np.argwhere(connected_indices[0, :] == node_idx)
+        connected_idx = np.argwhere(self.connected_edges[0, :] == node_idx)
         
         # If there are no connections for the node
         if connected_idx.size == 0:
@@ -171,13 +173,13 @@ class Postprocess():
             return -1
         
         # Get the next frame indices
-        next_frame_idx = connected_indices[1, connected_idx][0]
+        next_frame_idx = self.connected_edges[1, connected_idx][0]
+        
+        # Filter based on max_travel_dist
+        filtered_score, distance_mask = self._calc_distance(node_idx, next_frame_idx)
         
         # Retrieve prediction scores for the potential connections
         prediction_scores = self.preds[connected_idx].squeeze(0)
-                
-        # Filter based on max_travel_dist
-        _, distance_mask = self._calc_distance(node_idx, next_frame_idx)
         filtered_score = prediction_scores[distance_mask].numpy()
         
         # If there are no cells to connect  
@@ -190,8 +192,8 @@ class Postprocess():
         next_node_ind = int(next_frame_idx[nearest_cell])
         
         # Delete already assigned nodes from the list to avoid several cells with the same ID per frame         
-        assigned_node = connected_indices[1,:] == next_node_ind 
-        connected_indices = connected_indices[:,~assigned_node]
+        assigned_node = self.connected_edges[1,:] == next_node_ind 
+        self.connected_edges = self.connected_edges[:,~assigned_node]
         return next_node_ind
     
     def _calc_distance(self, node_idx: int, next_frame_ind: torch.Tensor | np.ndarray)-> tuple[np.ndarray, np.ndarray]:
@@ -317,10 +319,13 @@ class Postprocess():
         with open(full_name, "w") as text_file:
             text_file.write(str_txt)
 
-    def clean_repetition(self, df):
+    def _clean_repetition(self, df: pd.DataFrame)-> pd.DataFrame:
         all_childs = df.child_id.values
         unique_vals, count_vals = np.unique(all_childs, return_counts=True)
         prob_vals = unique_vals[count_vals > 1]
+        
+        if prob_vals.size == 0:
+            return df
         
         for prob_val in prob_vals:
             all_apearence = df.loc[df.child_id.values == prob_val, :]
@@ -331,12 +336,16 @@ class Postprocess():
 
         return df.reset_index(drop=True)
 
-    def set_all_info(self, df_parents: pd.DataFrame)-> tuple[pd.DataFrame, np.ndarray]:
+    def _set_all_info(self, df_parents: pd.DataFrame)-> tuple[pd.DataFrame, np.ndarray]:
 
         child_indices = df_parents.child_id.values
         finalised_tracks = self.trajectory_matrix.copy()
-        unique_vals, count_vals = np.unique(finalised_tracks, return_counts=True)
-        print(unique_vals[count_vals > 1])
+        _, count_vals = np.unique(finalised_tracks, return_counts=True)
+        if any(count_vals[2:] > 1):
+            print()
+            warnings.warn(message="\033[91mThere are cells with the same ID in the same frame\033[0m")
+            print()
+            
         for idx, child_idx in enumerate(child_indices):
             # Get the coordinates of the child in the trajectory matrix
             start_row, col = np.argwhere(self.trajectory_matrix == child_idx).squeeze()
@@ -356,8 +365,8 @@ class Postprocess():
             track_label = col_values[-1]
             df_parents.loc[idx, "child_id"] = track_label
             finalised_tracks[start_row:last_row + 1, col] = track_label
-
-        df_parents = self.clean_repetition(df_parents.astype(int))
+        
+        df_parents = self._clean_repetition(df_parents.astype(int))
         return df_parents.astype(int), finalised_tracks
     
     def get_pred(self, idx):
@@ -438,7 +447,7 @@ class Postprocess():
                 if not isOK:
                     pred_copy = self.fix_inconsistent(predID_not_in_currID, pred_copy)
                 self.save_new_pred(pred_copy, idx)
-        print(f"Number of different vals: {count_diff_vals}")
+        
         self.save_txt(self.file_str, self.save_tra_dir, 'res_track.txt')
 
 
