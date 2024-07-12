@@ -31,7 +31,7 @@ class Postprocess():
         # Load the prediction data
         self.preds_dir = preds_dir
         print(f" --> Postprocess the GNN predictions from \033[94m{self.preds_dir}\033[0m")
-        self.load_prediction_data()
+        self._load_prediction_data()
         
         
         self.max_travel_dist = max_travel_dist
@@ -41,16 +41,21 @@ class Postprocess():
         self.cols = ["child_id", "parent_id", "start_frame"]
         
         self.connected_edges = self.find_connected_edges()
+        
 
-    def load_prediction_data(self)-> None:
+    def _load_prediction_data(self)-> None:
         # Get the file paths
         edge_path = self.preds_dir.joinpath('edge_indexes.pt')
         df_path = self.preds_dir.joinpath('df_feat.csv')
         pred_path = self.preds_dir.joinpath('raw_preds.pt')
-        # Load the files
-        self.edge_index: torch.Tensor = self._load_tensor(edge_path)
+        
+        # Load the files, for tensors, we detach and clone to avoid any in-place operations
+        self.edge_index: torch.Tensor = self._load_tensor(edge_path).detach().clone()
+        self.preds: torch.Tensor = self._load_tensor(pred_path).detach().clone()
         self.df_feat: pd.DataFrame = self._load_df(df_path)
-        self.preds: torch.Tensor = self._load_tensor(pred_path)
+        # Scaling predictions between 0-1
+        self.preds = torch.sigmoid(self.preds)
+        
 
     @staticmethod
     def _load_df(file_path: Path)-> pd.DataFrame:
@@ -64,34 +69,29 @@ class Postprocess():
         """Determines if edges are connected based on the confidence scores from the model and the decision threshold. The function returns the connected edges as a boolean-like (0-1) array."""
         
         if self.directed:
-            # Scaling the output to 0-1
-            preds_soft = torch.sigmoid(self.preds) 
-            return (preds_soft >= self.decision_threshold)
+            return (self.preds >= self.decision_threshold)
+        # Remove the second direction of the edge index
+        self.edge_index = self.edge_index[:, ::2]
         return self._merge_edges()
     
     def _merge_edges(self)-> torch.Tensor: 
         """Merge the two directions of the edge index based on the confidence scores from the model and the decision threshold. The merge operation can be 'AVG', 'OR', or 'AND', where 'AVG' takes the average of the two directions, 'OR' where at least one directions is above descision threshold, and 'AND' where both directions are above the threshold. The function returns the merged predictions as a boolean-like (0-1) array."""
         
-        # Remove the second direction of the edge index
-        self.edge_index = self.edge_index.detach().clone()[:, ::2]
-        
-        # Deep copy the predictions
-        self.preds = self.preds.detach().clone()
-        
         # Get the confidence scores for the two directions
-        clock_pred = self.preds[::2]
-        clock_scaled = torch.sigmoid(clock_pred)
-        anticlock_pred = self.preds[1::2]
-        anticlock_scaled = torch.sigmoid(anticlock_pred)
+        clock_preds = self.preds[::2]
+        anticlock_preds = self.preds[1::2]
 
+        # Remove the second direction of the predictions
+        self.preds = self.preds[::2]
+        
         ## Connect the edges based on the confidence scores of the two directions
         # Using the average of the two directions
         if self.merge_operation == 'AVG':
-            avg_soft = (clock_scaled + anticlock_scaled) / 2.0
+            avg_soft = (clock_preds + anticlock_preds) / 2.0
             return (avg_soft >= self.decision_threshold)
         
-        clock_bool = (clock_scaled >= self.decision_threshold)
-        anticlock_bool = (anticlock_scaled >= self.decision_threshold)
+        clock_bool = (clock_preds >= self.decision_threshold)
+        anticlock_bool = (anticlock_preds >= self.decision_threshold)
         
         # With at least one of the directions is above the threshold
         if self.merge_operation == 'OR':
@@ -100,6 +100,8 @@ class Postprocess():
         # With both directions are above the threshold
         if self.merge_operation == 'AND':
             return torch.logical_and(clock_bool, anticlock_bool)
+    
+    
     
     def create_trajectory(self)-> tuple[np.ndarray, np.ndarray, str]:
         self.flag_id0_terminate = False
@@ -119,12 +121,12 @@ class Postprocess():
         
         # Create csv contains all the relevant information for the res_track.txt
         df_parents = pd.concat(parents_df_lst, axis=0).reset_index(drop=True)
-        self.df_track, self.trajectory_same_label = self.set_all_info(df_parents)
+        self.df_track, self.finalised_tracks = self.set_all_info(df_parents)
         
         # Convert csv to res_track.txt
         self.file_str = self._df_to_str(self.df_track)
 
-        return self.trajectory_matrix, self.trajectory_same_label, self.file_str
+        return self.trajectory_matrix, self.finalised_tracks, self.file_str
 
     def _build_trajectory_matrix(self, connected_indices: torch.Tensor, frames: list[int])-> list[pd.DataFrame]:
         
@@ -158,26 +160,32 @@ class Postprocess():
         return new_tracks
     
     def _get_next_node(self, connected_indices: torch.Tensor, node_idx: int)-> int:
+        # Find all potential connections
+        connected_idx = np.argwhere(connected_indices[0, :] == node_idx)
+        
         # If there are no connections for the node
-        if node_idx not in connected_indices[0, :]:
+        if connected_idx.size == 0:
             # FIXME: I'm not sure this is relevent as we set all cells from frame 0 as starting cells, so I don't see how we can have a situation where a starting cell is not connected
             if node_idx == 0:
                 self.flag_id0_terminate = True
             return -1
         
-        # Find all potential connections
-        connected_idx = np.argwhere(connected_indices[0, :] == node_idx)
+        # Get the next frame indices
         next_frame_idx = connected_indices[1, connected_idx][0]
+        
+        # Retrieve prediction scores for the potential connections
+        prediction_scores = self.preds[connected_idx].squeeze(0)
                 
-        # Get the euclidean distance between the node and the possible cells to connect
-        filtered_distance, distance_mask = self._calc_distance(node_idx, next_frame_idx)
+        # Filter based on max_travel_dist
+        _, distance_mask = self._calc_distance(node_idx, next_frame_idx)
+        filtered_score = prediction_scores[distance_mask].numpy()
         
         # If there are no cells to connect  
-        if filtered_distance.size == 0:
+        if filtered_score.size == 0:
             return -1
         
         # Find the nearest cell to connect
-        min_idx = np.argmin(filtered_distance)
+        min_idx = np.argmin(filtered_score)
         nearest_cell: int = np.where(distance_mask)[0][min_idx]
         next_node_ind = int(next_frame_idx[nearest_cell])
         
@@ -313,9 +321,9 @@ class Postprocess():
         all_childs = df.child_id.values
         unique_vals, count_vals = np.unique(all_childs, return_counts=True)
         prob_vals = unique_vals[count_vals > 1]
+        
         for prob_val in prob_vals:
-            masking = df.child_id.values == prob_val
-            all_apearence = df.loc[masking, :]
+            all_apearence = df.loc[df.child_id.values == prob_val, :]
             start_frame = all_apearence.start_frame.min()
             end_frame = all_apearence.end_frame.max()
             df.loc[all_apearence.index[0], ["start_frame", "end_frame"]] = start_frame, end_frame
@@ -325,37 +333,32 @@ class Postprocess():
 
     def set_all_info(self, df_parents: pd.DataFrame)-> tuple[pd.DataFrame, np.ndarray]:
 
-        iterate_childs = df_parents.child_id.values
-        frames_traject_same_label = self.trajectory_matrix.copy()
-        for ind, child_ind in enumerate(iterate_childs):
-            # find the place where we store the child_ind in the trajectory matrix
-            # validate that only one place exists
-            coordinates_child = np.argwhere(self.trajectory_matrix == child_ind)
-            n_places = coordinates_child.shape[0]
+        child_indices = df_parents.child_id.values
+        finalised_tracks = self.trajectory_matrix.copy()
+        unique_vals, count_vals = np.unique(finalised_tracks, return_counts=True)
+        print(unique_vals[count_vals > 1])
+        for idx, child_idx in enumerate(child_indices):
+            # Get the coordinates of the child in the trajectory matrix
+            start_row, col = np.argwhere(self.trajectory_matrix == child_idx).squeeze()
+            # Get all indices from the starting track
+            col_values = self.trajectory_matrix[start_row:, col]
+            end_idx = np.argwhere(col_values == -1)
+            
+            if end_idx.size != 0:
+                end_idx = end_idx[0].squeeze()
+                col_values = col_values[:end_idx]
+            
+            # Determine the last row of the track and update the dataframe
+            last_row = start_row + col_values.shape[0] - 1
+            df_parents.loc[idx, "end_frame"] = int(last_row)
 
-            assert n_places == 1, f"Problem! find {n_places} places which the current child appears"
+            # Assign the end value to the all track
+            track_label = col_values[-1]
+            df_parents.loc[idx, "child_id"] = track_label
+            finalised_tracks[start_row:last_row + 1, col] = track_label
 
-            coordinates_child = coordinates_child.squeeze()
-            row, col = coordinates_child
-            s_frame = df_parents.loc[ind, "start_frame"]
-            assert row == s_frame, f"Problem! start frame {s_frame} is not equal to row {row}"
-
-            # take the specific col from 'row' down
-            curr_col = self.trajectory_matrix[row:, col]
-            last_ind = np.argwhere(curr_col == -1)
-            if last_ind.size != 0:
-                last_ind = last_ind[0].squeeze()
-                curr_col = curr_col[:last_ind]
-            e_frame = row + curr_col.shape[0] - 1
-
-            df_parents.loc[ind, "end_frame"] = int(e_frame)
-            curr_id = curr_col[-1]
-            df_parents.loc[ind, "child_id"] = curr_id
-            frames_traject_same_label[row:e_frame + 1, col] = curr_id
-
-        assert not(df_parents.isnull().values.any()), "Problem! dataframe contains NaN values"
         df_parents = self.clean_repetition(df_parents.astype(int))
-        return df_parents.astype(int), frames_traject_same_label
+        return df_parents.astype(int), finalised_tracks
     
     def get_pred(self, idx):
         pred = None
@@ -400,7 +403,7 @@ class Postprocess():
 
     def fill_mask_labels(self, debug=False):
         self.create_save_dir()
-        all_frames_traject, trajectory_same_label = self.trajectory_matrix, self.trajectory_same_label
+        all_frames_traject, trajectory_same_label = self.trajectory_matrix, self.finalised_tracks
         df = self.df_feat
         n_rows, _ = all_frames_traject.shape
 
