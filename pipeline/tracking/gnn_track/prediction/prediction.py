@@ -61,58 +61,87 @@ class Graph:
     directed: bool=False
     curr_roi: dict[str,int] = field(init=False)
         
-    def filter_by_roi(self, df_curr: pd.DataFrame, df_next: pd.DataFrame)-> list[tuple[int,int]]:
-        """Filter the edges between the cells in the consecutive frames based on the ROI. The ROI is defined by the macx cell size and the max_travel_pix parameter. The ROI is used to filter out cells edges that are too far apart."""
+    # def filter_by_roi(self, df_curr: pd.DataFrame, df_next: pd.DataFrame)-> list[tuple[int,int]]:
+    #     """Filter the edges between the cells in the consecutive frames based on the ROI. The ROI is defined by the macx cell size and the max_travel_pix parameter. The ROI is used to filter out cells edges that are too far apart."""
         
+    #     # Columns to consider for ROI calculation
+    #     cents_cols = ["centroid_row", "centroid_col"]
+    #     if self.is_3d:
+    #         cents_cols.append("centroid_depth")
+        
+    #     # Extract ROI columns from current and next frame data
+    #     curr_centers, next_centers = df_curr.loc[:, cents_cols], df_next.loc[:, cents_cols]
+
+    #     # Iterate over each cell in the current frame
+    #     index_pairs = []
+    #     for cell_idx in curr_centers.index.values:
+    #         # Extract the centroid coordinates for the current cell
+    #         row_coord, col_coord = curr_centers.centroid_row[cell_idx], curr_centers.centroid_col[cell_idx]
+    #         max_row, min_row = row_coord + self.curr_roi['row'], row_coord - self.curr_roi['row']
+    #         max_col, min_col = col_coord + self.curr_roi['col'], col_coord - self.curr_roi['col']
+
+    #         # Create masks to find cells within the ROI in the next frame
+    #         row_vals, col_vals = next_centers.centroid_row.values, next_centers.centroid_col.values
+    #         mask_row = np.bitwise_and(min_row <= row_vals, row_vals <= max_row)
+    #         mask_col = np.bitwise_and(min_col <= col_vals, col_vals <= max_col)
+    #         mask_all = np.bitwise_and(mask_row, mask_col)
+
+    #         if self.is_3d:
+    #             depth_coord = curr_centers.centroid_depth[cell_idx]
+    #             max_depth, min_depth = depth_coord + self.curr_roi['depth'], depth_coord - self.curr_roi['depth']
+    #             depth_vals = next_centers.centroid_depth.values
+    #             mask_depth = np.bitwise_and(min_depth <= depth_vals, depth_vals <= max_depth)
+    #             mask_all = np.bitwise_and(mask_all, mask_depth)
+
+    #         # Find indices of next frame cells within the ROI
+    #         next_indices = next_centers.index[mask_all].values
+    #         print(f"{next_indices=}")
+    #         # Pair each next frame index with the current frame index
+    #         pairs = list(zip([cell_idx] * len(next_indices), next_indices))
+    #         index_pairs.extend(pairs)
+    #     return index_pairs
+
+    def filter_by_roi(self, df_curr: pd.DataFrame, df_next: pd.DataFrame)-> list[tuple[int,int]]:
         # Columns to consider for ROI calculation
         cents_cols = ["centroid_row", "centroid_col"]
         if self.is_3d:
             cents_cols.append("centroid_depth")
         
         # Extract ROI columns from current and next frame data
-        curr_centers, next_centers = df_curr.loc[:, cents_cols], df_next.loc[:, cents_cols]
-
+        curr_indices = df_curr.index.values
+        next_indices = df_next.index.values
+        
         # Iterate over each cell in the current frame
         index_pairs = []
-        for cell_idx in curr_centers.index.values:
+        for cell_idx in curr_indices:
             # Extract the centroid coordinates for the current cell
-            row_coord, col_coord = curr_centers.centroid_row[cell_idx], curr_centers.centroid_col[cell_idx]
-            max_row, min_row = row_coord + self.curr_roi['row'], row_coord - self.curr_roi['row']
-            max_col, min_col = col_coord + self.curr_roi['col'], col_coord - self.curr_roi['col']
-
-            # Create masks to find cells within the ROI in the next frame
-            row_vals, col_vals = next_centers.centroid_row.values, next_centers.centroid_col.values
-            mask_row = np.bitwise_and(min_row <= row_vals, row_vals <= max_row)
-            mask_col = np.bitwise_and(min_col <= col_vals, col_vals <= max_col)
-            mask_all = np.bitwise_and(mask_row, mask_col)
-
-            if self.is_3d:
-                depth_coord = curr_centers.centroid_depth[cell_idx]
-                max_depth, min_depth = depth_coord + self.curr_roi['depth'], depth_coord - self.curr_roi['depth']
-                depth_vals = next_centers.centroid_depth.values
-                mask_depth = np.bitwise_and(min_depth <= depth_vals, depth_vals <= max_depth)
-                mask_all = np.bitwise_and(mask_all, mask_depth)
-
-            # Find indices of next frame cells within the ROI
-            next_indices = next_centers.index[mask_all].values
+            curr_node = df_curr.loc[cell_idx, cents_cols].values
+            # Extract all centroids in the next frame
+            next_nodes = df_next.loc[:, cents_cols].values
+            # Get the euclidean distance between the node and the possible cells to connect
+            distance: np.ndarray = np.sqrt(((next_nodes - curr_node) ** 2).sum(axis=-1))
+            # Filter the distance based on the max_travel_dist
+            distance_mask = distance <= self.max_travel_pix
+            # Filter next frame cells within the ROI
+            filtered_indices = next_indices[distance_mask]
             # Pair each next frame index with the current frame index
-            pairs = list(zip([cell_idx] * len(next_indices), next_indices))
+            pairs = list(zip([cell_idx] * len(filtered_indices), filtered_indices))
             index_pairs.extend(pairs)
         return index_pairs
-
-    def link_all_edges(self, df: pd.DataFrame)-> list[tuple[int,int]]:
+    
+    def link_all_edges(self, df_feat: pd.DataFrame)-> list[tuple[int,int]]:
         """Create the edges between the cells in the consecutive frames, meaning determine all potential links between the cells in the consecutive frames. Edges are then filtered based on the ROI (that take in account the cell size and the max_travel_pix parameter)."""
         # In the following loop- doing aggregation of the same frame links + the links between 2 consecutive frames
         linked_edges = []
-        for frame_ind in np.unique(df.frame_num.values)[:-1]:
+        for frame_ind in np.unique(df_feat.frame_num.values)[:-1]:
             # Find all cells in the given frame
-            mask_frame = df.frame_num.isin([frame_ind])
+            mask_frame = df_feat.frame_num.isin([frame_ind])
             
             # FIXME: We may be able to add the gap links here...
             # Find all cells in the given consecutive frames
-            mask_next_frame = df.frame_num.isin([frame_ind + 1])
+            mask_next_frame = df_feat.frame_num.isin([frame_ind + 1])
             
-            frame_edges = self.filter_by_roi(df.loc[mask_frame, :], df.loc[mask_next_frame, :])
+            frame_edges = self.filter_by_roi(df_feat.loc[mask_frame, :], df_feat.loc[mask_next_frame, :])
             
             if not self.directed:
                 # Add the reversed edges
@@ -147,7 +176,8 @@ class Graph:
         max_row = np.abs(bb_feat.min_row_bb.values - bb_feat.max_row_bb.values).max()
         max_col = np.abs(bb_feat.min_col_bb.values - bb_feat.max_col_bb.values).max()
 
-        increase_factor = self.max_travel_pix * 2
+        increase_factor = self.max_travel_pix
+        print(f"{max_row=}, {max_col=}, {increase_factor=}")
         self.curr_roi = {'row': max_row + increase_factor, 'col': max_col + increase_factor}
         if self.is_3d:
             max_depth = np.abs(bb_feat.min_depth_bb.values - bb_feat.max_depth_bb.values).max()

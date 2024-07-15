@@ -1,10 +1,9 @@
 from __future__ import annotations
-import os
 from pathlib import Path
 import torch
 import pandas as pd
 import numpy as np
-from tifffile import imwrite, imread
+from tifffile import imwrite
 import warnings
 
 from tqdm import trange
@@ -45,7 +44,6 @@ class Postprocess():
         connected_mask = self.find_connected_edges()
         self.connected_edges = edge_index[: , connected_mask]
         
-
     def _load_prediction_data(self)-> torch.Tensor:
         # Get the file paths
         edge_path = self.preds_dir.joinpath('edge_indexes.pt')
@@ -102,7 +100,6 @@ class Postprocess():
         if self.merge_operation == 'AND':
             return torch.logical_and(clock_bool, anticlock_bool)
     
-    # BUG: Find a way to get arround the df_parents and the df_track, I don't think this is useful
     def create_trajectory(self)-> tuple[np.ndarray, np.ndarray]:
         
         # Find number of frames for iterations
@@ -161,14 +158,16 @@ class Postprocess():
         filtered_score, distance_mask = self._calc_distance(node_idx, next_frame_idx)
         
         # Retrieve prediction scores for the potential connections
-        prediction_scores = self.preds[connected_idx].squeeze(0)
-        filtered_score = prediction_scores[distance_mask].numpy()
+        # prediction_scores = self.preds[connected_idx].squeeze(0)
+        # # print(f"{prediction_scores = }")
+        # filtered_score = prediction_scores[distance_mask].numpy()
         
         # If there are no cells to connect  
         if filtered_score.size == 0:
             return -1
         
         # Find the nearest cell to connect
+        # min_idx = np.argmax(filtered_score)
         min_idx = np.argmin(filtered_score)
         nearest_cell: int = np.where(distance_mask)[0][min_idx]
         next_node_ind = int(next_frame_idx[nearest_cell])
@@ -191,6 +190,8 @@ class Postprocess():
         
         # Filter the distance based on the max_travel_dist
         distance_mask = distance < self.max_travel_dist 
+        if not all(distance_mask):
+            print(f"Distance: {distance[distance_mask]}")
         return distance[distance_mask], distance_mask
     
     def _update_matrix_with_next_node(self, frame_idx: int, node_idx: int, next_node: int)-> list[int]:
