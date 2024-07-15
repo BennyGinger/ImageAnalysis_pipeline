@@ -8,8 +8,7 @@ from tifffile import imwrite, imread
 import warnings
 
 from tqdm import trange
-import imageio
-
+from pipeline.utilities.data_utility import load_stack
 
 class Postprocess():
     def __init__(self,
@@ -20,6 +19,7 @@ class Postprocess():
                  merge_operation: str,
                  max_travel_dist: int,
                  directed: bool,
+                 channel_to_track: str
                  ):
         self.is_3d = is_3d
         
@@ -27,12 +27,11 @@ class Postprocess():
         self.seg_paths = seg_paths
         self.seg_paths_lst = sorted(list(self.seg_paths.glob('*.tif')))
 
-        
-        
         self.max_travel_dist = max_travel_dist
         self.merge_operation = merge_operation
         self.decision_threshold: float = decision_threshold
         self.directed = directed
+        self.channel = channel_to_track
         self.cols = ["child_id", "parent_id", "start_frame"]
         
         # Load the prediction data
@@ -62,7 +61,6 @@ class Postprocess():
         self.preds = torch.sigmoid(self.preds)
         return edge_index
         
-
     @staticmethod
     def _load_df(file_path: Path)-> pd.DataFrame:
         return pd.read_csv(file_path,index_col=False).reset_index(drop=True)
@@ -105,7 +103,6 @@ class Postprocess():
         if self.merge_operation == 'AND':
             return torch.logical_and(clock_bool, anticlock_bool)
     
-    
     # BUG: Find a way to get arround the df_parents and the df_track, I don't think this is useful
     def create_trajectory(self)-> tuple[np.ndarray, np.ndarray, str]:
         self.flag_id0_terminate = False
@@ -114,8 +111,7 @@ class Postprocess():
         frames, mask_count = np.unique(self.df_feat.frame_num, return_counts=True)
         
         # Create the trajectory matrix and set to -2 (=empty cell)
-        self.trajectory_matrix = np.zeros((frames.shape[0], mask_count.max())) 
-        self.trajectory_matrix[:, :] = -2
+        self.trajectory_matrix = np.full((frames.shape[0], mask_count.max()),-2)
         
         # Iterate over the frames to build the trajectory matrix
         parents_df_lst = self._build_trajectory_matrix(list(frames))
@@ -306,19 +302,6 @@ class Postprocess():
             finish_node_idx = np.delete(finish_node_idx, [nearest_cell])
         return df_parent
     
-    
-    
-    def save_csv(self, df_file, file_name):
-        full_name = os.path.join(self.preds_dir, f"postprocess_data")
-        os.makedirs(full_name, exist_ok=True)
-        full_name = os.path.join(full_name, file_name)
-        df_file.to_csv(full_name)
-
-    def save_txt(self, str_txt, output_folder, file_name):
-        full_name = os.path.join(output_folder, file_name)
-        with open(full_name, "w") as text_file:
-            text_file.write(str_txt)
-
     def _clean_repetition(self, df: pd.DataFrame)-> pd.DataFrame:
         all_childs = df.child_id.values
         unique_vals, count_vals = np.unique(all_childs, return_counts=True)
@@ -338,6 +321,11 @@ class Postprocess():
 
     def _set_all_info(self, df_parents: pd.DataFrame)-> tuple[pd.DataFrame, np.ndarray]:
 
+        # Add 1 to the matrix to avoid 0 as a valid cell (i.e. 0 = background value)
+        mask = ~np.isin(self.trajectory_matrix, [-1, -2])
+        self.trajectory_matrix[mask] += 1
+        df_parents.loc[:,:] = df_parents.loc[:,:] + 1
+        
         child_indices = df_parents.child_id.values
         finalised_tracks = self.trajectory_matrix.copy()
         _, count_vals = np.unique(finalised_tracks, return_counts=True)
@@ -369,23 +357,20 @@ class Postprocess():
         df_parents = self._clean_repetition(df_parents.astype(int))
         return df_parents.astype(int), finalised_tracks
     
-    def get_pred(self, idx):
-        pred = None
-        if len(self.seg_paths_lst):
-            im_path = self.seg_paths_lst[idx]
-            pred = imread(im_path) #load Image
-            if self.is_3d and len(pred.shape) != 3:
-                pred = np.stack(imageio.mimread(im_path))
-                assert len(pred.shape) == 3, f"Expected 3d dimiension! but {pred.shape}"
-        return pred
+    def save_csv(self, df_file, file_name):
+        full_name = os.path.join(self.preds_dir, f"postprocess_data")
+        os.makedirs(full_name, exist_ok=True)
+        full_name = os.path.join(full_name, file_name)
+        df_file.to_csv(full_name)
 
-    def create_save_dir(self):
-        self.save_tra_dir = self.seg_paths.parent.joinpath(f"Masks_GNN_Track")
-        self.save_tra_dir.mkdir(exist_ok=True)
+    def save_txt(self, str_txt, output_folder, file_name):
+        full_name = os.path.join(output_folder, file_name)
+        with open(full_name, "w") as text_file:
+            text_file.write(str_txt)
 
-    def save_new_pred(self, new_pred, idx):
+    def save_new_pred(self, new_pred, idx, save_path: Path):
         file_name = self.seg_paths_lst[idx].name
-        full_dir = self.save_tra_dir.joinpath(file_name)
+        full_dir = save_path.joinpath(file_name)
         imwrite(full_dir, new_pred.astype(np.uint16))
 
     def check_ids_consistent(self, frame_ind, pred_ids, curr_ids):
@@ -410,45 +395,28 @@ class Postprocess():
             pred[pred == id] = 0
         return pred
 
-    def fill_mask_labels(self, debug=False):
-        self.create_save_dir()
-        all_frames_traject, trajectory_same_label = self.trajectory_matrix, self.finalised_tracks
-        df = self.df_feat
-        n_rows, _ = all_frames_traject.shape
+    def fill_mask_labels(self, save_path: Path):
+        
+        
+        n_rows, _ = self.trajectory_matrix.shape
 
-        count_diff_vals = 0
         for idx in trange(n_rows):
-            pred = self.get_pred(idx)
+            pred = load_stack(self.seg_paths_lst, self.channel, idx, return_2D=not self.is_3d)
             pred_copy = pred.copy()
-            curr_row = all_frames_traject[idx, :]
-            mask_id = np.bitwise_and(curr_row != -1, curr_row != -2) #TODO add -3 for gaps?
+            curr_row = self.trajectory_matrix[idx, :]
+            
+            # Get all the ids that are not -1 or -2
+            mask_id = ~np.isin(curr_row, [-1, -2]) #TODO add -3 for gaps?
             graph_ids = curr_row[mask_id]
-            graph_true_ids = trajectory_same_label[idx, mask_id]
-            frame_ids = []
+            graph_true_ids = self.finalised_tracks[idx, mask_id]
             for id, true_id in zip(graph_ids, graph_true_ids):
-                flag_id0 = true_id == 0
-                if flag_id0:    # edge case when the cell with id=0 terminate after one frame
-                    if self.flag_id0_terminate:
-                        new_id = trajectory_same_label.max() + 1
-                        self.df_track.child_id[self.df_track.child_id == 0] = new_id
-                        self.file_str = self._df_to_str(self.df_track)
-                    else:
-                        assert False, "Problem!"
-                val = df.loc[id, "seg_label"]        
-
-                if flag_id0:
-                    true_id = new_id
-                
+                # -1 to account for the 0-based indexing
+                val = self.df_feat.loc[id-1, "seg_label"]      
                 pred_copy[pred==val]=true_id
 
-                frame_ids.append(true_id)
-            isOK, predID_not_in_currID = self.check_ids_consistent(idx, np.unique(pred_copy), frame_ids)
-            if not debug:
-                if not isOK:
-                    pred_copy = self.fix_inconsistent(predID_not_in_currID, pred_copy)
-                self.save_new_pred(pred_copy, idx)
+            self.save_new_pred(pred_copy, idx, save_path)
         
-        self.save_txt(self.file_str, self.save_tra_dir, 'res_track.txt')
+        self.save_txt(self.file_str, save_path, 'res_track.txt')
 
 
 if __name__== "__main__":
@@ -456,6 +424,7 @@ if __name__== "__main__":
     from pipeline.tracking.gnn_tracking import relabel_masks
     
     preds_dir=Path('/home/Test_images/dia_fish/newtest/c1172-GCaMP-15%_Hypo-1-MaxIP_s1/gnn_files')
+    save_path = preds_dir.parent.joinpath('Masks_GNN_Track')
     
     
     start = time()
@@ -465,7 +434,8 @@ if __name__== "__main__":
                      decision_threshold=0.4,
                      merge_operation='AND',
                      max_travel_dist=10,
-                     directed=False)
+                     directed=False,
+                     channel_to_track='RFP')
     
     all_frames_traject, trajectory_same_label, str_track = pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
     all_frames_path = preds_dir.joinpath(f'all_frames_traject.csv')
@@ -476,7 +446,7 @@ if __name__== "__main__":
     with open(str_track_path, 'w') as file:
         file.write(str_track)
 
-    pp.fill_mask_labels(debug=False)
+    pp.fill_mask_labels(save_path=save_path)
     end = time()
     print(f"Time to postprocess: {round(end-start,ndigits=3)} sec\n")
     metadata = {'finterval':None, 'um_per_pixel':None}

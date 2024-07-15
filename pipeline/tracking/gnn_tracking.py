@@ -95,7 +95,8 @@ def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_trav
                      decision_threshold=decision_threshold,
                      merge_operation='AND',
                      max_travel_dist=max_travel_dist,
-                     directed=directed)
+                     directed=directed,
+                     channel_to_track=channel_to_track)
     
     all_frames_traject, trajectory_same_label, str_track = pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
     all_frames_path = preds_dir.joinpath(f'all_frames_traject.csv')
@@ -106,7 +107,7 @@ def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_trav
     with open(str_track_path, 'w') as file:
         file.write(str_track)
 
-    pp.fill_mask_labels(debug=False)
+    pp.fill_mask_labels(save_path=save_path)
     end = time()
     print(f"Time to postprocess: {round(end-start,ndigits=3)} sec\n")
     
