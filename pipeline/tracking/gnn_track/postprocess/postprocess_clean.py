@@ -32,7 +32,6 @@ class Postprocess():
         self.decision_threshold: float = decision_threshold
         self.directed = directed
         self.channel = channel_to_track
-        self.cols = ["child_id", "parent_id", "start_frame"]
         
         # Load the prediction data
         self.preds_dir = preds_dir
@@ -104,8 +103,7 @@ class Postprocess():
             return torch.logical_and(clock_bool, anticlock_bool)
     
     # BUG: Find a way to get arround the df_parents and the df_track, I don't think this is useful
-    def create_trajectory(self)-> tuple[np.ndarray, np.ndarray, str]:
-        self.flag_id0_terminate = False
+    def create_trajectory(self)-> tuple[np.ndarray, np.ndarray]:
         
         # Find number of frames for iterations
         frames, mask_count = np.unique(self.df_feat.frame_num, return_counts=True)
@@ -114,37 +112,28 @@ class Postprocess():
         self.trajectory_matrix = np.full((frames.shape[0], mask_count.max()),-2)
         
         # Iterate over the frames to build the trajectory matrix
-        parents_df_lst = self._build_trajectory_matrix(list(frames))
+        new_track_starting_ids = self._build_trajectory_matrix(list(frames))
         self.trajectory_matrix = self.trajectory_matrix.astype(int)
         
-        # Create csv contains all the relevant information for the res_track.txt
-        df_parents = pd.concat(parents_df_lst, axis=0).reset_index(drop=True)
-        self.df_track, self.finalised_tracks = self._set_all_info(df_parents)
+        # Give a unique label to each tracks
+        self.finalised_tracks = self._finalize_tracks(new_track_starting_ids)
         
-        # Convert csv to res_track.txt
-        self.file_str = self._df_to_str(self.df_track)
+        return self.trajectory_matrix, self.finalised_tracks
 
-        return self.trajectory_matrix, self.finalised_tracks, self.file_str
-
-    def _build_trajectory_matrix(self, frames: list[int])-> list[pd.DataFrame]:
+    def _build_trajectory_matrix(self, frames: list[int])-> list[int]:
         
-        df_parents = []
+        new_track_starting_ids = []
         for frame in frames:
-            # Select all the nodes in the current frame
+            # Get index of every cells, in given frame
             nodes = self.df_feat[self.df_feat.frame_num==frame].index.values
 
-            # If first frame, fill the matrix and the first frame parents
+            # If first frame, fill the matrix with the starting cells
             if frame == 0:
                 self.trajectory_matrix[frame, :nodes.shape[0]] = nodes
-                df = self._initialize_parent_df(nodes)
-                df_parents.append(df)
-
-            new_tracks = self._find_trajectory_nodes(frame, nodes)
-            if new_tracks:
-                df = self._find_parent_cell(frame, new_tracks)
-                df_parents.append(df)
-                
-        return df_parents
+                new_track_starting_ids.extend(nodes.tolist())
+            # If not first frame, find the trajectory nodes and update the new_track list with new tracks
+            new_track_starting_ids.extend(self._find_trajectory_nodes(frame, nodes))
+        return new_track_starting_ids
 
     def _find_trajectory_nodes(self, frame: int, nodes: list[int])-> list[int]:
         new_tracks = []
@@ -163,9 +152,6 @@ class Postprocess():
         
         # If there are no connections for the node
         if connected_idx.size == 0:
-            # FIXME: I'm not sure this is relevent as we set all cells from frame 0 as starting cells, so I don't see how we can have a situation where a starting cell is not connected
-            if node_idx == 0:
-                self.flag_id0_terminate = True
             return -1
         
         # Get the next frame indices
@@ -240,166 +226,52 @@ class Postprocess():
         if frame_idx + 1 < self.trajectory_matrix.shape[0]:
             self.trajectory_matrix[frame_idx + 1, current_idx] = next_node
     
-    def _initialize_parent_df(self, starting_cells: list[int])-> pd.DataFrame:
-        df_parent = pd.DataFrame(index=range(len(starting_cells)), columns=self.cols)
-        df_parent.loc[:, ["start_frame", "parent_id"]] = 0
-        df_parent.loc[:, "child_id"] = starting_cells
-        return df_parent
-    
-    def _df_to_str(self, df_track: pd.DataFrame)-> str:
-        """
-        L B E P where
-        L - a unique label of the track (label of markers, 16-bit positive value)
-        B - a zero-based temporal index of the frame in which the track begins
-        E - a zero-based temporal index of the frame in which the track ends
-        P - label of the parent track (0 is used when no parent is defined)
-        """
-        str_track = ''
-        for i in df_track.index:
-            L = df_track.loc[i, "child_id"]
-            B = df_track.loc[i, "start_frame"]
-            E = df_track.loc[i, "end_frame"]
-            P = df_track.loc[i, "parent_id"]
-            str_track += f"{L} {B} {E} {P}\n"
+    def _finalize_tracks(self, child_indices: list[int])-> np.ndarray:
 
-        return str_track
-    
-    def _find_parent_cell(self, frame_idx: int, new_tracks: list[int])-> pd.DataFrame: #TODO implement gap frames
-        """Function that try to find the parent cell for each cell that started in the frame. Return a dataframe with the parent-child relationship."""
-        # Find all the cells that ended in the frame
-        end_idx = np.argwhere(self.trajectory_matrix[frame_idx, :] == -1)
-        # Find the previous index that terminated
-        finish_node_idx: np.ndarray = self.trajectory_matrix[frame_idx - 1, end_idx].squeeze(axis=1)
-        # Create the parent dataframe
-        df_parent = pd.DataFrame(index=range(len(new_tracks)), columns=self.cols)
-        df_parent.loc[:, "start_frame"] = frame_idx
-        
-        # If there are no cells that ended in the frame, set the parent to 0
-        if finish_node_idx.size == 0:
-            df_parent.loc[:, "child_id"] = new_tracks
-            df_parent.loc[:, "parent_id"] = 0
-            return df_parent
-        
-        # Find the parent cell for each cell that started in the frame
-        for idx, cell in enumerate(new_tracks):
-            # Get the euclidean distance between the node and the possible cells to connect
-            filtered_distance, distance_mask = self._calc_distance(cell, finish_node_idx)
-            
-            # If there are no cells to connect
-            if filtered_distance.size == 0:
-                df_parent.loc[idx, "child_id"] = cell
-                df_parent.loc[idx, "parent_id"] = 0
-                continue
-            
-            # Find the nearest cell to connect
-            min_index = np.argmin(filtered_distance)
-            nearest_cell = np.where(distance_mask)[0][min_index]
-            parent_cell = int(finish_node_idx[nearest_cell])
-            
-            df_parent.loc[idx, "child_id"] = cell
-            df_parent.loc[idx, "parent_id"] = parent_cell
-            # Delete the parent cell from the list to avoid several cells with the same ID per frame
-            finish_node_idx = np.delete(finish_node_idx, [nearest_cell])
-        return df_parent
-    
-    def _clean_repetition(self, df: pd.DataFrame)-> pd.DataFrame:
-        all_childs = df.child_id.values
-        unique_vals, count_vals = np.unique(all_childs, return_counts=True)
-        prob_vals = unique_vals[count_vals > 1]
-        
-        if prob_vals.size == 0:
-            return df
-        
-        for prob_val in prob_vals:
-            all_apearence = df.loc[df.child_id.values == prob_val, :]
-            start_frame = all_apearence.start_frame.min()
-            end_frame = all_apearence.end_frame.max()
-            df.loc[all_apearence.index[0], ["start_frame", "end_frame"]] = start_frame, end_frame
-            df = df.drop(all_apearence.index[1:])
-
-        return df.reset_index(drop=True)
-
-    def _set_all_info(self, df_parents: pd.DataFrame)-> tuple[pd.DataFrame, np.ndarray]:
-
-        # Add 1 to the matrix to avoid 0 as a valid cell (i.e. 0 = background value)
+        # Add 1 to the matrix and child_indices to avoid 0 as a valid cell (i.e. 0 = background value)
         mask = ~np.isin(self.trajectory_matrix, [-1, -2])
         self.trajectory_matrix[mask] += 1
-        df_parents.loc[:,:] = df_parents.loc[:,:] + 1
+        child_indices = [child_idx + 1 for child_idx in child_indices] 
         
-        child_indices = df_parents.child_id.values
         finalised_tracks = self.trajectory_matrix.copy()
+        
+        # Check that there are no cells with the same ID in the same frame
         _, count_vals = np.unique(finalised_tracks, return_counts=True)
         if any(count_vals[2:] > 1):
             print()
             warnings.warn(message="\033[91mThere are cells with the same ID in the same frame\033[0m")
             print()
-            
-        for idx, child_idx in enumerate(child_indices):
+        
+        # Update the matrix with the finalised tracks
+        for child_idx in child_indices:
             # Get the coordinates of the child in the trajectory matrix
             start_row, col = np.argwhere(self.trajectory_matrix == child_idx).squeeze()
+            
             # Get all indices from the starting track
             col_values = self.trajectory_matrix[start_row:, col]
-            end_idx = np.argwhere(col_values == -1)
             
+            # Determine the last row of the track and updates the values of the tracks
+            end_idx = np.argwhere(col_values == -1)
             if end_idx.size != 0:
+                # Get the first index of the end value
                 end_idx = end_idx[0].squeeze()
                 col_values = col_values[:end_idx]
-            
-            # Determine the last row of the track and update the dataframe
             last_row = start_row + col_values.shape[0] - 1
-            df_parents.loc[idx, "end_frame"] = int(last_row)
 
             # Assign the end value to the all track
             track_label = col_values[-1]
-            df_parents.loc[idx, "child_id"] = track_label
             finalised_tracks[start_row:last_row + 1, col] = track_label
         
-        df_parents = self._clean_repetition(df_parents.astype(int))
-        return df_parents.astype(int), finalised_tracks
+        return finalised_tracks
     
-    def save_csv(self, df_file, file_name):
-        full_name = os.path.join(self.preds_dir, f"postprocess_data")
-        os.makedirs(full_name, exist_ok=True)
-        full_name = os.path.join(full_name, file_name)
-        df_file.to_csv(full_name)
-
-    def save_txt(self, str_txt, output_folder, file_name):
-        full_name = os.path.join(output_folder, file_name)
-        with open(full_name, "w") as text_file:
-            text_file.write(str_txt)
-
     def save_new_pred(self, new_pred, idx, save_path: Path):
         file_name = self.seg_paths_lst[idx].name
         full_dir = save_path.joinpath(file_name)
         imwrite(full_dir, new_pred.astype(np.uint16))
 
-    def check_ids_consistent(self, frame_ind, pred_ids, curr_ids):
-
-        predID_not_in_currID = [x for x in pred_ids if x not in curr_ids]
-        currID_not_in_predID = [x for x in curr_ids if x not in pred_ids]
-        flag1 = len(predID_not_in_currID) == 1 and predID_not_in_currID[0] == 0
-        flag2 = len(currID_not_in_predID) == 0
-        if not flag1:
-            str_print = f"Frame {frame_ind}: Find segmented cell {predID_not_in_currID} without assigned labels"
-            warnings.warn(str_print)
-
-        assert flag2, f"Frame {frame_ind}: Find assigned labels {currID_not_in_predID} " \
-                      f"which are not appears in the final saved results"
-
-        return flag1, predID_not_in_currID
-
-    def fix_inconsistent(self, pred_prob_ids, pred):
-        for id in pred_prob_ids:
-            if id == 0:
-                continue
-            pred[pred == id] = 0
-        return pred
-
     def fill_mask_labels(self, save_path: Path):
-        
-        
+    
         n_rows, _ = self.trajectory_matrix.shape
-
         for idx in trange(n_rows):
             pred = load_stack(self.seg_paths_lst, self.channel, idx, return_2D=not self.is_3d)
             pred_copy = pred.copy()
@@ -415,8 +287,6 @@ class Postprocess():
                 pred_copy[pred==val]=true_id
 
             self.save_new_pred(pred_copy, idx, save_path)
-        
-        self.save_txt(self.file_str, save_path, 'res_track.txt')
 
 
 if __name__== "__main__":
@@ -437,14 +307,11 @@ if __name__== "__main__":
                      directed=False,
                      channel_to_track='RFP')
     
-    all_frames_traject, trajectory_same_label, str_track = pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
+    all_frames_traject, trajectory_same_label = pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
     all_frames_path = preds_dir.joinpath(f'all_frames_traject.csv')
     traj_path = preds_dir.joinpath(f'trajectory_same_label.csv')
-    str_track_path = preds_dir.joinpath(f'str_track.csv')
     np.savetxt(all_frames_path, all_frames_traject, delimiter=",")
     np.savetxt(traj_path, trajectory_same_label, delimiter=",")
-    with open(str_track_path, 'w') as file:
-        file.write(str_track)
 
     pp.fill_mask_labels(save_path=save_path)
     end = time()

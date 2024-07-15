@@ -98,14 +98,11 @@ def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_trav
                      directed=directed,
                      channel_to_track=channel_to_track)
     
-    all_frames_traject, trajectory_same_label, str_track = pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
+    all_frames_traject, trajectory_same_label = pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
     all_frames_path = preds_dir.joinpath(f'all_frames_traject.csv')
     traj_path = preds_dir.joinpath(f'trajectory_same_label.csv')
-    str_track_path = preds_dir.joinpath(f'str_track.csv')
     np.savetxt(all_frames_path, all_frames_traject, delimiter=",")
     np.savetxt(traj_path, trajectory_same_label, delimiter=",")
-    with open(str_track_path, 'w') as file:
-        file.write(str_track)
 
     pp.fill_mask_labels(save_path=save_path)
     end = time()
