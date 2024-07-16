@@ -145,7 +145,7 @@ class Postprocess():
     
     def _get_next_node(self, node_idx: int)-> int:
         # Find all potential connections
-        connected_idx = np.argwhere(self.connected_edges[0, :] == node_idx)
+        connected_idx = np.argwhere(self.connected_edges[0, :] == node_idx).numpy()
         
         # If there are no connections for the node
         if connected_idx.size == 0:
@@ -154,30 +154,37 @@ class Postprocess():
         # Get the next frame indices
         next_frame_idx = self.connected_edges[1, connected_idx][0]
         
-        # Filter based on max_travel_dist
-        filtered_score, distance_mask = self._calc_distance(node_idx, next_frame_idx)
-        
-        # Retrieve prediction scores for the potential connections
-        # prediction_scores = self.preds[connected_idx].squeeze(0)
-        # # print(f"{prediction_scores = }")
-        # filtered_score = prediction_scores[distance_mask].numpy()
-        
-        # If there are no cells to connect  
-        if filtered_score.size == 0:
-            return -1
-        
-        # Find the nearest cell to connect
-        # min_idx = np.argmax(filtered_score)
-        min_idx = np.argmin(filtered_score)
-        nearest_cell: int = np.where(distance_mask)[0][min_idx]
-        next_node_ind = int(next_frame_idx[nearest_cell])
+        # Find the next node
+        # next_node_ind = self._filter_by_distance(node_idx, next_frame_idx)
+        next_node_ind = self._filter_by_prediction(next_frame_idx, connected_idx)
         
         # Delete already assigned nodes from the list to avoid several cells with the same ID per frame         
         assigned_node = self.connected_edges[1,:] == next_node_ind 
         self.connected_edges = self.connected_edges[:,~assigned_node]
         return next_node_ind
     
-    def _calc_distance(self, node_idx: int, next_frame_ind: torch.Tensor | np.ndarray)-> tuple[np.ndarray, np.ndarray]:
+    def _filter_by_distance(self, node_idx: int, next_frame_idx: torch.Tensor)-> int:
+        # Filter based on max_travel_dist
+        filtered_score, distance_mask = self._calc_distance(node_idx, next_frame_idx)
+        
+        # If there are no cells to connect  
+        if filtered_score.size == 0:
+            return -1
+        
+        # Find the nearest cell to connect
+        min_idx = np.argmin(filtered_score)
+        nearest_cell: int = np.where(distance_mask)[0][min_idx]
+        return int(next_frame_idx[nearest_cell])
+    
+    def _filter_by_prediction(self, next_frame_idx: torch.Tensor, connected_idx: np.ndarray)-> int:
+        # Retrieve prediction scores for the potential connections
+        prediction_scores = self.preds[connected_idx].squeeze(0)
+        
+        # Find the highest prediction score
+        high_pred_idx = np.argmax(prediction_scores)
+        return int(next_frame_idx[high_pred_idx])
+    
+    def _calc_distance(self, node_idx: int, next_frame_ind: torch.Tensor)-> tuple[np.ndarray, np.ndarray]:
         
         centroid_cols = ["centroid_depth", "centroid_row", "centroid_col"] if self.is_3d else ["centroid_row", "centroid_col"]
         
@@ -189,9 +196,7 @@ class Postprocess():
         distance: np.ndarray = np.sqrt(((next_frame - curr_node) ** 2).sum(axis=-1))
         
         # Filter the distance based on the max_travel_dist
-        distance_mask = distance < self.max_travel_dist 
-        if not all(distance_mask):
-            print(f"Distance: {distance[distance_mask]}")
+        distance_mask = distance < self.max_travel_dist
         return distance[distance_mask], distance_mask
     
     def _update_matrix_with_next_node(self, frame_idx: int, node_idx: int, next_node: int)-> list[int]:
@@ -317,8 +322,8 @@ if __name__== "__main__":
     pp.fill_mask_labels(save_path=save_path)
     end = time()
     print(f"Time to postprocess: {round(end-start,ndigits=3)} sec\n")
-    metadata = {'finterval':None, 'um_per_pixel':None}
-    relabel_masks(76,preds_dir.parent.joinpath('Masks_GNN_Track'),'RFP',metadata,True)
+    # metadata = {'finterval':None, 'um_per_pixel':None}
+    # relabel_masks(76,preds_dir.parent.joinpath('Masks_GNN_Track'),'RFP',metadata,True)
 
 
 
