@@ -168,12 +168,10 @@ def trim_incomplete_track(array: np.ndarray)-> np.ndarray:
     lst_obj = np.concatenate(lst_obj) # Flatten the list
     # Count the number of occurences of each object
     obj,cnt = np.unique(lst_obj,return_counts=True)
-    print(f"Unique mask before trim: {len(obj)}")
     # Create a list of obj to remove
     obj_to_remove = obj[cnt!=array.shape[0]]
     array_to_remove = np.isin(array,obj_to_remove)
     array[array_to_remove] = 0
-    print(f"Unique mask after trim: {len(np.unique(array))}")
     return obj_to_remove
 
 
