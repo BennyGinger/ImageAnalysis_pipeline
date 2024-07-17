@@ -70,7 +70,9 @@ class Postprocess():
         """Determines if edges are connected based on the confidence scores from the model and the decision threshold. The function returns the connected edges as a boolean-like (0-1) array."""
         
         if self.directed:
-            return (self.preds >= self.decision_threshold)
+            mask_pred = self.preds >= self.decision_threshold
+            self.preds = self.preds[mask_pred]
+            return mask_pred
         return self._merge_edges()
     
     def _merge_edges(self)-> torch.Tensor: 
@@ -87,18 +89,24 @@ class Postprocess():
         # Using the average of the two directions
         if self.merge_operation == 'AVG':
             avg_soft = (clock_preds + anticlock_preds) / 2.0
-            return (avg_soft >= self.decision_threshold)
+            mask_pred = avg_soft >= self.decision_threshold
+            self.preds = self.preds[mask_pred]
+            return mask_pred
         
         clock_bool = (clock_preds >= self.decision_threshold)
         anticlock_bool = (anticlock_preds >= self.decision_threshold)
         
         # With at least one of the directions is above the threshold
         if self.merge_operation == 'OR':
-            return torch.logical_or(clock_bool, anticlock_bool)
+            mask_pred = torch.logical_or(clock_bool, anticlock_bool)
+            self.preds = self.preds[mask_pred]
+            return mask_pred
         
         # With both directions are above the threshold
         if self.merge_operation == 'AND':
-            return torch.logical_and(clock_bool, anticlock_bool)
+            mask_pred = torch.logical_and(clock_bool, anticlock_bool)
+            self.preds = self.preds[mask_pred]
+            return mask_pred
     
     def create_trajectory(self)-> tuple[np.ndarray, np.ndarray]:
         
@@ -179,6 +187,7 @@ class Postprocess():
     def _filter_by_prediction(self, next_frame_idx: torch.Tensor, connected_idx: np.ndarray)-> int:
         # Retrieve prediction scores for the potential connections
         prediction_scores = self.preds[connected_idx].squeeze(0)
+        print(prediction_scores)
         
         # Find the highest prediction score
         high_pred_idx = np.argmax(prediction_scores)
