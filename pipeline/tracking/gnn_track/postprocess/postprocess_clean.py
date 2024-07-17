@@ -136,6 +136,7 @@ class Postprocess():
             if frame == 0:
                 self.trajectory_matrix[frame, :nodes.shape[0]] = nodes
                 new_track_starting_ids.extend(nodes.tolist())
+                continue
             # If not first frame, find the trajectory nodes and update the new_track list with new tracks
             new_track_starting_ids.extend(self._find_trajectory_nodes(frame, nodes))
         return new_track_starting_ids
@@ -163,8 +164,8 @@ class Postprocess():
         next_frame_idx = self.connected_edges[1, connected_idx][0]
         
         # Find the next node
-        # next_node_ind = self._filter_by_distance(node_idx, next_frame_idx)
-        next_node_ind = self._filter_by_prediction(next_frame_idx, connected_idx)
+        next_node_ind = self._filter_by_distance(node_idx, next_frame_idx)
+        # next_node_ind = self._filter_by_prediction(next_frame_idx, connected_idx)
         
         # Delete already assigned nodes from the list to avoid several cells with the same ID per frame         
         assigned_node = self.connected_edges[1,:] == next_node_ind 
@@ -187,7 +188,6 @@ class Postprocess():
     def _filter_by_prediction(self, next_frame_idx: torch.Tensor, connected_idx: np.ndarray)-> int:
         # Retrieve prediction scores for the potential connections
         prediction_scores = self.preds[connected_idx].squeeze(0)
-        print(prediction_scores)
         
         # Find the highest prediction score
         high_pred_idx = np.argmax(prediction_scores)
@@ -246,8 +246,7 @@ class Postprocess():
         # Add 1 to the matrix and child_indices to avoid 0 as a valid cell (i.e. 0 = background value)
         mask = ~np.isin(self.trajectory_matrix, [-1, -2])
         self.trajectory_matrix[mask] += 1
-        child_indices = [child_idx + 1 for child_idx in child_indices] 
-        
+        child_indices = [child_idx + 1 for child_idx in child_indices]
         finalised_tracks = self.trajectory_matrix.copy()
         
         # Check that there are no cells with the same ID in the same frame
@@ -308,19 +307,19 @@ if __name__== "__main__":
     from time import time
     from pipeline.tracking.gnn_tracking import relabel_masks
     
-    preds_dir=Path('/home/Test_images/dia_fish/newtest/c1172-GCaMP-15%_Hypo-1-MaxIP_s1/gnn_files')
+    preds_dir=Path('/home/Test_images/CTC_Dataset/PhC-C2DH-U373/U373_1_s1/gnn_files')
     save_path = preds_dir.parent.joinpath('Masks_GNN_Track')
     
     
     start = time()
     pp = Postprocess(is_3d=False,
-                     seg_paths=Path('/home/Test_images/dia_fish/newtest/c1172-GCaMP-15%_Hypo-1-MaxIP_s1/Masks_Cellpose'),
+                     seg_paths=Path('/home/Test_images/CTC_Dataset/PhC-C2DH-U373/U373_1_s1/Masks_Cellpose'),
                      preds_dir=preds_dir,
-                     decision_threshold=0.4,
+                     decision_threshold=0.5,
                      merge_operation='AND',
                      max_travel_dist=10,
-                     directed=False,
-                     channel_to_track='RFP')
+                     directed=True,
+                     channel_to_track='BF')
     
     all_frames_traject, trajectory_same_label = pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
     all_frames_path = preds_dir.joinpath(f'all_frames_traject.csv')
@@ -331,8 +330,8 @@ if __name__== "__main__":
     pp.fill_mask_labels(save_path=save_path)
     end = time()
     print(f"Time to postprocess: {round(end-start,ndigits=3)} sec\n")
-    # metadata = {'finterval':None, 'um_per_pixel':None}
-    # relabel_masks(76,preds_dir.parent.joinpath('Masks_GNN_Track'),'RFP',metadata,True)
+    metadata = {'finterval':None, 'um_per_pixel':None}
+    relabel_masks(115,preds_dir.parent.joinpath('Masks_GNN_Track'),'BF',metadata,False)
 
 
 

@@ -10,7 +10,9 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from functools import partial
 from threading import Lock
 import numpy as np
-from tifffile import imread, imwrite
+from tifffile import imwrite
+# NOTE: Added imageio, as I have png mask file as well, from cellpose manual segmentation. Should be deleted in the future
+from imageio import imread
 
 
 def _load_images(img_paths: list[Path], channel: str, frame: int) -> list:

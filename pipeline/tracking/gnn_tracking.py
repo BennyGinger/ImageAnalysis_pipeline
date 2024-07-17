@@ -182,8 +182,10 @@ def relabel_masks(frames: int, mask_fold_src: Path, channel_seg: str, metadata: 
     mask_src_list = sorted(list(mask_fold_src.glob('*.tif')))
     mask_stack = load_stack(mask_src_list,[channel_seg],range(frames))
     # trim incomplete tracks
+    print(f"Unique mask before trim: {len(np.unique(mask_stack))}")
     if trim_incomplete_tracks:
         trim_incomplete_track(mask_stack)
+        print(f"Unique mask after trim: {len(np.unique(mask_stack))}")
     #relabel the masks
     mask_stack, _, _ = relabel_sequential(mask_stack)
     #save the masks back into the folder, this time with metadata
@@ -235,13 +237,13 @@ def overwrite_extraction_feat(local_args: dict, save_dir: Path)-> bool:
 if __name__ == "__main__":
     from time import time
     
-    exp_path = '/home/Test_images/NeutrophilTrackingTest/mfap4-mpx_isohypo_2h_WT-MaxIP_s1'
+    exp_path = '/home/Test_images/CTC_Dataset/PhC-C2DH-U373/U373_1_s1'
     start = time()
     gnn_tracking(exp_path=exp_path,
-                 channel_to_track='GFP', 
-                 model="neutrophil",
-                 max_travel_dist=20,
-                 img_fold_src="Images_Registered",
+                 channel_to_track='BF', 
+                 model="PhC-C2DH-U373",
+                 max_travel_dist=15,
+                 img_fold_src="Images",
                  seg_fold_src="Masks_Cellpose",
                  overwrite=True,
                  decision_threshold=0.4,
