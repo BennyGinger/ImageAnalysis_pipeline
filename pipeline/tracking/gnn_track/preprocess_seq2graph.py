@@ -112,7 +112,6 @@ class ImagesPreProcessing():
         # Get the regionprops
         print("    ----> Extracting regionprops")
         lst_df = self.get_regionprops()
-        
         # Preprocess the frames
         print("    ----> Preprocessing frames")
         self.img_frames = []
@@ -172,7 +171,7 @@ class FramesPreProcessing():
     def _pad_images(mask_idx: int, img_frame: np.ndarray, seg_frame: np.ndarray, bbox_slices: list[tuple[slice,slice]], pad_value: int, min_max_int: tuple[int,int], ref_shape: tuple[int,int] | tuple[slice,slice,slice], output_shape: tuple[int,int] | tuple[slice,slice,slice], is_3D: bool)-> np.ndarray:
         
         bbox_slice = bbox_slices[mask_idx]
-        img_crop, mask_crop = crop_images(img_frame, seg_frame, bbox_slice, mask_idx+1)
+        img_crop, mask_crop = crop_images(img_frame, seg_frame, bbox_slice, mask_idx)
         img_norm = normalize_images(img_crop, mask_crop, pad_value, *min_max_int)
         if is_3D:
             return pad_and_resize_image_3D(img_norm, ref_shape, pad_value, output_shape)
@@ -184,21 +183,21 @@ def crop_images(img: np.ndarray, mask: np.ndarray, bbox_slice: tuple[slice,slice
     img_crop = img.copy() ; mask_crop = mask.copy()
     # Crop the images
     img_crop = img[bbox_slice]
-    mask_crop = mask[bbox_slice] == mask_idx
+    mask_crop = mask[bbox_slice] != mask_idx
     return img_crop, mask_crop
 
 def normalize_images(img_crop: np.ndarray, mask_crop: np.ndarray, pad_value: int, min_int: int, max_int: int)-> np.ndarray:
     """Return a normalized image with the background set to the pad value. The normalization is done by min-max scaling the intensity values of the image within the mask_crop region. Retruns a np.array as float32."""
     
-    
-    outter_mask_crop = np.logical_not(mask_crop)
-    
     # Set the background to the pad value
-    img_crop[outter_mask_crop] = pad_value
+    img_crop[mask_crop] = pad_value
+    
+    # Create a mask for the background
+    outter_mask_crop = np.logical_not(mask_crop)
     
     # Normalize the intensity values
     img_crop = img_crop.astype(np.float32)
-    img_crop[mask_crop] = (img_crop[mask_crop] - min_int) / (max_int - min_int)
+    img_crop[outter_mask_crop] = (img_crop[outter_mask_crop] - min_int) / (max_int - min_int)
     return img_crop
     
 def pad_and_resize_image_2D(img: np.ndarray, ref_shape: tuple[int,int] | tuple[slice,slice,slice], pad_value: int, output_shape: tuple[int,int] | tuple[slice,slice,slice])-> np.ndarray:

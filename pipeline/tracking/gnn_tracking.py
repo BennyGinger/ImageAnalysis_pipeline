@@ -78,9 +78,9 @@ def gnn_tracking(exp_path: PathLike, channel_to_track: str, model: str, max_trav
     pp = Postprocess(is_3d=is_3d, type_masks='tif', merge_operation='AND', decision_threshold=decision_threshold,
                     path_inference_output=save_dir, directed=True, path_seg_result=seg_fold_src, max_travel_dist=max_travel_dist)
     
-    pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
-    # np.savetxt("/home/Fabian/ImageData/all_frames_traject.csv", all_frames_traject, delimiter=",")
-    # np.savetxt("/home/Fabian/ImageData/trajectory_same_label.csv", trajectory_same_label, delimiter=",")
+    all_frames_traject, trajectory_same_label, _ = pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
+    np.savetxt(save_dir.joinpath("all_frames_traject.csv"), all_frames_traject, delimiter=",")
+    np.savetxt(save_dir.joinpath("trajectory_same_label.csv"), trajectory_same_label, delimiter=",")
 
     pp.fill_mask_labels(debug=False)
     
@@ -186,13 +186,13 @@ if __name__ == "__main__":
                    "overwrite":True}
     
     
-    exp_path = '/home/Test_images/nd2/Run4/c4z1t91v1_s1'
+    exp_path = '/home/Test_images/CTC_Dataset/PhC-C2DH-U373/U373_1_s1'
     start = time()
     gnn_tracking(exp_path=exp_path,
-                 channel_to_track='RFP', 
+                 channel_to_track='BF', 
                  model="PhC-C2DH-U373",
-                 max_travel_dist=10,
-                 img_fold_src="Images_Registered",
+                 max_travel_dist=50,
+                 img_fold_src="Images",
                  mask_fold_src="Masks_Cellpose",
                  overwrite=True,
                  decision_threshold=0.4,
