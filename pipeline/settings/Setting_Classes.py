@@ -4,7 +4,7 @@ from dataclasses import dataclass, field, fields
 PREPROCESS_KEYS = ["bg_sub","chan_shift","frame_shift","blur"]
 SEGMENTATION_KEYS = ["cellpose","threshold"]
 TRACKING_KEYS = ["iou_track", "gnn_track", "man_track"]
-ANALYSIS_KEYS = ['extract_data','draw_mask']
+ANALYSIS_KEYS = ['draw_mask','extract_data']
 
 @dataclass
 class BaseSettings:
@@ -32,7 +32,8 @@ class BaseSettings:
             return
         
         # Get the new overwrite list, if the previous is true then change the next to true, else keep the same
-        new_overwrite = []; is_False = True
+        new_overwrite = []
+        is_False = True
         for i in range(len(current_overwrite)):
             if current_overwrite[i] == False and is_False:
                 new_overwrite.append(current_overwrite[i])
@@ -60,7 +61,7 @@ class BaseSettings:
     
     @property
     def get_current_overwrite(self)-> list[bool]:
-        return [getattr(self,branch)['overwrite'] for branch in self.get_active_branches]
+        return [getattr(self, branch)['overwrite'] for branch in self.get_active_branches]
 
 @dataclass
 class PreProcessSettings(BaseSettings):
@@ -109,8 +110,13 @@ class Settings:
         self.process_settings(TRACKING_KEYS, 'tracking', TrackingSettings)
         self.process_settings(ANALYSIS_KEYS, 'analysis', AnalysisSettings)
                 
-    def process_settings(self, keys, attr_name, settings_class):
+    def process_settings(self, keys: list[str], attr_name: str, settings_class: BaseSettings)-> None:
         settings_dict = {k:v[1] for k,v in self.settings.items() if k in keys and v[0]}
+        
+        # Extract overwrite from dram_mask, as it is not dependent on the previous processes:
+        if settings_dict and 'draw_mask' in settings_dict:
+            draw_ref_overwrite = settings_dict['draw_mask']['overwrite']
+        
         if settings_dict:
             setattr(self, attr_name, settings_class(settings_dict))
             # If upstream process have overwrite then update the overwrite of the settings
@@ -119,6 +125,10 @@ class Settings:
             # If any of the settings has overwrite then set the overwrite to True for downstream applications
             if any(getattr(self, attr_name).get_current_overwrite):
                 self.overwrite = True
+        
+        # Update the draw_mask overwrite
+        if settings_dict and 'draw_mask' in settings_dict:
+            getattr(self, attr_name).draw_mask['overwrite'] = draw_ref_overwrite
 
 
 

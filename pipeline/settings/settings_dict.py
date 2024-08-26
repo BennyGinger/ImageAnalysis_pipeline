@@ -50,7 +50,7 @@ settings = {
                    "copy_last_to_end": True,
                    "overwrite":False}),
     
-    "gnn_track": (False,                         #not working: Fluo-C2DL-Huh7
+    "gnn_track": (True,                         #not working: Fluo-C2DL-Huh7
                   {"channel_to_track": "RFP",
                    "model": "PhC-C2DH-U373", #neutrophil, Fluo-N2DH-SIM+, Fluo-N2DL-HeLa, Fluo-N3DH-SIM+ (implement from server first!), PhC-C2DH-U373
                    'decision_threshold': 0.4, #between 0-1, 1=more interrupted tracks, 0= more tracks gets connected, checks for the confidence of the model for the connection of two cells
@@ -72,12 +72,12 @@ settings = {
                    "process_as_2D":True,
                    "overwrite":True}),
     
-    "draw_mask": (False,
-                  {"mask_label": "wound", # str or list[str]
-                   "channel_show": "YFP",
+    "draw_mask": (True,
+                  {"mask_label": "laser", # str or list[str]
+                   "channel_show": "RFP",
                    "overwrite": False}),
     
-    "extract_data": (False,
+    "extract_data": (True,
                   {"img_fold_src": "",
                    "overwrite": True}),
 }

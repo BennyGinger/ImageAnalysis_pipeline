@@ -172,7 +172,7 @@ def prepare_manual_correct(frames: int, mask_fold_src: Path, channel_seg: str, e
         if frame == 1:
             points_df=props_df[['label', frame]].copy()
         else:
-            points_df = points_df.join(props_df.set_index('label'),on='label', how='outer')
+            points_df = points_df.join(props_df.set_index('label'), on='label', how='outer')
     points_df = points_df.sort_values('label').set_index('label')
     create_mdf_file(exp_path, points_df, channel_seg)
 
@@ -186,9 +186,9 @@ def relabel_masks(frames: int, mask_fold_src: Path, channel_seg: str, metadata: 
     if trim_incomplete_tracks:
         trim_incomplete_track(mask_stack)
         print(f"Unique mask after trim: {len(np.unique(mask_stack))}")
-    #relabel the masks
-    mask_stack, _, _ = relabel_sequential(mask_stack)
-    #save the masks back into the folder, this time with metadata
+    # relabel the masks
+    # mask_stack, _, _ = relabel_sequential(mask_stack)
+    # save the masks back into the folder, this time with metadata
     for frame, mask_path in enumerate(mask_src_list):
         save_tif(array=mask_stack[frame], save_path=mask_path,**metadata)
 

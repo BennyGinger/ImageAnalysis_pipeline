@@ -222,7 +222,7 @@ def draw_wound_mask(img_files: list[PathLike], mask_label: list[str] | str, chan
         None, saves the masks into folder."""
     
     if isinstance(mask_label, str):
-        mask_label=[mask_label]
+        mask_label = [mask_label]
     
     # Check if mask_label exist
     exp_path: PathLike = img_files[0].rsplit(sep,2)[0]

@@ -114,7 +114,7 @@ class Postprocess():
         frames, mask_count = np.unique(self.df_feat.frame_num, return_counts=True)
         
         # Create the trajectory matrix and set to -2 (=empty cell)
-        self.trajectory_matrix = np.full((frames.shape[0], mask_count.max()),-2)
+        self.trajectory_matrix = np.full((frames.shape[0], mask_count.max()), -2)
         
         # Iterate over the frames to build the trajectory matrix
         new_track_starting_ids = self._build_trajectory_matrix(list(frames))
@@ -129,14 +129,13 @@ class Postprocess():
         
         new_track_starting_ids = []
         for frame in frames:
-            # Get index of every cells, in given frame
+            # Get index of every cells idx, in given frame
             nodes = self.df_feat[self.df_feat.frame_num==frame].index.values
 
             # If first frame, fill the matrix with the starting cells
             if frame == 0:
                 self.trajectory_matrix[frame, :nodes.shape[0]] = nodes
                 new_track_starting_ids.extend(nodes.tolist())
-                continue
             # If not first frame, find the trajectory nodes and update the new_track list with new tracks
             new_track_starting_ids.extend(self._find_trajectory_nodes(frame, nodes))
         return new_track_starting_ids
@@ -146,7 +145,6 @@ class Postprocess():
         for node_idx in nodes:
             # Find the next node to connect
             next_node = self._get_next_node(node_idx)
-                        
             # Add the next node to the matrix
             starting_node = self._update_matrix_with_next_node(frame, node_idx, next_node)
             new_tracks.extend(starting_node)

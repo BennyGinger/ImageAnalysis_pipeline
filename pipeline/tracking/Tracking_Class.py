@@ -114,7 +114,7 @@ class TrackingModule(BaseModule):
         
         
         if isinstance(channel_to_track, str):
-            print(f"\n-> Tracking images with IOU")
+            print(f"\n-> Tracking images with GNN")
             
             self._loop_over_exp(self._gnn_tracking,channel_to_track=channel_to_track,model=model,max_travel_dist=max_travel_dist,decision_threshold=decision_threshold,manual_correct=manual_correct,mask_fold_src=mask_fold_src,img_fold_src=img_fold_src,trim_incomplete_tracks=trim_incomplete_tracks,overwrite=overwrite)
             return self.exp_obj_lst
