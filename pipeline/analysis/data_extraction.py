@@ -16,7 +16,7 @@ PROPERTIES = ['area','centroid','intensity_mean',
                        'label','perimeter','slice','solidity']
 
 ########################### Main functions ###########################
-def extract_data(img_array: np.ndarray, mask_array: np.ndarray, save_path: PathLike, channels: str | list[str]=None, overwrite: bool = False, mask_name: str=None, reference_masks: np.ndarray|list[np.ndarray]=None, ref_name: str|list[str]=None, pixel_resolution: float=None, secondary_masks: np.ndarray | list[np.ndarray]=None, sec_names: str|list[str]=None)-> pd.DataFrame:
+def extract_data(img_array: np.ndarray, mask_array: np.ndarray, save_path: PathLike, channels: str | list[str] | None=None, overwrite: bool=False, mask_name: str | None=None, reference_masks: np.ndarray | list[np.ndarray] | None=None, ref_name: str | list[str]=None, pixel_resolution: float | None=None, secondary_masks: np.ndarray | list[np.ndarray] | None=None, sec_names: str | list[str] | None=None)-> pd.DataFrame:
     """Extract images properties using the skimage.measure.regionprops_table with provided mask. the image can be processed either as a time sequence (F) or as a single frame. The mask must have must have the same shape as the image. Additionally, if a channel dim (C) is provided for the image, the mean intensity of each channel will be extracted. So, the expected shapes are ([F],Y,X,[C]) for the image and ([F],Y,X) for the mask, with [F] and [C] being optional. The data will be returned as a pandas.DataFrame, which willl also be saved at the save_path provided as a csv file named 'regionprops.csv'.
     Reference masks can also be provided to extract the distance transform from the centroid of the primary mask (i.e. mask_array). The distance transform will be added to the main properties as 'dmap_um_{ref_name}' or 'dmap_pixel_{ref_name}' if the pixel resolution is not provided. The secondary masks can also be provided to check if the primary mask cells overlap with the secondary masks cells. The overlap will be added to the main properties as 'label_{sec_name}_positive'.
     
@@ -84,7 +84,7 @@ def extract_data(img_array: np.ndarray, mask_array: np.ndarray, save_path: PathL
 
 
 ############################# Helper functions #############################
-def prepare_ref_masks(ref_masks: np.ndarray|list[np.ndarray]=None, ref_names: str|list[str]=None, pixel_resolution: float=None)-> list[tuple[np.ndarray,str,float|None]] | None | ValueError:
+def prepare_ref_masks(ref_masks: np.ndarray | list[np.ndarray] | None=None, ref_names: str | list[str] | None=None, pixel_resolution: float | None=None)-> list[tuple[np.ndarray, str, float | None]] | None | ValueError:
     """Function to prepare the reference masks for the analysis. Dmap will be applied to the reference masks to measure the distance from the reference point/area."""
     
     
@@ -118,7 +118,7 @@ def prepare_ref_masks(ref_masks: np.ndarray|list[np.ndarray]=None, ref_names: st
     
     return list(zip(ref_masks,ref_names,pixel_resolution))
         
-def prepare_sec_masks(secondary_masks: np.ndarray | list[np.ndarray]=None, secondary_names: str|list[str]=None)-> list[np.ndarray,str] | None | ValueError:
+def prepare_sec_masks(secondary_masks: np.ndarray | list[np.ndarray] | None=None, secondary_names: str | list[str] | None=None)-> list[np.ndarray, str] | None | ValueError:
     """Function to prepare the secondary masks for the analysis. The secondary masks will be eroded to minimize false positive overlap between primary mask cell and secondary cells."""
     
     
@@ -146,7 +146,7 @@ def prepare_sec_masks(secondary_masks: np.ndarray | list[np.ndarray]=None, secon
     
     return list(zip(secondary_masks,secondary_names))
 
-def _extract_regionprops(frame_idx: int | None, mask_array: np.ndarray, img_array: np.ndarray, mask_name: str, ref_masks: list[tuple[np.ndarray,str,float|None]]=None, sec_masks: list[tuple[np.ndarray,str]]=None,**kwargs)-> pd.DataFrame:
+def _extract_regionprops(frame_idx: int | None, mask_array: np.ndarray, img_array: np.ndarray, mask_name: str, ref_masks: list[tuple[np.ndarray, str, float | None]] | None=None, sec_masks: list[tuple[np.ndarray, str]] | None=None,**kwargs)-> pd.DataFrame:
         """Function to extract the regionprops from the mask_array and img_array. The function will extract the properties defined in the PROPERTIES list. If the ref_masks and/or the sec_maks are provided, the function will extract the dmap from the reference masks and/or whether the cells in pramary masks overlap with cells of the secondary masks. The extracted data will be returned as a pandas.DataFrame.
         
         Args:
@@ -186,7 +186,7 @@ def _extract_regionprops(frame_idx: int | None, mask_array: np.ndarray, img_arra
         df['mask_name'] = mask_name
         return df
 
-def ref_props(ref_masks: list[np.ndarray,str,float|None], mask_array: np.ndarray, frame_idx: int, prop: dict[str,float])-> None:
+def ref_props(ref_masks: list[np.ndarray, str, float | None], mask_array: np.ndarray, frame_idx: int, prop: dict[str,float])-> None:
     """Extract the regionprops from the reference masks. The function will compute the distance transform value from the dmap mask of the centroid of the primary mask. The distance transform value will be added to the main properties."""
     
     
@@ -203,7 +203,7 @@ def ref_props(ref_masks: list[np.ndarray,str,float|None], mask_array: np.ndarray
         else:
             prop[f'dmap_pixel_{ref_name}'] = prop_ref['dmap']
 
-def sec_props(sec_masks: list[tuple[np.ndarray,str]], mask_array: np.ndarray, frame_idx: int, prop: dict[str,float])-> None:
+def sec_props(sec_masks: list[tuple[np.ndarray, str]], mask_array: np.ndarray, frame_idx: int, prop: dict[str, float])-> None:
     """Extract the regionprops from the secondary masks. The function will compute the overlap between the primary mask cells and the secondary masks cells and return a boolean value, whether the primary mask cells are in the secondary masks cells."""
     
     
@@ -216,7 +216,7 @@ def sec_props(sec_masks: list[tuple[np.ndarray,str]], mask_array: np.ndarray, fr
         # Update the main properties with the overlap
         prop[f'label_classification'] = [f"{sec_name}_positive" if state else f"{sec_name}_negative" for state in prop_sec['label_in']]
 
-def _rename_columns(img_dim: int, mask_dim: int, channels: str | list[str])-> dict[str,str]:
+def _rename_columns(img_dim: int, mask_dim: int, channels: str | list[str] | None)-> dict[str, str]:
     """Function to rename the columns of the regionprops_table output. The columns will be renamed
     with the channels names."""
     
@@ -224,6 +224,7 @@ def _rename_columns(img_dim: int, mask_dim: int, channels: str | list[str])-> di
     # Setup channels
     if channels is None:
         channels = [f"C{str(i+1)}" for i in range(img_dim)]
+    
     if isinstance(channels, str):
         channels = [channels]
     
@@ -259,7 +260,7 @@ def label_in(mask_region: np.ndarray, intensity_image: np.ndarray)-> bool:
     
     return np.any(np.logical_and(mask_region,intensity_image)) 
 
-def _erode_secondary_mask(mask: np.ndarray,)-> np.ndarray:
+def _erode_secondary_mask(mask: np.ndarray)-> np.ndarray:
     """Function to erode the secondary mask to minimize false positive overlap between primary mask cell and secondary cells. Mask will be eroded one cell at a time in parallel."""
     
     
