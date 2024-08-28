@@ -57,7 +57,7 @@ settings = {
                    'max_travel_dist': 10,
                    "manual_correct": True,
                    "trim_incomplete_tracks": True,
-                   "overwrite": True}),
+                   "overwrite": False}),
     
     "man_track": (False,
                   {"channel_to_track":"BF",
@@ -78,7 +78,7 @@ settings = {
                    "overwrite": False}),
     
     "extract_data": (True,
-                  {"img_fold_src": "",
+                  {"num_chunks": 3,
                    "overwrite": True}),
 }
 
