@@ -2,7 +2,6 @@ from __future__ import annotations
 from os import remove
 from os.path import join
 from pathlib import Path
-import re
 from pipeline.utilities.pipeline_utility import progress_bar, PathType
 from pipeline.utilities.Experiment_Classes import Experiment
 from typing import Iterable, Iterator, Callable
@@ -34,13 +33,13 @@ def _convert_to_stack(exp_list: list, channels: Iterable[str]) -> np.ndarray:
     else:
         return np.moveaxis(np.squeeze(np.stack(exp_list)), [0], [-1])
 
-def _prepare_imgs(img_paths: list[PathType | Path], channels: str | Iterable[str], frame_range: int | Iterable[int]=None)-> tuple[list[Path],list[str],Iterable[int]]:
+def _prepare_imgs(img_paths: list[PathType | Path], channels: str | Iterable[str] | None, frame_range: int | Iterable[int] | None=None)-> tuple[list[Path],list[str],Iterable[int]]:
     if frame_range is None:
-        _, _, frames, _ = get_exp_props(img_paths)
+        frames = get_exp_props(img_paths)[2]
         frame_range = range(frames)
     
     if channels is None:
-        channels, _, _, _ = get_exp_props(img_paths)
+        channels = get_exp_props(img_paths)[0]
     
     # Convert to list if string or int
     channels = [channels] if isinstance(channels, str) else channels
@@ -53,9 +52,9 @@ def _prepare_imgs(img_paths: list[PathType | Path], channels: str | Iterable[str
     
     # Convert img_path to Path object
     img_paths = [Path(path) for path in img_paths]
-    return img_paths,channels,frame_range
+    return img_paths, channels, frame_range
 
-def load_stack(img_paths: list[PathType | Path], channels: str | Iterable[str]=None, frame_range: int | Iterable[int]=None, return_2D: bool=False) -> np.ndarray:
+def load_stack(img_paths: list[PathType | Path], channels: str | Iterable[str] | None=None, frame_range: int | Iterable[int] | None=None, return_2D: bool=False) -> np.ndarray:
     """Convert images to stack. If return_2D is True, return the max projection of the stack. The output shape is tzxyc,
     with t, z and c being optional."""
     
@@ -89,21 +88,21 @@ def img_list_src(exp_set: Experiment, img_fold_src: str)-> tuple[str,list[PathTy
         tuple[str,list[PathType]]: The image folder source and the list of masks."""
     
     if img_fold_src and img_fold_src == 'Images':
-        return img_fold_src,exp_set.ori_imgs_lst
+        return img_fold_src, exp_set.ori_imgs_lst
     if img_fold_src and img_fold_src == 'Images_Registered':
-        return img_fold_src,exp_set.registered_imgs_lst
+        return img_fold_src, exp_set.registered_imgs_lst
     if img_fold_src and img_fold_src == 'Images_Blured':
-        return img_fold_src,exp_set.blured_imgs_lst
+        return img_fold_src, exp_set.blured_imgs_lst
     
     # If not manually specified, return the latest processed images list
     if exp_set.preprocess.is_img_blured:
-        return 'Images_Blured',exp_set.blured_imgs_lst
+        return 'Images_Blured', exp_set.blured_imgs_lst
     elif exp_set.preprocess.is_frame_reg:
-        return 'Images_Registered',exp_set.registered_imgs_lst
+        return 'Images_Registered', exp_set.registered_imgs_lst
     else:
-        return 'Images',exp_set.ori_imgs_lst
+        return 'Images', exp_set.ori_imgs_lst
 
-def seg_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> tuple[str,list[PathType]]:
+def seg_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> tuple[str, list[PathType]]:
     """If not manually specified, return the latest processed segmentated masks list. 
     Return the mask folder source to save during tracking.
     Args:
@@ -125,7 +124,7 @@ def seg_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> tuple[str,list[P
     else:
         print("No segmentation masks found")
 
-def track_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> list[PathType]:
+def track_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> tuple[str, list[PathType]]:
     """If not manually specified, return the latest processed tracked masks list
     Args:
         exp_set (Experiment): The experiment settings.
@@ -134,19 +133,19 @@ def track_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> list[PathType]
         list[PathType]: The list of tracked masks."""
     
     if mask_fold_src == 'Masks_IoU_Track':
-        return exp_set.iou_tracked_masks_lst 
+        return mask_fold_src, exp_set.iou_tracked_masks_lst 
     if mask_fold_src == 'Masks_Manual_Track':
-        return exp_set.man_tracked_masks_lst
+        return mask_fold_src, exp_set.man_tracked_masks_lst
     if mask_fold_src == 'Masks_GNN_Track':
-        return exp_set.gnn_tracked_masks_lst
+        return mask_fold_src, exp_set.gnn_tracked_masks_lst
     
     # If not manually specified, return the latest processed images list
-    if exp_set.tracking.is_gnn_tracking:
-        return exp_set.gnn_tracked_masks_lst
     if exp_set.tracking.manual_tracking:
-        return exp_set.man_tracked_masks_lst
+        return "Masks_Manual_Track", exp_set.man_tracked_masks_lst
+    if exp_set.tracking.is_gnn_tracking:
+        return "Masks_GNN_Track", exp_set.gnn_tracked_masks_lst
     if exp_set.tracking.iou_tracking:
-        return exp_set.iou_tracked_masks_lst
+        return "Masks_IoU_Track", exp_set.iou_tracked_masks_lst
     else:
         print("No tracking masks found")
 
@@ -249,7 +248,7 @@ def run_multiprocess(func: Callable, input_data: Iterable, fixed_args: dict=None
                 outputs.append(output)
     return outputs
 
-def get_exp_props(img_paths: list[PathType | Path])-> tuple[list,int,int,int]:
+def get_exp_props(img_paths: list[PathType | Path])-> tuple[list[str],int,int,int]:
     """Function that extract basic properties of the experiment from the image paths. Images names are expected to be in the format: [C]_[s\d{2}]_[f\d{4}]_[z\d{4}] where C is the channel label (any), s\d{2} is the series, f\d{4} is the frame and z\d{4} is the z-slice. \d{2} means followed by 2 digits and \d{4} means by 4 digits.
     
     Returns:
@@ -264,7 +263,7 @@ def get_exp_props(img_paths: list[PathType | Path])-> tuple[list,int,int,int]:
         series.add(serie)
         frames.add(frame)
         z_slices.add(z_slice)
-    return list(channels),len(series),len(frames),len(z_slices)
+    return list(channels), len(series), len(frames), len(z_slices)
 
 def is_channel_in_lst(channel: str, img_paths: list[PathType | Path]) -> bool:
     """

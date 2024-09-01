@@ -123,7 +123,7 @@ def seg_track_manual(img_dict: dict):
     imsave(savedir,tracked_mask)
 
 def run_morph(exp_obj:Experiment, mask_fold_src:str, channel_seg:str, n_mask:int, copy_first_to_start: bool=True, copy_last_to_end: bool=True, ):
-    mask_src_list = track_mask_lst_src(exp_obj,mask_fold_src)
+    _, mask_src_list = track_mask_lst_src(exp_obj, mask_fold_src)
     mask_stack = load_stack(mask_src_list,[channel_seg],range(exp_obj.img_properties.n_frames))
     mask_stack = complete_track(mask_stack, n_mask, copy_first_to_start, copy_last_to_end)
     

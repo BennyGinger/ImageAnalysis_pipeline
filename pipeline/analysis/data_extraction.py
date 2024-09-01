@@ -1,6 +1,7 @@
 from __future__ import annotations
-from os import PathLike, remove
-from os.path import exists, join
+from os import remove
+from pathlib import Path
+from typing import TypeVar
 import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
@@ -9,144 +10,165 @@ from skimage.morphology import disk, erosion
 from scipy.ndimage import distance_transform_edt
 from functools import partial
 from threading import Lock
-from pipeline.utilities.data_utility import run_multithread, run_multiprocess
+from pipeline.utilities.data_utility import run_multithread, load_stack, get_exp_props
+from pipeline.utilities.pipeline_utility import PathType, progress_bar
+# Custom variable type
+T = TypeVar('T')
 
 # Build-in properties for regionprops_table. NOTE: if modifying this list, make sure to update the _rename_columns() function.
 PROPERTIES = ['area','centroid','intensity_mean',
                        'label','perimeter','slice','solidity']
 
 ########################### Main functions ###########################
-def extract_data(img_array: np.ndarray, mask_array: np.ndarray, save_path: PathLike, channels: str | list[str]=None, overwrite: bool = False, mask_name: str=None, reference_masks: np.ndarray|list[np.ndarray]=None, ref_name: str|list[str]=None, pixel_resolution: float=None, secondary_masks: np.ndarray | list[np.ndarray]=None, sec_names: str|list[str]=None)-> pd.DataFrame:
-    """Extract images properties using the skimage.measure.regionprops_table with provided mask. the image can be processed either as a time sequence (F) or as a single frame. The mask must have must have the same shape as the image. Additionally, if a channel dim (C) is provided for the image, the mean intensity of each channel will be extracted. So, the expected shapes are ([F],Y,X,[C]) for the image and ([F],Y,X) for the mask, with [F] and [C] being optional. The data will be returned as a pandas.DataFrame, which willl also be saved at the save_path provided as a csv file named 'regionprops.csv'.
-    Reference masks can also be provided to extract the distance transform from the centroid of the primary mask (i.e. mask_array). The distance transform will be added to the main properties as 'dmap_um_{ref_name}' or 'dmap_pixel_{ref_name}' if the pixel resolution is not provided. The secondary masks can also be provided to check if the primary mask cells overlap with the secondary masks cells. The overlap will be added to the main properties as 'label_{sec_name}_positive'.
+def extract_data(img_paths: list[PathType], exp_path: Path, masks_fold: list[str], ref_masks_fold: list[str], pixel_resolution: float | None=None, num_chunks: int=1, overwrite: bool=False)-> pd.DataFrame:
+    """Extract images properties using the skimage.measure.regionprops_table with provided masks. The image can be processed either as a time sequence (F) or as a single frame. The mask must have must have the same shape as the image. Additionally, if a channel dim (C) is provided for the image, the mean intensity of each channel will be extracted. The expected shapes are ([F],Y,X,[C]) for the image and ([F],Y,X) for the mask, with [F] and [C] being optional. The data will be returned as a pandas.DataFrame, which willl also be saved at the save_path provided as a csv file named 'regionprops.csv'.
+    Reference masks can also be provided to extract the distance transform from the centroid of the primary mask. The distance transform will be added to the main properties as 'dmap_um_{ref_name}' or 'dmap_pixel_{ref_name}' if the pixel resolution is not provided. The secondary masks can also be provided to check if the primary mask cells overlap with the secondary masks cells. The overlap will be added to the main properties as 'label_{sec_name}_positive'. If masks_folders contain a folder with several channels, the function will automatically pair the channels to extract the secondary masks.
     
     Args:
-        img_array ([[F],Y,X,[C]] np.ndarray): The image array to extract the mean intensities from. F and C dim are optional.
+        img_paths (list[Path]): list of paths to the images
         
-        mask_array ([[F],Y,X] np.ndarray): The mask array to extract the mean intensities from. F dim is optional, but must match the image array.
+        exp_path (Path): path to the experiment folder
         
-        save_path (PathLike): The path to save the extracted data as "regionprops.csv".
+        masks_fold (list[str]): list of folders names containing the masks
         
-        channels (str | list[str], optional): channel name(s), used to rename the columns of the extracted data. If set to None, generic name(s) will be created. Defaults to None.
+        ref_masks_fold (list[str]): list of folders names containing the reference masks
         
-        overwrite (bool, optional): Whether to overwrite the data if it already exists. Defaults to False.
+        pixel_resolution (float | None): pixel resolution of the image to convert the distance into um. If set to None, the distance transform will be in pixel. Defaults to None.
         
-        mask_name (str, optional): The name of the mask. If set to None, a generic name will be given. Defaults to None.
+        num_chunks (int): number of chunks to process the data. Defaults to 1.
         
-        reference_masks ([[F],Y,X] np.ndarray | list[np.ndarray], optional): Reference mask(s) to extract the distance transform from the centroid of the primary mask. Defaults to None.
+        overwrite (bool): whether to overwrite the data if it already exists. Defaults to False.
         
-        ref_name (str | list[str], optional): The name of the reference mask(s). If set to None, generic name(s) will be given. Defaults to None.
-        
-        pixel_resolution (float, optional): The pixel resolution of the image to convert the distance into um. If set to None, the distance transform will be in pixel. Defaults to None.
-        
-        secondary_masks ([[F],Y,X] np.ndarray | list[np.ndarray], optional): Secondary mask(s) to check if the primary mask cells overlap with the secondary masks cells. Defaults to None.
-        
-        secondary_names (str | list[str], optional): The name of the secondary mask(s). If set to None, generic name(s) will be given. Defaults to None.
-         
     Returns:
-        -> pd.DataFrame"""
+        pd.DataFrame: extracted data from the images.
+    
+    """
     
     
     # Check if the data has already been extracted
-    save_path = join(save_path, "regionprops.csv")
-    print(f" --> Extracting data from \033[94m{save_path}\033[0m")
-    if exists(save_path) and not overwrite:
-        print(f"  ---> Data has already been extracted. Loading data from \033[94m{save_path}\033[0m")
-        return pd.read_csv(save_path)
+    csv_file = exp_path.joinpath("regionprops.csv")
+    print(f" --> Extracting data from \033[94m{csv_file}\033[0m")
+    if csv_file.exists() and not overwrite:
+        print(f"  ---> Data has already been extracted. Loading data from \033[94m{csv_file}\033[0m")
+        return pd.read_csv(csv_file)
     else:
-        remove(save_path) if exists(save_path) else None
-            
-    # Setup the data extraction
-    col_rename = _rename_columns(img_array.ndim, mask_array.ndim, channels)
-    ref_masks = prepare_ref_masks(reference_masks,ref_name,pixel_resolution)
-    sec_masks = prepare_sec_masks(secondary_masks,sec_names)
-    if mask_name is None:
-        mask_name = "unamed_mask"
+        # If overwrite and the file exists, remove the file
+        remove(csv_file) if csv_file.exists() else None
     
-    ## Extract the data
-    # If the mask_array is not a time sequence
-    print("  ---> Extracting the regionprops")
-    if mask_array.ndim ==2:
-        master_df = _extract_regionprops(None,mask_array,img_array,mask_name,ref_masks,sec_masks)
-        master_df.rename(columns=col_rename, inplace=True)
-        master_df.to_csv(save_path, index=False)
-        return master_df
+    # Get the number of frames
+    nframes = get_exp_props(img_paths)[2]
     
-    # Else, if the mask_array is a time sequence
-    fixed_args = {'mask_array':mask_array,'img_array':img_array,'mask_name':mask_name,'ref_masks':ref_masks,'sec_masks':sec_masks}
-    lst_df = run_multithread(_extract_regionprops,range(mask_array.shape[0]),fixed_args)
-    # with ThreadPoolExecutor() as executor:
-    #     lst_df = executor.map(partial(_extract_regionprops,**fixed_args), range(mask_array.shape[0]))
-    master_df = pd.concat(lst_df, ignore_index=True)
-    master_df.rename(columns=col_rename, inplace=True)
-    master_df.to_csv(save_path, index=False)
-    return master_df
-
-
+    # Define the chunk size
+    chunk_indinces = np.linspace(0, nframes, num_chunks + 1, dtype=int)
+    
+    # Process the data in chunks
+    dfs = []
+    for i in progress_bar(range(num_chunks), desc="Chunk Data Extraction"):
+        chunk_frames = range(chunk_indinces[i], chunk_indinces[i+1])
+        dfs.append(process_chunk(chunk_frames, img_paths, masks_fold, ref_masks_fold, exp_path, pixel_resolution))
+    
+    # Concatenate the dataframes
+    df = pd.concat(dfs, ignore_index=True)
+    # Sort the dataframe
+    df = df.sort_values(by=['mask_name','frame','cell_ID'])
+    df.to_csv(csv_file, index=False)
+    return df
+    
+    
 ############################# Helper functions #############################
-def prepare_ref_masks(ref_masks: np.ndarray|list[np.ndarray]=None, ref_names: str|list[str]=None, pixel_resolution: float=None)-> list[tuple[np.ndarray,str,float|None]] | None | ValueError:
-    """Function to prepare the reference masks for the analysis. Dmap will be applied to the reference masks to measure the distance from the reference point/area."""
-    
-    
-    # Retrun None if no reference masks are provided
-    if ref_masks is None:
-        return None
+def process_chunk(chunk_frames: range, img_paths: list[Path], masks_fold: list[str], ref_masks_fold: list[str], exp_path: Path, pixel_resolution: float | None)-> pd.DataFrame:
+    """_summary_
 
-    # If no names are provided, create generic names
-    if ref_names is None:
-        ref_names = [f"ref{i+1}" for i in range(len(ref_masks))]
+    Args:
+        chunk_frames (np.ndarray): array of frame indices to process
+        img_paths (list[Path]): list of paths to the images
+        save_path (Path): path to save the extracted data
+        ref_masks_fold (list[str]): list of folders names containing the reference masks
+
+    Returns:
+        pd.DataFrame: dataframe of the extracted data from the chunk of frames
+    """
     
-    # Check type of ref_masks and ref_names
-    if isinstance(ref_masks, np.ndarray):
-        ref_masks = [ref_masks]
-    if isinstance(ref_names, str):
-        ref_names = [ref_names]
+
+    # Load images
+    channels = get_exp_props(img_paths)[0]
+    img_array = load_stack(img_paths, channels, chunk_frames, True)
     
-    # Check if the number of reference masks and names match
-    if len(ref_names) != len(ref_masks):
-        raise ValueError(f"The number of reference masks {len(ref_masks)} must match the number of reference names {len(ref_names)}.")
-    
-    # If the pixel resolution is not provided, set it to None (pixel will be used)
-    if pixel_resolution is None:
-        pixel_resolution = [None]*len(ref_masks)
-    else:
-        pixel_resolution = [pixel_resolution]*len(ref_masks)
-    
-    # Apply the dmap to the reference masks
-    print("  ---> Applying distance transform to the reference masks")
-    ref_masks = run_multiprocess(_dist_transform,ref_masks)
-    
-    return list(zip(ref_masks,ref_names,pixel_resolution))
+    # Load ref masks, if provided, as ref_masks_fold can be an empty list
+    ref_masks = load_reference_masks(chunk_frames, ref_masks_fold, exp_path, pixel_resolution)
+
+    # Load masks
+    pair_arrays = generate_mask_pairs(chunk_frames, masks_fold, exp_path)
+            
+    # Process the data
+    dfs = process_arrays(chunk_frames, channels, img_array, ref_masks, pair_arrays)
+
+    # Concatenate the dataframes
+    return pd.concat(dfs, ignore_index=True)
+
+def process_arrays(chunk_frames: range, channels: list[str], img_array: np.ndarray, ref_masks: list[tuple[np.ndarray, str, float | None]], pair_arrays):
+    dfs = []
+    for mask_tup, sec_masks in pair_arrays:
+        mask_array, mask_name = mask_tup
+        col_rename = _rename_columns(img_array.ndim, mask_array.ndim, channels)
+        fixed_args = {'frame_vals':list(chunk_frames),
+                      'mask_array':mask_array,
+                      'img_array':img_array,
+                      'mask_name':mask_name,
+                      'ref_masks':ref_masks,
+                      'sec_masks':sec_masks}
         
-def prepare_sec_masks(secondary_masks: np.ndarray | list[np.ndarray]=None, secondary_names: str|list[str]=None)-> list[np.ndarray,str] | None | ValueError:
-    """Function to prepare the secondary masks for the analysis. The secondary masks will be eroded to minimize false positive overlap between primary mask cell and secondary cells."""
-    
-    
-    # Retrun None if no reference masks are provided
-    if secondary_masks is None:
-        return None
-    
-    # If no names are provided, create generic names
-    if secondary_names is None:
-        secondary_names = [f"sec{i+1}" for i in range(len(secondary_masks))]
-    
-    # Check type of ref_masks and ref_names
-    if isinstance(secondary_masks, np.ndarray):
-        secondary_masks = [secondary_masks]
-    if isinstance(secondary_names, str):
-        secondary_names = [secondary_names]
-    
-    # Check if the number of reference masks and names match
-    if len(secondary_names) != len(secondary_masks):
-        raise ValueError(f"The number of secondary masks {len(secondary_masks)} must match the number of secondary names {len(secondary_names)}.")
-    
-    # Erode secondary masks
-    print("  ---> Eroding the secondary masks")
-    secondary_masks = run_multiprocess(_erode_secondary_mask,secondary_masks)
-    
-    return list(zip(secondary_masks,secondary_names))
+        if mask_array.ndim ==2:
+            df = _extract_regionprops(None,**fixed_args)
+            df.rename(columns=col_rename, inplace=True)
+            dfs.append(df)
+            continue
+        
+        # Else, if the mask_array is a time sequence
+        lst_df = run_multithread(_extract_regionprops, range(mask_array.shape[0]), fixed_args)
+        
+        df = pd.concat(lst_df, ignore_index=True)
+        df.rename(columns=col_rename, inplace=True)
+        dfs.append(df)
+    return dfs
 
-def _extract_regionprops(frame_idx: int | None, mask_array: np.ndarray, img_array: np.ndarray, mask_name: str, ref_masks: list[tuple[np.ndarray,str,float|None]]=None, sec_masks: list[tuple[np.ndarray,str]]=None,**kwargs)-> pd.DataFrame:
+def generate_mask_pairs(chunk_frames: range, masks_fold: list[str], exp_path: Path)-> list[tuple[tuple[np.ndarray, str], list[tuple[np.ndarray, str]] | None]]:
+    pair_arrays: list[tuple[tuple[np.ndarray, str], list[tuple[np.ndarray, str]] | None]] = []
+    for fold in masks_fold:
+        mask_path = exp_path.joinpath(fold)
+        process_name = fold.split('_', maxsplit=1)[-1].lower()
+        mask_files = sorted(mask_path.glob('*.tif'))
+        mask_channels = get_exp_props(mask_files)[0]
+        if mask_channels == 1:
+            pair_channels = [(mask_channels[0], None)]
+        else:
+            pair_channels = make_pairs(mask_channels)
+        
+        # Erode secondary masks
+        for chan, sec_channels in pair_channels:
+            primary_mask = load_stack(mask_files, chan, chunk_frames, True)
+            primary_name = f"{process_name}_{chan}"
+            if sec_channels is not None:
+                sec_masks = [load_stack(mask_files, sec_chan, chunk_frames, True) for sec_chan in sec_channels]
+                sec_masks = [_erode_secondary_mask(sec_mask) for sec_mask in sec_masks]
+                sec_masks = list(zip(sec_masks, sec_channels))
+            else:
+                sec_masks = None
+            pair_arrays.append(((primary_mask, primary_name), sec_masks))
+    return pair_arrays
+
+def load_reference_masks(chunk_frames: range, ref_masks_fold: list[str], exp_path: Path, pixel_resolution: float | None)-> list[tuple[np.ndarray, str, float | None]]:
+    ref_masks = []
+    for ref_fold in ref_masks_fold:
+        ref_path = exp_path.joinpath(ref_fold)
+        ref_files = sorted(ref_path.glob('*.tif'))
+        ref_array = load_stack(ref_files, frame_range=chunk_frames, return_2D=True)
+        ref_array = _dist_transform(ref_array)
+        ref_name = ref_fold.split('_')[-1]
+        ref_masks.append((ref_array, ref_name, pixel_resolution))
+    return ref_masks
+
+def _extract_regionprops(frame_idx: int | None, frame_vals: list[int], mask_array: np.ndarray, img_array: np.ndarray, mask_name: str, ref_masks: list[tuple[np.ndarray, str, float | None]] | None=None, sec_masks: list[tuple[np.ndarray, str]] | None=None,**kwargs)-> pd.DataFrame:
         """Function to extract the regionprops from the mask_array and img_array. The function will extract the properties defined in the PROPERTIES list. If the ref_masks and/or the sec_maks are provided, the function will extract the dmap from the reference masks and/or whether the cells in pramary masks overlap with cells of the secondary masks. The extracted data will be returned as a pandas.DataFrame.
         
         Args:
@@ -182,15 +204,15 @@ def _extract_regionprops(frame_idx: int | None, mask_array: np.ndarray, img_arra
             sec_props(sec_masks,mask_array,frame_idx,prop)
                 
         df = pd.DataFrame(prop)
-        df['frame'] = frame_idx+1
+        df['frame'] = frame_vals[frame_idx]+1
         df['mask_name'] = mask_name
         return df
 
-def ref_props(ref_masks: list[np.ndarray,str,float|None], mask_array: np.ndarray, frame_idx: int, prop: dict[str,float])-> None:
+def ref_props(ref_masks: list[tuple[np.ndarray, str, float | None]], mask_array: np.ndarray, frame_idx: int, prop: dict[str,float])-> None:
     """Extract the regionprops from the reference masks. The function will compute the distance transform value from the dmap mask of the centroid of the primary mask. The distance transform value will be added to the main properties."""
     
     
-    for ref_mask,ref_name,resolution in ref_masks:
+    for ref_mask, ref_name, resolution in ref_masks:
         # Check if the experiment is a time sequence
         if mask_array.ndim == 2:
             prop_ref = regionprops_table(mask_array,ref_mask,properties=['label'],separator='_',extra_properties=[dmap])
@@ -203,11 +225,11 @@ def ref_props(ref_masks: list[np.ndarray,str,float|None], mask_array: np.ndarray
         else:
             prop[f'dmap_pixel_{ref_name}'] = prop_ref['dmap']
 
-def sec_props(sec_masks: list[tuple[np.ndarray,str]], mask_array: np.ndarray, frame_idx: int, prop: dict[str,float])-> None:
+def sec_props(sec_masks: list[tuple[np.ndarray, str]], mask_array: np.ndarray, frame_idx: int, prop: dict[str, float])-> None:
     """Extract the regionprops from the secondary masks. The function will compute the overlap between the primary mask cells and the secondary masks cells and return a boolean value, whether the primary mask cells are in the secondary masks cells."""
     
     
-    for sec_mask,sec_name in sec_masks:
+    for sec_mask, sec_name in sec_masks:
         if mask_array.ndim == 2:
             prop_sec = regionprops_table(mask_array,sec_mask,properties=['label'],separator='_',extra_properties=[label_in])
         else:
@@ -216,7 +238,7 @@ def sec_props(sec_masks: list[tuple[np.ndarray,str]], mask_array: np.ndarray, fr
         # Update the main properties with the overlap
         prop[f'label_classification'] = [f"{sec_name}_positive" if state else f"{sec_name}_negative" for state in prop_sec['label_in']]
 
-def _rename_columns(img_dim: int, mask_dim: int, channels: str | list[str])-> dict[str,str]:
+def _rename_columns(img_dim: int, mask_dim: int, channels: str | list[str] | None)-> dict[str, str]:
     """Function to rename the columns of the regionprops_table output. The columns will be renamed
     with the channels names."""
     
@@ -224,6 +246,7 @@ def _rename_columns(img_dim: int, mask_dim: int, channels: str | list[str])-> di
     # Setup channels
     if channels is None:
         channels = [f"C{str(i+1)}" for i in range(img_dim)]
+    
     if isinstance(channels, str):
         channels = [channels]
     
@@ -259,7 +282,7 @@ def label_in(mask_region: np.ndarray, intensity_image: np.ndarray)-> bool:
     
     return np.any(np.logical_and(mask_region,intensity_image)) 
 
-def _erode_secondary_mask(mask: np.ndarray,)-> np.ndarray:
+def _erode_secondary_mask(mask: np.ndarray)-> np.ndarray:
     """Function to erode the secondary mask to minimize false positive overlap between primary mask cell and secondary cells. Mask will be eroded one cell at a time in parallel."""
     
     
@@ -295,7 +318,14 @@ def _dist_transform(mask: np.ndarray)-> np.ndarray:
     
     return distance_transform_edt(np.logical_not(mask))    
 
-
+def make_pairs(lst: list[T])-> list[tuple[T, list[T]]]:
+    """Make pairs of elements from a list. For example, if the list is [1,2,3], the output will be [(1,[2,3]),(2,[1,3]),(3,[1,2])]."""
+    
+    pairs = []
+    for i, element in enumerate(lst):
+        others = lst[:i] + lst[i+1:]
+        pairs.append((element, others))
+    return pairs
 
 # # # # # # # # # Test
 if __name__ == "__main__":
@@ -306,47 +336,17 @@ if __name__ == "__main__":
     from pipeline.utilities.data_utility import load_stack
     from scipy.ndimage import distance_transform_edt
     
-    nframes = 23
-    channels = ['GFP','RFP']
-    save_path = '/home/Test_images/masks'
-    pixel_resolution = 0.642
-    
-    # Load the images stack
-    img_path = "/home/Test_images/nd2/Run2/c2z25t23v1_nd2_s1/Images_Registered"
-    img_files = [join(img_path,file) for file in sorted(listdir(img_path))]
-    img = load_stack(img_files,channels,range(nframes),True)
-   
-    # RFP
-    mask_name = 'RFP_IoU_Track'
-    mask_path = "/home/Test_images/nd2/Run2/c2z25t23v1_nd2_s1/Masks_IoU_Track"
-    mask_files = [join(mask_path,file) for file in sorted(listdir(mask_path))]
-    mask = load_stack(mask_files ,channels[1],range(nframes),True)
- 
-    # Reference
-    ref_path = '/home/Test_images/nd2/Run2/Mask.tif'
-    ref = imread(ref_path)
-    ref = np.stack([ref]*nframes)
-    ref = [ref]
-    ref_names = 'wound'
-    
-    # GFP
-    sec_mask = load_stack(mask_files ,channels[0],range(nframes),True)
-    sec_mask = [sec_mask]
-    sec_names = "GFP"
-    
+    img_folder = Path("/home/Test_images/dia_fish/newtest/c1172-GCaMP-15%_Hypo-1-MaxIP_s1/Images_Registered")
+    img_paths = sorted(Path(img_folder).glob("*.tif"))
     
     start = time.time()
     # extract props
-    master_df = extract_data(img_array=img,
-                             mask_array=mask,
-                             save_path=save_path,
-                             channels=channels,
-                             mask_name=mask_name,
-                             reference_masks=ref,
-                             ref_name=ref_names,
-                             pixel_resolution=pixel_resolution,
-                             secondary_masks=sec_mask,
-                             sec_names=sec_names,
+    master_df = extract_data(img_paths=img_paths,
+                             exp_path=img_folder.parent,
+                             masks_fold=['Masks_GNN_Track'],
+                             ref_masks_fold=['Masks_laser'],
+                             pixel_resolution=0.649843843874274,
+                             num_chunks=2,
                              overwrite=True)
     end = time.time()
     print(f"Processing time: {end-start}")
