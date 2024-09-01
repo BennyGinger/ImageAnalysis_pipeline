@@ -31,10 +31,14 @@ def load_csv(channel_seg: str, csv_path: str, csv_name: str = None):
     return csv_data
    
 def gen_input_data_masks(exp_obj: Experiment, mask_fold_src: str, mask_fold_src2: str, channel_seg_list: list, **kwargs)-> list[dict]:
-    mask_fold_src, mask_list_src = seg_mask_lst_src(exp_obj,mask_fold_src) 
-    mask_path_list = mask_list_src(exp_obj,mask_fold_src)
-    mask_fold_src, mask_list_src = seg_mask_lst_src(exp_obj,mask_fold_src2)     
-    mask_path_list2 = mask_list_src(exp_obj,mask_fold_src2)
+    # mask_fold_src, mask_list_src = seg_mask_lst_src(exp_obj,mask_fold_src) 
+    # mask_path_list = mask_list_src(exp_obj,mask_fold_src)
+    
+    _, mask_path_list = seg_mask_lst_src(exp_obj,mask_fold_src) 
+    mask_path_list2 = track_mask_lst_src(exp_obj,mask_fold_src2)
+    
+    # mask_fold_src, mask_list_src = seg_mask_lst_src(exp_obj,mask_fold_src2)     
+    # mask_path_list2 = mask_list_src(exp_obj,mask_fold_src2)
 
     channel_seg = channel_seg_list[0]
     input_data = []
@@ -70,10 +74,9 @@ def uniform_dataset(csv_data: pd.DataFrame, exp_obj: Experiment):
     
     csv_data = csv_data.dropna() # drop random occuring empty rows from excel/csv
     csv_data = csv_data.astype(float)
-    
-    if 'micron' in x_head:
+    if 'micron' or '[µm]' in x_head:
         csv_data[x_head] = csv_data[x_head]/um_per_pixel[1] #recalculate from microns to pixel
-    if 'micron' in y_head:    
+    if 'micron' or '[µm]' in y_head:    
         csv_data[y_head] = csv_data[y_head]/um_per_pixel[0]
         
     # get framenumber out of timestamp (if frames > 1)
@@ -131,7 +134,7 @@ def run_morph(exp_obj:Experiment, mask_fold_src:str, channel_seg:str, n_mask:int
 # # # # # # # # main functions # # # # # # # # # 
 def man_tracking(exp_obj_lst: list[Experiment], channel_seg: str, track_seg_mask: bool = False, mask_fold_src: PathLike = None,
                 csv_name: str = None, radius: int=5, copy_first_to_start: bool=True, copy_last_to_end: bool=True, mask_appear=2,
-                dilate_value: int = 20, overwrite: bool=False, process_as_2D: bool=True):
+                dilate_value: int = 20, process_as_2D: bool=True,  overwrite: bool=False):
     """
     Perform Manual Tracking based on a csv file resulting of MTrackJ (ImageJ Plugin) on a list of experiments.
 
@@ -184,6 +187,7 @@ def man_tracking(exp_obj_lst: list[Experiment], channel_seg: str, track_seg_mask
             masks_man_o = np.zeros((img.shape[1], img.shape[2]), dtype='uint16')
         else:
             masks_man_o = np.zeros_like((img), dtype='uint16')
+            process_as_2D = True
     
         def create_man_mask(frame:int):
             #load image
@@ -204,15 +208,15 @@ def man_tracking(exp_obj_lst: list[Experiment], channel_seg: str, track_seg_mask
                     except: masks_man[y-1, x] = cell_number
             #dilate the cells to make them visible
             masks_man = expand_labels(masks_man, distance=dilate_value)
-            series = exp_obj.exp_path.split('_')[-1]
+            series = int(exp_obj.exp_path.split('_')[-1][1:])
             if not process_as_2D:
                 for z_slice in range(exp_obj.analysis.n_slices):
-                    filename = channel_seg+'_'+series+'_f%04d'%(frame+1)+'_z%04d'%(z_slice+1)+'.tif'
+                    filename = channel_seg+'_s%02d'%(series)+'_f%04d'%(frame+1)+'_z%04d'%(z_slice+1)+'.tif'
                     savedir = join(exp_obj.exp_path,'Masks_Manual_Track', filename)
                     #save
                     imsave(savedir,masks_man) 
             else:
-                filename = channel_seg+'_'+series+'_f%04d'%(frame+1)+'_z0001.tif'
+                filename = channel_seg+'_s%02d'%(series)+'_f%04d'%(frame+1)+'_z0001.tif'
                 savedir = join(exp_obj.exp_path,'Masks_Manual_Track', filename)
                 #save
                 imsave(savedir,masks_man) 
@@ -221,22 +225,17 @@ def man_tracking(exp_obj_lst: list[Experiment], channel_seg: str, track_seg_mask
         with ThreadPoolExecutor() as executor:
             executor.map(create_man_mask,frame_list)
             
-
-        run_morph(exp_obj, mask_fold_src='Masks_Manual_Track', channel_seg=channel_seg, n_mask=mask_appear, copy_first_to_start=copy_first_to_start, copy_last_to_end=copy_last_to_end)
-        
-        if track_seg_mask:         
-            if not mask_fold_src:
-                #get path of the last created mask
-                mask_fold_src, _ = seg_mask_lst_src(exp_obj,mask_fold_src)
-                input_seg = join(exp_obj.exp_path, mask_fold_src)
-            
+        if track_seg_mask:
+            print('Applying manual tracks to the original mask')
             # do overwrite from seg mask
             img_data = gen_input_data_masks(exp_obj, mask_fold_src, mask_fold_src2='Masks_Manual_Track', channel_seg_list=[channel_seg], dilate_value=dilate_value)
             # seg_track_manual(img_data)
             with ThreadPoolExecutor() as executor:
                 executor.map(seg_track_manual,img_data)
-            
+
+        run_morph(exp_obj, mask_fold_src='Masks_Manual_Track', channel_seg=channel_seg, n_mask=mask_appear, copy_first_to_start=copy_first_to_start, copy_last_to_end=copy_last_to_end)
         
+            
         # Save settings
         exp_obj.tracking.manual_tracking[channel_seg] = {'mask_fold_src':mask_fold_src,'track_seg_mask':track_seg_mask,
                                         'csv_name':csv_name,'mask_appear':mask_appear, 'copy_first_to_start': copy_first_to_start, 'copy_last_to_end': copy_last_to_end,'radius':radius}
