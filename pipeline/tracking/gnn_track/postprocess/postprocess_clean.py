@@ -6,7 +6,7 @@ import numpy as np
 from tifffile import imwrite
 import warnings
 
-from tqdm import trange
+from pipeline.utilities.pipeline_utility import progress_bar
 from pipeline.utilities.data_utility import load_stack
 
 class Postprocess():
@@ -284,7 +284,7 @@ class Postprocess():
     def fill_mask_labels(self, save_path: Path):
     
         n_rows, _ = self.trajectory_matrix.shape
-        for idx in trange(n_rows):
+        for idx in progress_bar(range(n_rows)):
             pred = load_stack(self.seg_paths_lst, self.channel, idx, return_2D=not self.is_3d)
             pred_copy = pred.copy()
             curr_row = self.trajectory_matrix[idx, :]

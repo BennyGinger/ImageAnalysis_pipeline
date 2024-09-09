@@ -152,7 +152,7 @@ def get_metadata(img_path: PathLike, active_channel_list: list=None, full_channe
     meta_dict = create_exp_folder(meta_dict)
     
     # Add channel data
-    meta_dict = update_channel_names(meta_dict,active_channel_list,full_channel_list)
+    meta_dict = update_channel_names(meta_dict,full_channel_list,active_channel_list)
     return meta_dict
     
 # Final output: 

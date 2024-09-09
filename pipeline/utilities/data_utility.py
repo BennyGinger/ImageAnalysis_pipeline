@@ -146,8 +146,9 @@ def track_mask_lst_src(exp_set: Experiment, mask_fold_src: str)-> tuple[str, lis
         return "Masks_GNN_Track", exp_set.gnn_tracked_masks_lst
     if exp_set.tracking.iou_tracking:
         return "Masks_IoU_Track", exp_set.iou_tracked_masks_lst
-    else:
-        print("No tracking masks found")
+    
+    print("No tracking masks found")
+    return None, None
 
 def is_processed(process_settings: dict | list, channel_seg: str = None, overwrite: bool = False)-> bool:
     if overwrite:
