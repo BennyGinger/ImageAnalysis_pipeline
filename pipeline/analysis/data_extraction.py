@@ -255,7 +255,7 @@ def _rename_columns(img_dim: int, mask_dim: int, channels: str | list[str] | Non
     if 'centroid' in PROPERTIES:
         col_rename.update({'centroid_0':'centroid_y','centroid_1':'centroid_x'})
     if 'label' in PROPERTIES:
-        col_rename.update({'label':'cell_ID'})
+        col_rename.update({'label':'cell_label'})
     
     # If the img_array has a channel dimension
     if 'intensity_mean' in PROPERTIES:

@@ -81,11 +81,15 @@ class AnalysisModule(BaseModule):
         
         # Add the time in seconds and experiment name
         interval_sec = 1 if exp_obj.analysis.interval_sec is None else exp_obj.analysis.interval_sec
-        df['time_sec'] = df['frame']*interval_sec
+        df['time_sec'] = (df['frame']-1)*interval_sec
         df['exp_name'] = exp_obj.exp_path.rsplit(sep,1)[1]
         # Add the labels
         for i,label in enumerate(exp_obj.analysis.labels):
             df[f'tag_level_{i}'] = label
+        
+        # Add the unique cell id
+        merged_labels = "_".join(exp_obj.analysis.labels)
+        df['cell_ID'] = merged_labels + "_" + df['cell_label'].astype(str)
         
         # Save the data
         exp_obj.analysis.analysis_type.update({'extract_data':{'img_fold_src':img_fold_src}})
