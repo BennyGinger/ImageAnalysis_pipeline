@@ -70,7 +70,7 @@ def extract_data(img_paths: list[PathType], exp_path: Path, masks_fold: list[str
     # Concatenate the dataframes
     df = pd.concat(dfs, ignore_index=True)
     # Sort the dataframe
-    df = df.sort_values(by=['mask_name','frame','cell_ID'])
+    df = df.sort_values(by=['mask_name','frame','cell_label'])
     df.to_csv(csv_file, index=False)
     return df
     
