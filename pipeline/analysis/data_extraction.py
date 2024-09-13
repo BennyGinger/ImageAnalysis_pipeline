@@ -4,12 +4,9 @@ from pathlib import Path
 from typing import TypeVar
 import pandas as pd
 import numpy as np
-from concurrent.futures import ThreadPoolExecutor
 from skimage.measure import regionprops_table
-from skimage.morphology import disk, erosion
 from scipy.ndimage import distance_transform_edt
-from functools import partial
-from threading import Lock
+from pipeline.mask_transformation.utils import erode_masks
 from pipeline.utilities.data_utility import run_multithread, load_stack, get_exp_props
 from pipeline.utilities.pipeline_utility import PathType, progress_bar
 # Custom variable type
@@ -150,7 +147,7 @@ def generate_mask_pairs(chunk_frames: range, masks_fold: list[str], exp_path: Pa
             primary_name = f"{process_name}_{chan}"
             if sec_channels is not None:
                 sec_masks = [load_stack(mask_files, sec_chan, chunk_frames, True) for sec_chan in sec_channels]
-                sec_masks = [_erode_secondary_mask(sec_mask) for sec_mask in sec_masks]
+                sec_masks = [erode_masks(sec_mask) for sec_mask in sec_masks]
                 sec_masks = list(zip(sec_masks, sec_channels))
             else:
                 sec_masks = None
@@ -282,35 +279,7 @@ def label_in(mask_region: np.ndarray, intensity_image: np.ndarray)-> bool:
     
     return np.any(np.logical_and(mask_region,intensity_image)) 
 
-def _erode_secondary_mask(mask: np.ndarray)-> np.ndarray:
-    """Function to erode the secondary mask to minimize false positive overlap between primary mask cell and secondary cells. Mask will be eroded one cell at a time in parallel."""
-    
-    
-    # Setup the erosion
-    footprint = disk(6)
-    unique_cells = np.unique(mask)[1:]
-    
-    # Extract the number of frames
-    nframes = mask.shape[0] if mask.ndim > 2 else 1
-    
-    # Erode the secondary mask
-    for i in range(nframes):
-        with ThreadPoolExecutor() as executor:
-            lock = Lock()
-            eroded_frames = executor.map(partial(_erode_mask,mask=mask[i],footprint=footprint,lock=lock),unique_cells)
-        mask_frame = np.zeros_like(mask[i])
-        for frame in eroded_frames:
-            mask_frame += frame
-        mask[i] = mask_frame
-    return mask
 
-def _erode_mask(cell_idx: int, mask: np.ndarray, footprint: np.ndarray, lock: Lock)-> np.ndarray:
-    """Apply the erosion to the secondary mask for a single cell."""
-    
-    
-    with lock:
-        temp_mask = np.where(mask==cell_idx,cell_idx,0)
-    return erosion(temp_mask,footprint).astype('uint16')
 
 def _dist_transform(mask: np.ndarray)-> np.ndarray:
     """Apply the distance transform to the mask."""
