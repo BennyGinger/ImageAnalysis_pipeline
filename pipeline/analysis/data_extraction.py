@@ -228,12 +228,12 @@ def sec_props(sec_masks: list[tuple[np.ndarray, str]], mask_array: np.ndarray, f
     
     for sec_mask, sec_name in sec_masks:
         if mask_array.ndim == 2:
-            prop_sec = regionprops_table(mask_array,sec_mask,properties=['label'],separator='_',extra_properties=[label_in])
+            prop_sec = regionprops_table(mask_array,sec_mask,properties=['intensity_max'],separator='_',extra_properties=[label_in])
         else:
-            prop_sec = regionprops_table(mask_array[frame_idx],sec_mask[frame_idx],properties=['label'],separator='_',extra_properties=[label_in])
+            prop_sec = regionprops_table(mask_array[frame_idx],sec_mask[frame_idx],properties=['intensity_max'],separator='_',extra_properties=[label_in])
             
         # Update the main properties with the overlap
-        prop[f'label_classification'] = [f"{sec_name}_positive" if state else f"{sec_name}_negative" for state in prop_sec['label_in']]
+        prop[f'label_classification'] = [f"overlap with {sec_name}_{label}" if state else f"no overlap" for state, label in zip(prop_sec['label_in'], prop_sec['intensity_max'])]
 
 def _rename_columns(img_dim: int, mask_dim: int, channels: str | list[str] | None)-> dict[str, str]:
     """Function to rename the columns of the regionprops_table output. The columns will be renamed

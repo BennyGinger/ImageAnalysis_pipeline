@@ -71,7 +71,8 @@ def iou_tracking(img_paths: list[PathLike], channel_track: str, stitch_thres_per
     mask_stack,_,_ = relabel_sequential(mask_stack)
     
     # Save the masks
-    mask_paths = [file for file in img_paths if file.__contains__('_z0001')]
+    mask_paths = [file for file in img_paths if file.__contains__('_z0001') and file.__contains__(channel_track)]
+    print(f"{mask_paths[0]=}")
     metadata = unpack_kwargs(kwargs)
     fixed_args = {'mask_stack':mask_stack,
                   'mask_paths':mask_paths,

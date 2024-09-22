@@ -14,7 +14,6 @@ def erode_masks(mask: np.ndarray, pixel_rad: int = 6)-> np.ndarray:
     # Setup the erosion
     footprint = disk(pixel_rad)
     
-    
     # Extract the number of frames
     nframes = mask.shape[0] if mask.ndim > 2 else 1
     
@@ -40,10 +39,13 @@ def _erode_mask(cell_idx: int, mask: np.ndarray, footprint: np.ndarray, lock: Lo
 def dilate_masks(mask: np.ndarray, pixel_rad: int = 6)-> np.ndarray:
     """Function to dilate masks to make sure that the mb cell is included into the compartment mask."""
     
+    if mask.ndim == 2:
+        dilated_mask = expand_labels(mask, pixel_rad)
+        return dilated_mask
     
     # Dilate the mask
     with ThreadPoolExecutor() as executor:
-        dilated_frames = executor.map(partial(expand_labels, distance=pixel_rad),mask)
+        dilated_frames = executor.map(partial(expand_labels, distance=pixel_rad), mask)
     dilated_mask = np.zeros_like(mask)
     for i, frame in enumerate(dilated_frames):
         dilated_mask[i] = frame
