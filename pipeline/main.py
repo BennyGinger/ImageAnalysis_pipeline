@@ -62,12 +62,90 @@ def reset_overwrite(settings: dict)-> None:
 
 if __name__ == "__main__":
     from time import time
-    from pipeline.settings.settings_dict import settings
-    from pathlib import Path
-    from os.path import join
-    import json
-    from tifffile import imwrite, imread
 
+    settings = {
+    "input_folder": '/home/Test_images/nd2/Run4',
+    
+    "optimization": False,
+    
+    "init":{"active_channel_list": ['GFP','RFP'],
+            'full_channel_list': ["DAPI","GFP","RFP","iRed"],
+            "overwrite": False},
+    
+    "bg_sub": (True,
+                {"overwrite": False}),
+    
+    "chan_shift": (True,
+                    {"reg_channel": "RFP",
+                    "reg_mtd": "rigid_body",
+                    "overwrite": False}),
+    
+    "frame_shift": (True,
+                {"reg_channel": "RFP",
+                "reg_mtd": "rigid_body",
+                "img_ref": "first",
+                "overwrite": False}),
+    
+    "blur": (True,
+            {"sigma": 2,
+            "overwrite": True}),
+
+    "cellpose": (True,
+                {"channel_to_seg":["RFP","GFP"], 
+                "model_type": "cyto2", #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
+                "diameter": 65,
+                "flow_threshold": 0.6,
+                "cellprob_threshold":0,
+                "process_as_2D": True,
+                "overwrite": False,}),
+    
+    "threshold": (False,
+                {"channel_to_seg":"RFP",
+                "manual_threshold": None,
+                "img_fold_src": "",
+                "overwrite": False,}),
+    
+    "iou_track": (True,
+                  {"channel_to_track":["RFP","GFP"], 
+                   "stitch_thres_percent": 0.5,
+                   "shape_thres_percent": 0.95,
+                   "mask_appear":5,
+                   "copy_first_to_start": True, 
+                   "copy_last_to_end": True,
+                   "overwrite":False}),
+    
+    "gnn_track": (False,                         #not working: Fluo-C2DL-Huh7
+                  {"channel_to_track": "RFP",
+                   "model": "PhC-C2DH-U373", #neutrophil, Fluo-N2DH-SIM+, Fluo-N2DL-HeLa, Fluo-N3DH-SIM+ (implement from server first!), PhC-C2DH-U373
+                   'decision_threshold': 0.4, #between 0-1, 1=more interrupted tracks, 0= more tracks gets connected, checks for the confidence of the model for the connection of two cells
+                   'max_travel_dist': 10,
+                   "manual_correct": True,
+                   "trim_incomplete_tracks": True,
+                   "overwrite": False}),
+    
+    "man_track": (False,
+                  {"channel_to_track":"BF",
+                   "track_seg_mask": False,
+                   "mask_fold_src": "",
+                   "csv_name": "",
+                   "radius": 5,
+                   'copy_first_to_start': True,
+                   'copy_last_to_end': True,
+                   'mask_appear': 2,
+                   "dilate_value":20,
+                   "process_as_2D":True,
+                   "overwrite":True}),
+    
+    "draw_mask": (False,
+                  {"mask_label": "laser", # str or list[str]
+                   "channel_show": "RFP",
+                   "overwrite": False}),
+    
+    "extract_data": (True,
+                  {"num_chunks": 3,
+                   "do_diff": True,
+                   "overwrite": True}),
+    }
     
     t1 = time()
     input_folder = settings['input_folder']
@@ -76,31 +154,4 @@ if __name__ == "__main__":
     t2 = time()
     if t2-t1<60: print(f"Time to process: {round(t2-t1,ndigits=3)} sec\n")
     else: print(f"Time to process: {round((t2-t1)/60,ndigits=1)} min\n")
-    # exp_list = PreProcessModule(input_folder,
-    #                             **settings['init']).process_from_settings(settings)
     
-    # exp_list = SegmentationModule(input_folder,exp_list).segment_from_settings(settings)
-    
-    # exp_list = TrackingModule(input_folder,exp_list).track_from_settings(settings)
-    
-    # # Manually created the wound masks
-    # parent_fold = '/home/Test_images/szimi/MET/20240515-fMLF_diffusion'
-    # img_folds = list(Path(parent_fold).glob('**/*_s1'))
-    # mask = imread('/home/Test_images/szimi/MET/Mask.tif')
-    # # print(cpu_count())
-    # for img_fold in img_folds:
-    #     with open(join(str(img_fold),"exp_settings.json"),'r') as file:
-    #         exp_set = json.load(file)
-    #     frames = exp_set['img_properties']['n_frames']
-    #     save_path = join(str(img_fold),"Masks_wound")
-    #     Path(save_path).mkdir(exist_ok=True)
-    #     for i in range(frames):
-    #         mask_name = f"{save_path}/YFP_s01_f{i+1:04d}_z0001.tif"
-    #         imwrite(mask_name, mask.astype('uint16'))
-    #     exp_set['analysis']["is_reference_masks"] = True
-    #     exp_set['analysis']["reference_masks"] = {"wound":{'fold_src':"Images_Registered",'channel_show':"YFP"}}
-    #     exp_set['analysis']['um_per_pixel'] = (0.649,0.649)
-    #     with open(join(str(img_fold),"exp_settings.json"), 'w') as fp:
-    #         json.dump(exp_set, fp, indent=4)
-    
-    # master_df = AnalysisModule(input_folder,exp_list).analyze_from_settings(settings)

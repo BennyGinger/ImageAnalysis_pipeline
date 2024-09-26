@@ -1,10 +1,10 @@
 settings = {
-    "input_folder": '/home/Test_images/dia_fish/newtest',
+    "input_folder": '/home/Test_images/nd2/Run4',
     
     "optimization": False,
     
-    "init":{"active_channel_list": ['RFP','GFP'],
-            'full_channel_list': ['RFP','GFP'],
+    "init":{"active_channel_list": ['GFP','RFP'],
+            'full_channel_list': ["DAPI","GFP","RFP","iRed"],
             "overwrite": False},
     
     "bg_sub": (True,
@@ -32,7 +32,6 @@ settings = {
                 "flow_threshold": 0.7,
                 "cellprob_threshold":0,
                 "process_as_2D": True,
-                "save_as_npy": False,
                 "overwrite": False,}),
     
     "threshold": (False,
@@ -72,13 +71,14 @@ settings = {
                    "process_as_2D":True,
                    "overwrite":True}),
     
-    "draw_mask": (True,
+    "draw_mask": (False,
                   {"mask_label": "laser", # str or list[str]
                    "channel_show": "RFP",
                    "overwrite": False}),
     
     "extract_data": (True,
                   {"num_chunks": 3,
+                   "do_diff": True,
                    "overwrite": True}),
 }
 

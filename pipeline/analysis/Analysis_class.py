@@ -13,8 +13,6 @@ from pipeline.settings.Setting_Classes import Settings
 from pipeline.analysis.wound_mask import draw_wound_mask
 
 TRACKING_MASKS = ['iou_tracking','manual_tracking','gnn_tracking']
-SEGMENTATION_MASKS = ['cellpose_seg','threshold_seg']
-REFERENCE_MASKS = [] #TODO: Add reference masks
 
 @dataclass
 class AnalysisModule(BaseModule):
@@ -40,7 +38,7 @@ class AnalysisModule(BaseModule):
         self.save_as_json()
         return master_df
         
-    def create_master_df(self, img_fold_src: str = "", mask_fold_src: list[str] | str = "", ref_mask_fold_src: list[str] | str = "", num_chunks: int=1, overwrite: bool=False)-> pd.DataFrame:
+    def create_master_df(self, img_fold_src: str = "", mask_fold_src: list[str] | str = "", ref_mask_fold_src: list[str] | str = "", num_chunks: int=1, do_diff: bool=False, overwrite: bool=False)-> pd.DataFrame:
         # If optimization is set, then process only the first experiment
         exp_obj_lst = self.exp_obj_lst.copy()[:1] if self.optimization else self.exp_obj_lst
         
@@ -50,7 +48,7 @@ class AnalysisModule(BaseModule):
                             desc=pbar_desc("Experiments"),
                             colour='blue'):
             # extract the data
-            all_dfs.append(self.extract_data(exp_obj, img_fold_src, mask_fold_src, ref_mask_fold_src, num_chunks, overwrite))
+            all_dfs.append(self.extract_data(exp_obj, img_fold_src, mask_fold_src, ref_mask_fold_src, num_chunks, do_diff, overwrite))
         
         # Concatenate all the dataframes
         master_df = pd.concat(all_dfs)
@@ -61,7 +59,7 @@ class AnalysisModule(BaseModule):
         master_df.to_csv(save_path,index=False)
         return master_df
     
-    def extract_data(self, exp_obj: Experiment, img_fold_src: str = "", mask_fold_src: list[str] | str = "", ref_mask_fold_src: list[str] | str = "", num_chunks: int=1, overwrite: bool=False)-> pd.DataFrame:
+    def extract_data(self, exp_obj: Experiment, img_fold_src: str = "", mask_fold_src: list[str] | str = "", ref_mask_fold_src: list[str] | str = "", num_chunks: int=1, do_diff: bool=False, overwrite: bool=False)-> pd.DataFrame:
         # Gather the images
         img_fold_src, img_paths = img_list_src(exp_obj, img_fold_src)
         
@@ -74,6 +72,7 @@ class AnalysisModule(BaseModule):
         df = extract_data(img_paths=img_paths,
                           exp_path=Path(exp_obj.exp_path),
                           masks_fold=mask_fold_src,
+                          do_diff=do_diff,
                           ref_masks_fold=ref_mask_fold_src,
                           pixel_resolution=exp_obj.analysis.um_per_pixel[0],
                           num_chunks=num_chunks,
