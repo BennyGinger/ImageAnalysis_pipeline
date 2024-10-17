@@ -211,20 +211,22 @@ def _save_tif(array: np.ndarray, save_path: PathType, um_per_pixel: tuple[float,
     imagej_metadata = {'finterval':finterval, 'unit': 'um'}
     imwrite(save_path,array.astype(np.uint16),imagej=True,metadata=imagej_metadata,resolution=get_resolution(um_per_pixel))
 
-def run_multithread(func: Callable, input_data: Iterable, fixed_args: dict=None)-> list:
+def run_multithread(func: Callable, input_data: Iterable, fixed_args: dict=None, add_lock: bool=True)-> list:
     """Run a function in multi-threading. It uses a lock to limit access of some functions to the different threads."""
     if not fixed_args:
         fixed_args = {}
+    
+    if add_lock:
+        # Add lock to fixed_args
+        if 'metadata' in fixed_args:
+            fixed_args['metadata']['lock'] = Lock()
+        else:
+            fixed_args['lock'] = Lock()
     
     # Run callable in threads
     outputs = []
     with ThreadPoolExecutor() as executor:
         with progress_bar(total=len(input_data)) as pbar:
-            # Add lock to fixed_args
-            if 'metadata' in fixed_args:
-                fixed_args['metadata']['lock'] = Lock()
-            else:
-                fixed_args['lock'] = Lock()
             # Run function
             results = executor.map(partial(func,**fixed_args),input_data)
             # Update the pbar and get outputs
