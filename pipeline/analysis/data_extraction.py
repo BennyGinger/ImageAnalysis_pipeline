@@ -5,12 +5,12 @@ import pandas as pd
 import numpy as np
 from pipeline.utilities.data_utility import run_multithread, get_exp_props
 from pipeline.utilities.pipeline_utility import PathType, progress_bar
-from pipeline.analysis.extraction_core import extract_regionprops, PROPERTIES
-from pipeline.analysis.imgs_loading import load_images_and_masks
+from pipeline.analysis.extraction_utilities.extraction_core import extract_regionprops, PROPERTIES
+from pipeline.analysis.extraction_utilities.imgs_loading import load_images_and_masks
 
 
 ########################### Main functions ###########################
-def extract_data(img_paths: list[PathType], exp_path: Path, masks_fold: list[str], do_diff: bool, ref_masks_fold: list[str] | None, pixel_resolution: float | None=None, num_chunks: int=1, overwrite: bool=False)-> pd.DataFrame:
+def extract_data(img_paths: list[PathType], exp_path: Path, masks_fold: list[str], do_diff: bool, ratio: str | None, ref_masks_fold: list[str] | None, pixel_resolution: float | None=None, num_chunks: int=1, overwrite: bool=False)-> pd.DataFrame:
     """Extract images properties using the skimage.measure.regionprops_table with provided masks. The image can be processed either as a time sequence (F) or as a single frame. The mask must have must have the same shape as the image. Additionally, if a channel dim (C) is provided for the image, the mean intensity of each channel will be extracted. The expected shapes are ([F],Y,X,[C]) for the image and ([F],Y,X) for the mask, with [F] and [C] being optional. The data will be returned as a pandas.DataFrame, which willl also be saved at the save_path provided as a csv file named 'regionprops.csv'.
     Reference masks can also be provided to extract the distance transform from the centroid of the primary mask. The distance transform will be added to the main properties as 'dmap_um_{ref_name}' or 'dmap_pixel_{ref_name}' if the pixel resolution is not provided. The secondary masks can also be provided to check if the primary mask cells overlap with the secondary masks cells. The overlap will be added to the main properties as '{sec_name}{label}_overlap' or 'no_overalp'. If masks_folders contain a folder with several channels, the function will automatically pair the channels to extract the secondary masks.
     The differencial data can also be extracted by setting the do_diff to True. The function will substract each frames with the previous frame to extract the difference in the regionprops. The differencial data will be added to the main properties as 'diff_int_mean_{channel}'.
@@ -57,11 +57,11 @@ def extract_data(img_paths: list[PathType], exp_path: Path, masks_fold: list[str
     # Process the data in chunks
     dfs = []
     if num_chunks == 1:
-        dfs.append(process_chunk(range(nframes), img_paths, masks_fold, do_diff, ref_masks_fold, exp_path, pixel_resolution))
+        dfs.append(process_chunk(range(nframes), img_paths, masks_fold, do_diff, ratio, ref_masks_fold, exp_path, pixel_resolution))
     else: 
         for i in progress_bar(range(num_chunks), desc="Chunk Data Extraction"):
             chunk_frames = range(chunk_indinces[i], chunk_indinces[i+1])
-            dfs.append(process_chunk(chunk_frames, img_paths, masks_fold, do_diff, ref_masks_fold, exp_path, pixel_resolution))
+            dfs.append(process_chunk(chunk_frames, img_paths, masks_fold, do_diff, ratio, ref_masks_fold, exp_path, pixel_resolution))
     
     # Concatenate the dataframes
     df = pd.concat(dfs, ignore_index=True)
@@ -72,7 +72,7 @@ def extract_data(img_paths: list[PathType], exp_path: Path, masks_fold: list[str
     
     
 ############################# Helper functions #############################
-def process_chunk(chunk_frames: range, img_paths: list[Path], masks_fold: list[str], do_diff: bool, ref_masks_fold: list[str] | None, exp_path: Path, pixel_resolution: float | None)-> pd.DataFrame:
+def process_chunk(chunk_frames: range, img_paths: list[Path], masks_fold: list[str], do_diff: bool, ratio: str | None, ref_masks_fold: list[str] | None, exp_path: Path, pixel_resolution: float | None)-> pd.DataFrame:
     """_summary_
 
     Args:
@@ -88,19 +88,19 @@ def process_chunk(chunk_frames: range, img_paths: list[Path], masks_fold: list[s
 
     # Load images
     channels, _, nframes, _ = get_exp_props(img_paths)
-    img_masks = load_images_and_masks(chunk_frames, img_paths, masks_fold, ref_masks_fold, exp_path, pixel_resolution, channels, nframes)
+    img_masks = load_images_and_masks(chunk_frames, img_paths, masks_fold, ref_masks_fold, do_diff, ratio, exp_path, pixel_resolution, channels, nframes)
     
     # Process the data
-    dfs = process_arrays(chunk_frames, channels, *img_masks)
+    dfs = process_arrays(chunk_frames=chunk_frames, channels=channels, ratio=ratio, **img_masks)
 
     # Concatenate the dataframes
     return pd.concat(dfs, ignore_index=True)
 
-def process_arrays(chunk_frames: range, channels: list[str], img_array: np.ndarray, diff_array: np.ndarray | None, ref_masks: list[tuple[np.ndarray, str, float | None]] |None, pair_arrays: list[tuple[tuple[np.ndarray, str], list[tuple[np.ndarray, str]] | None]])-> list[pd.DataFrame]:
+def process_arrays(chunk_frames: range, channels: list[str], img_array: np.ndarray, diff_array: np.ndarray | None, ratio: str | None, ref_masks: list[tuple[np.ndarray, str, float | None]] |None, pair_arrays: list[tuple[tuple[np.ndarray, str], list[tuple[np.ndarray, str]] | None]])-> list[pd.DataFrame]:
     dfs = []
     for mask_tup, sec_masks in pair_arrays:
         mask_array, mask_name = mask_tup
-        col_rename = _rename_columns(channels, diff_array)
+        col_rename = _rename_columns(channels, diff_array, ratio)
         fixed_args = {'frame_vals':list(chunk_frames),
                       'mask_array':mask_array,
                       'img_array':img_array,
@@ -125,7 +125,7 @@ def process_arrays(chunk_frames: range, channels: list[str], img_array: np.ndarr
 
 
 
-def _rename_columns(channels: list[str], diff_array: np.ndarray | None)-> dict[str, str]:
+def _rename_columns(channels: list[str], diff_array: np.ndarray | None, ratio: str | None)-> dict[str, str]:
     """Function to rename the columns of the regionprops_table output. The columns will be renamed
     with the channels names."""
     
@@ -151,6 +151,8 @@ def _rename_columns(channels: list[str], diff_array: np.ndarray | None)-> dict[s
         else:
             col_rename['diff_intensity_mean'] = f'diff_int_mean_{channels[0]}'
     
+        if ratio is not None:
+            col_rename['diff_intensity_mean'] = f'diff_int_mean_{ratio}'
     return col_rename
 
 

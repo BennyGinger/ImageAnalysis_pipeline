@@ -9,7 +9,7 @@ from typing import TypeVar
 # Custom variable type
 T = TypeVar('T')
 
-def load_images_and_masks(chunk_frames, img_paths, masks_fold, ref_masks_fold, exp_path, pixel_resolution, channels, nframes):
+def load_images_and_masks(chunk_frames: range, img_paths: list[Path], masks_fold: list[str], ref_masks_fold: list[str] | None, do_diff:bool, ratio: str | None, exp_path: Path, pixel_resolution: float | None, channels: list[str], nframes: int)-> dict[str, any | None]:
     img_array = load_stack(img_paths, channels, chunk_frames, True)
     
     # Load ref masks, if provided, as ref_masks_fold can be an empty list
@@ -21,8 +21,9 @@ def load_images_and_masks(chunk_frames, img_paths, masks_fold, ref_masks_fold, e
     # Load diff masks
     if nframes == 1:
         do_diff = False
-    diff_array = load_diff_masks(img_array) if do_diff else None
-    return img_array, diff_array, ref_masks, pair_arrays
+    diff_array = load_diff_masks(chunk_frames, img_paths, channels, ratio) if do_diff else None
+    output_dict = {'img_array': img_array, 'diff_array': diff_array, 'ref_masks': ref_masks, 'pair_arrays': pair_arrays}
+    return output_dict
 
 ############## Helper Functions ##############
 def generate_mask_pairs(chunk_frames: range, masks_fold: list[str], exp_path: Path)-> list[tuple[tuple[np.ndarray, str], list[tuple[np.ndarray, str]] | None]]: 
@@ -50,9 +51,6 @@ def generate_mask_pairs(chunk_frames: range, masks_fold: list[str], exp_path: Pa
             pair_arrays.append(((primary_mask, primary_name), sec_masks))
     return pair_arrays
 
-
-
-
 def load_reference_masks(chunk_frames: range, ref_masks_fold: list[str] | None, exp_path: Path, pixel_resolution: float | None)-> list[tuple[np.ndarray, str, float | None]] | None:
     if ref_masks_fold is None:
         return None
@@ -67,9 +65,37 @@ def load_reference_masks(chunk_frames: range, ref_masks_fold: list[str] | None, 
         ref_masks.append((ref_array, ref_name, pixel_resolution))
     return ref_masks
 
-def load_diff_masks(img_array: np.ndarray)-> np.ndarray:
+def validate_channel_ratio(channels: list[str], ratio: str)-> bool:
+    ratio_channels = ratio.split('/')
+    
+    assert len(ratio_channels) == 2, "The ratio should be in the form 'channel1/channel2'"
+    
+    for channel in ratio_channels:
+        if channel not in channels:
+            return False
+    return True
+    
+def load_diff_masks(chunk_frames: range, img_paths: list[Path], channels: list[str], ratio: str | None)-> np.ndarray:
+    # Apply the ratio if provided
+    if ratio is not None:
+        if not validate_channel_ratio(channels, ratio):
+            raise ValueError(f"The channel ratio provided {ratio} contains channels that are not in the channels list {channels}.") 
+        
+        ratio_channels = ratio.split('/')
+        
+        array1 = load_stack(img_paths, ratio_channels[0], chunk_frames, True).astype(np.float32)
+        array2 = load_stack(img_paths, ratio_channels[1], chunk_frames, True).astype(np.float32)
+        
+        img_array = np.divide(array1, array2, out=np.zeros_like(array1), where=array2!=0, dtype=np.float32)
+        # Replace the NaN or inf values with 0
+        img_array[np.isinf(img_array) | np.isnan(img_array)] = 0
+        
+    else:    
+        img_array = load_stack(img_paths, channels, chunk_frames, True)
+    
     # Extract the differencial data, as int16, to keep the negative values
     zero_array = np.zeros((1,) + img_array.shape[1:], dtype=np.int16)
+    # Add a zero frame at the beginning to conserve the same number of frames
     img_array_diff = np.concatenate((zero_array, np.diff(img_array.astype(np.int16), axis=0)), axis=0)
     return img_array_diff
 

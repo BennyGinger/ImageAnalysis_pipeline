@@ -40,15 +40,15 @@ def extract_regionprops(frame_idx: int | None, frame_vals: list[int], mask_array
         
         # List of processing functions
         processing_funcs = [
-            (diff_props, diff_array),
-            (ref_props, ref_masks),
-            (sec_props, sec_masks)
+            (diff_props, {'diff_array':diff_array}),
+            (ref_props, {'ref_masks':ref_masks}),
+            (sec_props, {'sec_masks':sec_masks})
         ]
         
         # Apply each processing function if the corresponding data is not None
         for func, data in processing_funcs:
             if data is not None:
-                func(data, mask_array, frame_idx, prop)
+                func(mask_array=mask_array, frame_idx=frame_idx, prop=prop, **data)
         
         # Return the data as a dataframe       
         df = pd.DataFrame(prop)
@@ -56,8 +56,10 @@ def extract_regionprops(frame_idx: int | None, frame_vals: list[int], mask_array
         df['mask_name'] = mask_name
         return df
 
-def diff_props(diff_array: np.ndarray, mask_array: np.ndarray, frame_idx: int | None, prop: dict[str,float])-> None:
+def diff_props(diff_array: np.ndarray | None, mask_array: np.ndarray, frame_idx: int | None, prop: dict[str,float])-> None:
     """Function that will substract each frames with the previous frame to extract the difference in the regionprops."""
+    if diff_array is None:
+        return
     
     # Get the number of channels
     nchannels = diff_array.shape[-1] if diff_array.ndim == 4 else 1
@@ -80,9 +82,11 @@ def diff_props(diff_array: np.ndarray, mask_array: np.ndarray, frame_idx: int | 
     # Update the main properties with the difference
     prop.update(prop_diff)
 
-def ref_props(ref_masks: list[tuple[np.ndarray, str, float | None]], mask_array: np.ndarray, frame_idx: int | None, prop: dict[str,float])-> None:
+def ref_props(ref_masks: list[tuple[np.ndarray, str, float | None]] | None, mask_array: np.ndarray, frame_idx: int | None, prop: dict[str,float])-> None:
     """Extract the regionprops from the reference masks. The function will compute the distance transform value from the dmap mask of the centroid of the primary mask. The distance transform value will be added to the main properties."""
     
+    if ref_masks is None:
+        return
     
     for ref_mask, ref_name, resolution in ref_masks:
         # Check if the experiment is a time sequence
@@ -97,9 +101,11 @@ def ref_props(ref_masks: list[tuple[np.ndarray, str, float | None]], mask_array:
         else:
             prop[f'dmap_pixel_{ref_name}'] = prop_ref['dmap']
 
-def sec_props(sec_masks: list[tuple[np.ndarray, str]], mask_array: np.ndarray, frame_idx: int | None, prop: dict[str, float])-> None:
+def sec_props(sec_masks: list[tuple[np.ndarray, str]] | None, mask_array: np.ndarray, frame_idx: int | None, prop: dict[str, float])-> None:
     """Extract the regionprops from the secondary masks. The function will compute the overlap between the primary mask cells and the secondary masks cells and return a boolean value, whether the primary mask cells are in the secondary masks cells."""
     
+    if sec_masks is None:
+        return
     
     for sec_mask, sec_name in sec_masks:
         if frame_idx is None:

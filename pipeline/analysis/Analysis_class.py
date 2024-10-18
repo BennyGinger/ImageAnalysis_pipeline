@@ -38,7 +38,7 @@ class AnalysisModule(BaseModule):
         self.save_as_json()
         return master_df
         
-    def create_master_df(self, img_fold_src: str = "", mask_fold_src: list[str] | str = "", ref_mask_fold_src: list[str] | str = "", num_chunks: int=1, do_diff: bool=False, overwrite: bool=False)-> pd.DataFrame:
+    def create_master_df(self, img_fold_src: str = "", mask_fold_src: list[str] | str = "", ref_mask_fold_src: list[str] | str = "", num_chunks: int=1, do_diff: bool=False, ratio_diff: str | None=None, overwrite: bool=False)-> pd.DataFrame:
         # If optimization is set, then process only the first experiment
         exp_obj_lst = self.exp_obj_lst.copy()[:1] if self.optimization else self.exp_obj_lst
         
@@ -48,7 +48,7 @@ class AnalysisModule(BaseModule):
                             desc=pbar_desc("Experiments"),
                             colour='blue'):
             # extract the data
-            all_dfs.append(self.extract_data(exp_obj, img_fold_src, mask_fold_src, ref_mask_fold_src, num_chunks, do_diff, overwrite))
+            all_dfs.append(self.extract_data(exp_obj, img_fold_src, mask_fold_src, ref_mask_fold_src, num_chunks, do_diff, ratio_diff, overwrite))
         
         # Concatenate all the dataframes
         master_df = pd.concat(all_dfs)
@@ -59,7 +59,7 @@ class AnalysisModule(BaseModule):
         master_df.to_csv(save_path,index=False)
         return master_df
     
-    def extract_data(self, exp_obj: Experiment, img_fold_src: str = "", mask_fold_src: list[str] | str = "", ref_mask_fold_src: list[str] | str = "", num_chunks: int=1, do_diff: bool=False, overwrite: bool=False)-> pd.DataFrame:
+    def extract_data(self, exp_obj: Experiment, img_fold_src: str = "", mask_fold_src: list[str] | str = "", ref_mask_fold_src: list[str] | str = "", num_chunks: int=1, do_diff: bool=False, ratio_diff: str | None=None, overwrite: bool=False)-> pd.DataFrame:
         # Gather the images
         img_fold_src, img_paths = img_list_src(exp_obj, img_fold_src)
         
@@ -73,6 +73,7 @@ class AnalysisModule(BaseModule):
                           exp_path=Path(exp_obj.exp_path),
                           masks_fold=mask_fold_src,
                           do_diff=do_diff,
+                          ratio=ratio_diff,
                           ref_masks_fold=ref_mask_fold_src,
                           pixel_resolution=exp_obj.analysis.um_per_pixel[0],
                           num_chunks=num_chunks,
@@ -81,13 +82,14 @@ class AnalysisModule(BaseModule):
         # Add the time in seconds and experiment name
         interval_sec = 1 if exp_obj.analysis.interval_sec is None else exp_obj.analysis.interval_sec
         df['time_sec'] = (df['frame']-1)*interval_sec
-        df['exp_name'] = exp_obj.exp_path.rsplit(sep,1)[1]
+        exp_name = exp_obj.exp_path.rsplit(sep,1)[1]
+        df['exp_name'] = exp_name
         # Add the labels
         for i,label in enumerate(exp_obj.analysis.labels):
             df[f'tag_level_{i}'] = label
         
         # Add the unique cell id
-        merged_labels = "_".join(exp_obj.analysis.labels)
+        merged_labels = "_".join([exp_name] + exp_obj.analysis.labels)
         df['cell_ID'] = merged_labels + "_" + df['cell_label'].astype(str)
         
         # Save the data
@@ -148,8 +150,11 @@ def load_ref_masks_list(exp_obj: Experiment, ref_mask_fold_src: list[str] | str)
 
 if __name__== "__main__":
     
-    input_folder = "/home/Test_images/nd2/Run2"
+    input_folder = "/home/Test_images/nd2/Run4"
     aclass = AnalysisModule(input_folder)
     
-    print(aclass.exp_obj_lst)
-    # aclass.create_master_df(overwrite=True)
+    aclass.create_master_df(img_fold_src="Images_Registered",
+                            mask_fold_src=['Masks_IoU_Track'],
+                            do_diff=True,
+                            ratio_diff='GFP/RFP',
+                            overwrite=True)
