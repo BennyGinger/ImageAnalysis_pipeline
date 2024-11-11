@@ -1,7 +1,7 @@
 from __future__ import annotations
 import numpy as np
 import pandas as pd
-from skimage.measure import regionprops_table
+from skimage.measure import regionprops_table, regionprops
 
 # Build-in properties for regionprops_table. NOTE: if modifying this list, make sure to update the _rename_columns() function.
 PROPERTIES = ['area','centroid','intensity_mean',

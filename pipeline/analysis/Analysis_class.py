@@ -8,7 +8,7 @@ from pipeline.utilities.Base_Module_Class import BaseModule
 from pipeline.utilities.Experiment_Classes import Experiment
 from pipeline.utilities.data_utility import img_list_src, seg_mask_lst_src, track_mask_lst_src
 from pipeline.utilities.pipeline_utility import progress_bar, pbar_desc
-from pipeline.analysis.data_extraction import extract_data
+from pipeline.analysis.data_extraction_copy import extract_data
 from pipeline.settings.Setting_Classes import Settings
 from pipeline.analysis.wound_mask import draw_wound_mask
 
@@ -59,7 +59,7 @@ class AnalysisModule(BaseModule):
         master_df.to_csv(save_path,index=False)
         return master_df
     
-    def extract_data(self, exp_obj: Experiment, img_fold_src: str = "", mask_fold_src: list[str] | str = "", ref_mask_fold_src: list[str] | str = "", num_chunks: int=1, do_diff: bool=False, ratio_diff: str | None=None, overwrite: bool=False)-> pd.DataFrame:
+    def extract_data(self, exp_obj: Experiment, img_fold_src: str = "", mask_fold_src: list[str] | str = "", ref_mask_fold_src: list[str] | str = "", num_chunks: int=1, do_diff: bool=False, diff_channel_ratio: str | None=None, overwrite: bool=False)-> pd.DataFrame:
         # Gather the images
         img_fold_src, img_paths = img_list_src(exp_obj, img_fold_src)
         
@@ -73,10 +73,9 @@ class AnalysisModule(BaseModule):
                           exp_path=Path(exp_obj.exp_path),
                           masks_fold=mask_fold_src,
                           do_diff=do_diff,
-                          ratio=ratio_diff,
                           ref_masks_fold=ref_mask_fold_src,
                           pixel_resolution=exp_obj.analysis.um_per_pixel[0],
-                          num_chunks=num_chunks,
+                          diff_channel_ratio=diff_channel_ratio,
                           overwrite=overwrite)
         
         # Add the time in seconds and experiment name
@@ -150,11 +149,12 @@ def load_ref_masks_list(exp_obj: Experiment, ref_mask_fold_src: list[str] | str)
 
 if __name__== "__main__":
     
-    input_folder = "/home/Test_images/nd2/Run4"
+    input_folder = "/home/Test_images/dia_fish/newtest"
     aclass = AnalysisModule(input_folder)
     
     aclass.create_master_df(img_fold_src="Images_Registered",
-                            mask_fold_src=['Masks_IoU_Track'],
+                            mask_fold_src=['Masks_GNN_Track'],
+                            ref_mask_fold_src=['Masks_laser'],
                             do_diff=True,
                             ratio_diff='GFP/RFP',
                             overwrite=True)

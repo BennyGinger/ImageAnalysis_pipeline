@@ -177,6 +177,7 @@ if __name__ == "__main__":
                              exp_path=img_folder.parent,
                              masks_fold=mask_folder,
                              do_diff=True,
+                             ratio=None,
                              ref_masks_fold=None,
                              pixel_resolution=None,
                              num_chunks=1,

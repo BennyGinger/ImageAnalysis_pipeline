@@ -18,6 +18,15 @@ def erode_masks(mask: np.ndarray, pixel_rad: int = 6)-> np.ndarray:
     nframes = mask.shape[0] if mask.ndim > 2 else 1
     
     # Erode the secondary mask
+    if nframes == 1:
+        unique_cells = np.unique(mask)[1:]
+        with ThreadPoolExecutor() as executor:
+            eroded_frame = executor.map(partial(_erode_mask,mask=mask,footprint=footprint,lock=Lock()),unique_cells)
+        mask_frame = np.zeros_like(mask)
+        for frame in eroded_frame:
+            mask_frame += frame
+        return mask_frame
+    
     for i in trange(nframes):
         unique_cells = np.unique(mask[i])[1:]
         with ThreadPoolExecutor() as executor:
@@ -30,7 +39,6 @@ def erode_masks(mask: np.ndarray, pixel_rad: int = 6)-> np.ndarray:
 
 def _erode_mask(cell_idx: int, mask: np.ndarray, footprint: np.ndarray, lock: Lock)-> np.ndarray:
     """Apply the erosion to the secondary mask for a single cell."""
-    
     with lock:
         temp_mask = np.where(mask==cell_idx, cell_idx, 0)
     eroded_mask = erosion(temp_mask,footprint).astype('uint16')
