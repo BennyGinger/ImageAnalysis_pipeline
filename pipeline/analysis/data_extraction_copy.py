@@ -62,10 +62,6 @@ def extract_data(img_paths: list[Path], exp_path: Path, masks_fold: list[str], d
     return region_df
 
 
-
-
-
-
 ############################# Helper functions #############################
 def _make_pairs(lst: list[T])-> list[tuple[T, list[T]]]:
     """Make pairs of elements from a list. For example, if the list is [1,2,3], the output will be [(1,[2,3]),(2,[1,3]),(3,[1,2])]."""

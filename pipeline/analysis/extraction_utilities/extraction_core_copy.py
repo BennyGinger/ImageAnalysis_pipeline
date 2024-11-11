@@ -45,14 +45,8 @@ def extract_regionprops(frame_idx: int, mask_data: dict[str, list[Path]], img_pa
         mask_name, mask_paths = list(mask_data.items())[0]
             
         # Load the image and mask arrays
-        img_array = load_stack(img_paths, frame_range=frame_idx, return_2D=True)
-        mask_array = load_stack(mask_paths, frame_range=frame_idx, return_2D=True)
-        # Extract the base regionprops
-        prop = regionprops_table(mask_array, img_array, properties=PROPERTIES, separator='_')
+        prop = base_regionprops(frame_idx, img_paths, mask_paths, do_diff, diff_channel_ratio)
         
-        if do_diff:
-            diff_props(img_paths, mask_paths, frame_idx, diff_channel_ratio, prop)
-            
         if ref_data:
             ref_props(ref_data, ref_resolution, mask_paths, frame_idx, prop)
         
@@ -65,6 +59,39 @@ def extract_regionprops(frame_idx: int, mask_data: dict[str, list[Path]], img_pa
         df['mask_name'] = mask_name
         return df
 
+def base_regionprops(frame_idx: int, img_paths: list[Path], mask_paths: list[Path], do_diff: bool, diff_channel_ratio: str | None = None)-> dict[str,any]:
+    # Get img properties
+    channels, _, nframes, _ = get_exp_props(img_paths)
+    nchannels = len(channels)
+    
+    # Extract raw regionprops
+    if not do_diff or nframes == 1:
+        img_array = load_stack(img_paths, frame_range=frame_idx, return_2D=True)
+        mask_array = load_stack(mask_paths, frame_range=frame_idx, return_2D=True)
+        
+    # Extract the differencial regionprops
+    else:
+        
+        if diff_channel_ratio:
+            # Validate the ratio
+            _validate_channel_ratio(channels, diff_channel_ratio)
+            nchannels = 1
+            channels = [diff_channel_ratio]
+        
+        # Load the mask and image arrays
+        mask_array, img_array = _load_diff_arrays(img_paths, mask_paths, frame_idx, diff_channel_ratio, nchannels)
+    
+    # Extract the base regionprops
+    prop = regionprops_table(mask_array, img_array, properties=PROPERTIES, separator='_')
+
+    # Rename the columns
+    if nchannels > 1:
+        col_rename = {f'intensity_mean_{i}': f'diff_intensity_mean_{chan}' for i, chan in enumerate(channels)}
+    else:
+        col_rename = {f'intensity_mean': f'diff_intensity_mean_{channels[0]}'}
+    
+    # Rename the props
+    prop = {col_rename[key]: value for key, value in prop.items()}
 
 ################# Processing functions ####################
 def diff_props(img_paths: list[Path], mask_paths: list[Path], frame_idx: int | None, diff_channel_ratio: str | None, prop: dict[str,float])-> None:
@@ -110,11 +137,6 @@ def ref_props(ref_data: dict[str, list[Path]], resolution: float | None, mask_pa
     for ref_name, ref_paths in ref_data.items():
         # Apply the distance transform to the reference array
         ref_array = load_stack(ref_paths, frame_range=frame_idx, return_2D=True)
-        
-        # Extract the regionprops
-        # prop_ref = regionprops_table(mask_array,ref_array,properties=['label'],separator='_',extra_properties=[dmap])
-        
-        # Get the minimum distance between the mask and the reference array
         
         # Update the main properties with the dmap
         if resolution:
