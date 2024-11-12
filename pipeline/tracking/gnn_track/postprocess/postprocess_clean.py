@@ -137,9 +137,44 @@ class Postprocess():
                 self.trajectory_matrix[frame, :nodes.shape[0]] = nodes
                 new_track_starting_ids.extend(nodes.tolist())
             # If not first frame, find the trajectory nodes and update the new_track list with new tracks
-            new_track_starting_ids.extend(self._find_trajectory_nodes(frame, nodes))
+            
+            dev = False
+            if dev:
+                new_track_starting_ids.extend(self._find_trajectory_by_prediction(frame, nodes))
+            else:
+                new_track_starting_ids.extend(self._find_trajectory_nodes(frame, nodes))
         return new_track_starting_ids
-
+    
+    
+    def _find_trajectory_by_prediction(self, frame: int, nodes: list[int])-> list[int]:
+        new_tracks = []
+        
+        #sort the nodes by the prediction score, to make sure high score nodes are connected first        
+        # Get the prediction values for the nodes
+        pred_values = self.preds[torch.isin(self.connected_edges[0,:], torch.tensor(nodes))]
+        # Get the connected edges for the nodes
+        conn_values = self.connected_edges[0,torch.isin(self.connected_edges[0,:], torch.tensor(nodes))]
+        # Sort the prediction values and get the indices
+        pred_values_sorted_idx = torch.argsort(pred_values, descending=True)
+        # Sort the connected edges based on the sorted prediction values
+        conn_sorted = conn_values[pred_values_sorted_idx]
+        # Concatenate the sorted connected edges with the nodes to add possible missing nodes
+        conn_values_concat = torch.cat((conn_sorted, torch.tensor(nodes)))
+        # Get the unique indices of the concatenated values to delete duplicates and keep the order, therefore get only the indices
+        conn_values_concat_idx = np.unique(conn_values_concat, return_index=True)[1]
+        # Sort the nodes based on the concatenated indices
+        sorted_nodes = conn_values_concat[torch.tensor(np.sort(conn_values_concat_idx))]
+        
+        for node_idx in sorted_nodes:
+            # Find the next node to connect
+            next_node = self._get_next_node(node_idx)
+            
+            # Add the next node to the matrix
+            starting_node = self._update_matrix_with_next_node(frame, node_idx, next_node)
+            new_tracks.extend(starting_node)
+                    
+        return new_tracks
+        
     def _find_trajectory_nodes(self, frame: int, nodes: list[int])-> list[int]:
         new_tracks = []
         for node_idx in nodes:
@@ -168,6 +203,7 @@ class Postprocess():
         # Delete already assigned nodes from the list to avoid several cells with the same ID per frame         
         assigned_node = self.connected_edges[1,:] == next_node_ind 
         self.connected_edges = self.connected_edges[:,~assigned_node]
+        self.preds = self.preds[~assigned_node]
         return next_node_ind
     
     def _filter_by_distance(self, node_idx: int, next_frame_idx: torch.Tensor)-> int:
@@ -178,6 +214,7 @@ class Postprocess():
         if filtered_score.size == 0:
             return -1
         
+        print(f'Filtered score: {filtered_score}')
         # Find the nearest cell to connect
         min_idx = np.argmin(filtered_score)
         nearest_cell: int = np.where(distance_mask)[0][min_idx]

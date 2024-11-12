@@ -4,7 +4,7 @@ from os.path import join, split
 import numpy as np
 import pandas as pd
 from collections import Counter
-from skimage.segmentation import expand_labels
+from skimage.segmentation import expand_labels, relabel_sequential
 from pipeline.mask_transformation.complete_track import complete_track
 from pipeline.utilities.Experiment_Classes import Experiment
 from pipeline.utilities.data_utility import load_stack, is_processed, create_save_folder, delete_old_masks, seg_mask_lst_src, img_list_src, track_mask_lst_src
@@ -35,7 +35,7 @@ def gen_input_data_masks(exp_obj: Experiment, mask_fold_src: str, mask_fold_src2
     # mask_path_list = mask_list_src(exp_obj,mask_fold_src)
     
     _, mask_path_list = seg_mask_lst_src(exp_obj,mask_fold_src) 
-    mask_path_list2 = track_mask_lst_src(exp_obj,mask_fold_src2)
+    _, mask_path_list2 = track_mask_lst_src(exp_obj,mask_fold_src2)
     
     # mask_fold_src, mask_list_src = seg_mask_lst_src(exp_obj,mask_fold_src2)     
     # mask_path_list2 = mask_list_src(exp_obj,mask_fold_src2)
@@ -133,7 +133,7 @@ def run_morph(exp_obj:Experiment, mask_fold_src:str, channel_seg:str, n_mask:int
 
 # # # # # # # # main functions # # # # # # # # # 
 def man_tracking(exp_obj_lst: list[Experiment], channel_seg: str, track_seg_mask: bool = False, mask_fold_src: PathLike = None,
-                csv_name: str = None, radius: int=5, copy_first_to_start: bool=True, copy_last_to_end: bool=True, mask_appear=2,
+                csv_name: str = None, radius: int=5, do_morph: bool = True, copy_first_to_start: bool=True, copy_last_to_end: bool=True, mask_appear=2,
                 dilate_value: int = 20, process_as_2D: bool=True,  overwrite: bool=False):
     """
     Perform Manual Tracking based on a csv file resulting of MTrackJ (ImageJ Plugin) on a list of experiments.
@@ -225,16 +225,21 @@ def man_tracking(exp_obj_lst: list[Experiment], channel_seg: str, track_seg_mask
         with ThreadPoolExecutor() as executor:
             executor.map(create_man_mask,frame_list)
             
+        
+            
         if track_seg_mask:
             print('Applying manual tracks to the original mask')
+            
+            
             # do overwrite from seg mask
             img_data = gen_input_data_masks(exp_obj, mask_fold_src, mask_fold_src2='Masks_Manual_Track', channel_seg_list=[channel_seg], dilate_value=dilate_value)
             # seg_track_manual(img_data)
             with ThreadPoolExecutor() as executor:
                 executor.map(seg_track_manual,img_data)
 
-        run_morph(exp_obj, mask_fold_src='Masks_Manual_Track', channel_seg=channel_seg, n_mask=mask_appear, copy_first_to_start=copy_first_to_start, copy_last_to_end=copy_last_to_end)
-        
+        if do_morph:
+            run_morph(exp_obj, mask_fold_src='Masks_Manual_Track', channel_seg=channel_seg, n_mask=mask_appear, copy_first_to_start=copy_first_to_start, copy_last_to_end=copy_last_to_end)
+            
             
         # Save settings
         exp_obj.tracking.manual_tracking[channel_seg] = {'mask_fold_src':mask_fold_src,'track_seg_mask':track_seg_mask,
