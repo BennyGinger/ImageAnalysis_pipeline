@@ -2,6 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 import numpy as np
 import pandas as pd
+from tifffile import imread
 from skimage.measure import regionprops_table
 from scipy.spatial import distance
 from pipeline.utilities.data_utility import load_stack, get_exp_props
@@ -45,13 +46,13 @@ def extract_regionprops(frame_idx: int, mask_data: dict[str, list[Path]], img_pa
         mask_name, mask_paths = list(mask_data.items())[0]
             
         # Load the image and mask arrays
-        prop = base_regionprops(frame_idx, img_paths, mask_paths, do_diff, diff_channel_ratio)
+        prop = base_props(frame_idx, img_paths, mask_paths, do_diff, diff_channel_ratio)
         
         if ref_data:
-            ref_props(ref_data, ref_resolution, mask_paths, frame_idx, prop)
+            ref_props(ref_data, ref_resolution, mask_paths, frame_idx, prop, do_diff)
         
         if class_data:
-            class_props(class_data, mask_paths, frame_idx, prop)
+            class_props(class_data, mask_paths, frame_idx, prop, do_diff)
         
         # Return the data as a dataframe       
         df = pd.DataFrame(prop)
@@ -59,79 +60,36 @@ def extract_regionprops(frame_idx: int, mask_data: dict[str, list[Path]], img_pa
         df['mask_name'] = mask_name
         return df
 
-def base_regionprops(frame_idx: int, img_paths: list[Path], mask_paths: list[Path], do_diff: bool, diff_channel_ratio: str | None = None)-> dict[str,any]:
-    # Get img properties
-    channels, _, nframes, _ = get_exp_props(img_paths)
-    nchannels = len(channels)
-    
-    # Extract raw regionprops
-    if not do_diff or nframes == 1:
-        img_array = load_stack(img_paths, frame_range=frame_idx, return_2D=True)
-        mask_array = load_stack(mask_paths, frame_range=frame_idx, return_2D=True)
-        
-    # Extract the differencial regionprops
-    else:
-        
-        if diff_channel_ratio:
-            # Validate the ratio
-            _validate_channel_ratio(channels, diff_channel_ratio)
-            nchannels = 1
-            channels = [diff_channel_ratio]
-        
-        # Load the mask and image arrays
-        mask_array, img_array = _load_diff_arrays(img_paths, mask_paths, frame_idx, diff_channel_ratio, nchannels)
-    
-    # Extract the base regionprops
-    prop = regionprops_table(mask_array, img_array, properties=PROPERTIES, separator='_')
-
-    # Rename the columns
-    if nchannels > 1:
-        col_rename = {f'intensity_mean_{i}': f'diff_intensity_mean_{chan}' for i, chan in enumerate(channels)}
-    else:
-        col_rename = {f'intensity_mean': f'diff_intensity_mean_{channels[0]}'}
-    
-    # Rename the props
-    prop = {col_rename[key]: value for key, value in prop.items()}
 
 ################# Processing functions ####################
-def diff_props(img_paths: list[Path], mask_paths: list[Path], frame_idx: int | None, diff_channel_ratio: str | None, prop: dict[str,float])-> None:
-    """Function that will substract each frames with the previous frame to extract the difference in the regionprops."""
-    
-    
+def base_props(frame_idx: int, img_paths: list[Path], mask_paths: list[Path], do_diff: bool, diff_channel_ratio: str | None = None)-> dict[str,any]:
     # Get img properties
     channels, _, nframes, _ = get_exp_props(img_paths)
-    nchannels = len(channels)
+    
     if diff_channel_ratio:
         # Validate the ratio
         _validate_channel_ratio(channels, diff_channel_ratio)
-        nchannels = 1
         channels = [diff_channel_ratio]
-    # Return if only one frame
-    if nframes == 1:
-        return
     
     # Load the mask and image arrays
-    mask_array, diff_array = _load_diff_arrays(img_paths, mask_paths, frame_idx, diff_channel_ratio, nchannels)
-    
-    # Rename the columns
-    if nchannels > 1:
-        col_rename = {f'intensity_mean_{i}': f'diff_intensity_mean_{chan}' for i, chan in enumerate(channels)}
+    if do_diff and nframes > 1:
+        img_array = load_diff_img_arrays(img_paths, frame_idx, channels)
+        mask_array = load_diff_mask_array(mask_paths, frame_idx)
+        
     else:
-        col_rename = {f'intensity_mean': f'diff_intensity_mean_{channels[0]}'}
+        img_array = load_stack(img_paths, frame_range=frame_idx, return_2D=True)
+        mask_array = load_stack(mask_paths, frame_range=frame_idx, return_2D=True)
     
-    # Extract the regionprops
-    prop_diff = regionprops_table(mask_array,diff_array,properties=['intensity_mean'],separator='_')
-    # Rename the props
-    prop_diff = {col_rename[key]: value for key, value in prop_diff.items()}
-    
-    # Update the main properties with the difference
-    prop.update(prop_diff)
+    # Extract the base regionprops
+    return regionprops_table(mask_array, img_array, properties=PROPERTIES, separator='_')
 
-def ref_props(ref_data: dict[str, list[Path]], resolution: float | None, mask_paths: list[Path], frame_idx: int, prop: dict[str,float])-> None:
+def ref_props(ref_data: dict[str, list[Path]], resolution: float | None, mask_paths: list[Path], frame_idx: int, prop: dict[str,float], do_diff: bool)-> None:
     """Extract the regionprops from the reference masks. The function will compute the distance transform value from the dmap mask of the centroid of the primary mask. The distance transform value will be added to the main properties."""
-    
     # Load the mask array
-    mask_array = load_stack(mask_paths, frame_range=frame_idx, return_2D=True)
+    if do_diff:
+        mask_array = load_diff_mask_array(mask_paths, frame_idx)
+    else:
+        mask_array = load_stack(mask_paths, frame_range=frame_idx, return_2D=True)
     
     # Extract the reference masks
     for ref_name, ref_paths in ref_data.items():
@@ -144,15 +102,18 @@ def ref_props(ref_data: dict[str, list[Path]], resolution: float | None, mask_pa
         else:
             prop[f'dmap_pixel_{ref_name}'] = list(_get_min_distance(mask_array,ref_array))
 
-def class_props(class_data: dict[str, list[Path]], mask_paths: list[Path], frame_idx: int | None, prop: dict[str, float])-> None:
+def class_props(class_data: dict[str, list[Path]], mask_paths: list[Path], frame_idx: int | None, prop: dict[str, float], do_diff: bool)-> None:
     """Extract the regionprops from the secondary masks. The function will compute the overlap between the primary mask cells and the secondary masks cells and return a boolean value, whether the primary mask cells are in the secondary masks cells."""
     
     # Load the mask array
-    mask_array = load_stack(mask_paths, frame_range=frame_idx, return_2D=True)
+    if do_diff:
+        mask_array = load_diff_mask_array(mask_paths, frame_idx)
+    else:
+        mask_array = load_stack(mask_paths, frame_range=frame_idx, return_2D=True)
     
     for class_name, class_paths in class_data.items():
         # Load the classification array
-        class_array = load_stack(class_paths, channels=class_name, frame_range=frame_idx, return_2D=True)
+        class_array = load_diff_mask_array(class_paths, frame_idx, class_name)
         # Erode the classification masks
         class_array = erode_masks(class_array)
         
@@ -160,7 +121,7 @@ def class_props(class_data: dict[str, list[Path]], mask_paths: list[Path], frame
         prop_sec = regionprops_table(mask_array, class_array, properties=['intensity_max'], separator='_', extra_properties=[label_in])
             
         # Update the main properties with the overlap
-        prop[f'{class_name}_classification'] = [f"{class_name}_{label} overlaps" if state else f"no overlap" for state, label in zip(prop_sec['label_in'], prop_sec['intensity_max'])]
+        prop[f'Label_classification'] = [f"{class_name}_{label} overlaps" if state else f"no overlap" for state, label in zip(prop_sec['label_in'], prop_sec['intensity_max'])]
 
 
 ################# Helper functions ####################
@@ -188,43 +149,49 @@ def _validate_channel_ratio(channels: list[str], ratio: str)-> None:
         if channel not in channels:
             raise ValueError(f"The channel {channel} is not in the channels list {channels}.")
 
-def _load_diff_arrays(img_paths: list[Path], mask_paths: list[Path], frame_idx: int, diff_channel_ratio: str | None, nchannels: int)-> tuple[np.ndarray, np.ndarray]:
+def load_diff_mask_array(mask_paths: list[Path], frame_idx: int, channel: str | None = None)-> np.ndarray:
     
-    if diff_channel_ratio:
-        # Unpack the channel ratio
-        ratio_channels = diff_channel_ratio.split('/')
-    
-    mask_array = load_stack(mask_paths, frame_range=frame_idx, return_2D=True)
     if frame_idx == 0:
-        # mask_array = load_stack(mask_paths, frame_range=frame_idx, return_2D=True)
+        return load_stack(mask_paths, channels=channel, frame_range=frame_idx, return_2D=True)
+    
+    # Load the mask array that includes the previous frame
+    mask_array = load_stack(mask_paths, channels=channel, frame_range=[frame_idx-1,frame_idx], return_2D=True)
+    
+    # Apply a logical_and operation to get the overlapping cells between the two frames
+    return np.where((mask_array[0]!=0) & (mask_array[1]!=0), mask_array[1], 0)
+
+def load_diff_img_arrays(img_paths: list[Path], frame_idx: int, channels: list[str])-> np.ndarray:
+    
+    nchannels = len(channels)
+    ratio_channels = None
+    
+    # Unpack the channel ratio, if exists
+    if nchannels == 1 and '/' in channels[0]:
+        ratio_channels = channels[0].split('/')
+    
+    # Load the image array
+    if frame_idx == 0:
         # Create an zero array with the same shape as the mask array, but with the number of channels, if 1 channel only squeeze will remove the extra dimension
-        diff_array = np.squeeze(np.zeros(shape=(*mask_array.shape, nchannels))).astype(np.int16)
+        img_shape = imread(img_paths[0]).shape
+        return np.squeeze(np.zeros(shape=(*img_shape, nchannels))).astype(np.int16)
+    
+    if ratio_channels:
+        # Compute the ratio between the two channels
+        arr1 = load_stack(img_paths, channels=ratio_channels[0], frame_range=[frame_idx-1,frame_idx], return_2D=True).astype(np.float32)
+        arr2 = load_stack(img_paths, channels=ratio_channels[1], frame_range=[frame_idx-1,frame_idx], return_2D=True).astype(np.float32)
+        img_array = np.divide(arr1, arr2, out=np.zeros_like(arr1), where=arr2!=0, dtype=np.float32)
+        # Replace the NaN or inf values with 0
+        img_array[np.isinf(img_array) | np.isnan(img_array)] = 0
     else:
-        # Load the mask array that includes the previous frame
-        # mask_array = load_stack(mask_paths, frame_range=[frame_idx-1,frame_idx], return_2D=True)
+        img_array = load_stack(img_paths, frame_range=[frame_idx-1,frame_idx], return_2D=True)
         
-        # Apply a logical_and operation to get the overlapping cells between the two frames
-        # mask_array = np.where((mask_array[0]!=0) & (mask_array[1]!=0), mask_array[1], 0)
-        
-        # Load the image array
-        if diff_channel_ratio:
-            arr1 = load_stack(img_paths, channels=ratio_channels[0], frame_range=[frame_idx-1,frame_idx], return_2D=True).astype(np.float32)
-            arr2 = load_stack(img_paths, channels=ratio_channels[1], frame_range=[frame_idx-1,frame_idx], return_2D=True).astype(np.float32)
-            img_array = np.divide(arr1, arr2, out=np.zeros_like(arr1), where=arr2!=0, dtype=np.float32)
-            # Replace the NaN or inf values with 0
-            img_array[np.isinf(img_array) | np.isnan(img_array)] = 0
-        else:
-            img_array = load_stack(img_paths, frame_range=[frame_idx-1,frame_idx], return_2D=True)
-            
-        # Compute the difference
-        diff_array = np.squeeze(np.diff(img_array.astype(np.int16), axis=0))
-    return mask_array, diff_array
+    # Compute the difference
+    return np.squeeze(np.diff(img_array.astype(np.int16), axis=0))
+
 
 ############### Custom properties functions ####################
 def label_in(mask_region: np.ndarray, intensity_image: np.ndarray)-> bool:
     """Extra property function for the regionprops_table(). Look if masks in primary maks (aka: mask_region) are in the secondary masks (aka: intensity_image)."""
-    
-    
     return np.any(np.logical_and(mask_region,intensity_image)) 
 
 
