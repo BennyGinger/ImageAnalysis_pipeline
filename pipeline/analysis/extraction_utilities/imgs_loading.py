@@ -33,10 +33,7 @@ def generate_mask_pairs(chunk_frames: range, masks_fold: list[str], exp_path: Pa
         process_name = fold.split('_', maxsplit=1)[-1].lower()
         mask_files = sorted(mask_path.glob('*.tif'))
         mask_channels = get_exp_props(mask_files)[0]
-        if mask_channels == 1:
-            pair_channels = [(mask_channels[0], None)]
-        else:
-            pair_channels = make_pairs(mask_channels)
+        pair_channels = make_pairs(mask_channels)
         
         # Erode secondary masks
         for chan, sec_channels in pair_channels:
@@ -107,6 +104,8 @@ def _dist_transform(mask: np.ndarray)-> np.ndarray:
 
 def make_pairs(lst: list[T])-> list[tuple[T, list[T]]]:
     """Make pairs of elements from a list. For example, if the list is [1,2,3], the output will be [(1,[2,3]),(2,[1,3]),(3,[1,2])]."""
+    if len(lst) == 1:
+        return [(lst[0], None)]
     
     pairs = []
     for i, element in enumerate(lst):

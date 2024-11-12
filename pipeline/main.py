@@ -64,7 +64,7 @@ if __name__ == "__main__":
     from time import time
 
     settings = {
-    "input_folder": '/home/Test_images/nd2/Run4',
+    "input_folder": "/home/Test_images/nd2/Run4",
     
     "optimization": False,
     
@@ -86,9 +86,9 @@ if __name__ == "__main__":
                 "img_ref": "first",
                 "overwrite": False}),
     
-    "blur": (True,
+    "blur": (False,
             {"sigma": 2,
-            "overwrite": True}),
+            "overwrite": False}),
 
     "cellpose": (True,
                 {"channel_to_seg":["RFP","GFP"], 
@@ -144,6 +144,7 @@ if __name__ == "__main__":
     "extract_data": (True,
                   {"num_chunks": 3,
                    "do_diff": True,
+                   "ratio_diff":"GFP/RFP",
                    "overwrite": True}),
     }
     
