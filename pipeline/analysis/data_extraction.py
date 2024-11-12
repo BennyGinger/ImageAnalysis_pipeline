@@ -3,7 +3,7 @@ from os import remove
 from pathlib import Path
 import pandas as pd
 from pipeline.utilities.data_utility import run_multithread, get_exp_props
-from ImageAnalysis_pipeline.pipeline.analysis.extraction_module.extraction_core import extract_regionprops, PROPERTIES
+from pipeline.analysis.extraction_module.extraction_core import extract_regionprops, PROPERTIES
 from typing import TypeVar
 
 # Custom variable type

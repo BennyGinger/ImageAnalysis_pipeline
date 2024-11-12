@@ -8,7 +8,7 @@ from pipeline.utilities.Base_Module_Class import BaseModule
 from pipeline.utilities.Experiment_Classes import Experiment
 from pipeline.utilities.data_utility import img_list_src, seg_mask_lst_src, track_mask_lst_src
 from pipeline.utilities.pipeline_utility import progress_bar, pbar_desc
-from ImageAnalysis_pipeline.pipeline.analysis.data_extraction import extract_data
+from pipeline.analysis.data_extraction import extract_data
 from pipeline.settings.Setting_Classes import Settings
 from pipeline.analysis.wound_mask import draw_wound_mask
 
