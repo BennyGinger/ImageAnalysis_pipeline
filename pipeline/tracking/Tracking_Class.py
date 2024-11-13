@@ -90,7 +90,7 @@ class TrackingModule(BaseModule):
             return self.exp_obj_lst
         
     @staticmethod
-    def _gnn_tracking(exp_obj: Experiment, channel_to_track: str, model: str, max_travel_dist: int, decision_threshold: float, manual_correct: bool, mask_fold_src: str, img_fold_src: str, trim_incomplete_tracks: bool, overwrite: bool)-> None:
+    def _gnn_tracking(exp_obj: Experiment, channel_to_track: str, model: str, max_travel_dist: int, decision_threshold: float, manual_correct: bool, mask_fold_src: str, img_fold_src: str, gap: int, trim_incomplete_tracks: bool, overwrite: bool)-> None:
         
         
         # Activate the branch
@@ -104,24 +104,24 @@ class TrackingModule(BaseModule):
         finterval = exp_obj.analysis.interval_sec
         
         # Run GNN tracking
-        gnn_tracking(exp_path,channel_to_track,model,max_travel_dist,img_fold_src,mask_fold_src,overwrite,decision_threshold,manual_correct,trim_incomplete_tracks,um_per_pixel=um_per_pixel,finterval=finterval)
+        gnn_tracking(exp_path,channel_to_track,model,max_travel_dist,img_fold_src,mask_fold_src,overwrite,decision_threshold,manual_correct,trim_incomplete_tracks,gap=gap, um_per_pixel=um_per_pixel,finterval=finterval)
 
         # Save settings
         exp_obj.tracking.gnn_tracking[channel_to_track] = {'img_fold_src': img_fold_src, 'mask_fold_src': mask_fold_src, 'model':model, 'decision_threshold': decision_threshold, 'max_travel_dist': max_travel_dist}
         exp_obj.save_as_json()
     
-    def gnn_tracking(self, model: str, channel_to_track: str | list[str], max_travel_dist: int, img_fold_src: str ="", mask_fold_src: str ="", decision_threshold: float=0.5, manual_correct: bool=False, trim_incomplete_tracks: bool= False, overwrite: bool=False) -> list[Experiment]:
+    def gnn_tracking(self, model: str, channel_to_track: str | list[str], max_travel_dist: int, img_fold_src: str ="", mask_fold_src: str ="", decision_threshold: float=0.5, manual_correct: bool=False, trim_incomplete_tracks: bool= False, gap: int= 0, overwrite: bool=False) -> list[Experiment]:
         
         
         if isinstance(channel_to_track, str):
             print(f"\n-> Tracking images with GNN")
             
-            self._loop_over_exp(self._gnn_tracking,channel_to_track=channel_to_track,model=model,max_travel_dist=max_travel_dist,decision_threshold=decision_threshold,manual_correct=manual_correct,mask_fold_src=mask_fold_src,img_fold_src=img_fold_src,trim_incomplete_tracks=trim_incomplete_tracks,overwrite=overwrite)
+            self._loop_over_exp(self._gnn_tracking,channel_to_track=channel_to_track,model=model,max_travel_dist=max_travel_dist,decision_threshold=decision_threshold,manual_correct=manual_correct,mask_fold_src=mask_fold_src,img_fold_src=img_fold_src,trim_incomplete_tracks=trim_incomplete_tracks, gap=gap, overwrite=overwrite)
             return self.exp_obj_lst
         
         if isinstance(channel_to_track,list):
             for channel in channel_to_track:
-                self.exp_obj_lst = self.gnn_tracking(model,channel,max_travel_dist,img_fold_src,mask_fold_src,decision_threshold,manual_correct,trim_incomplete_tracks,overwrite)
+                self.exp_obj_lst = self.gnn_tracking(model,channel,max_travel_dist,img_fold_src,mask_fold_src,decision_threshold,manual_correct,trim_incomplete_tracks,gap, overwrite) #TODO: check with Ben
             return self.exp_obj_lst
         
     

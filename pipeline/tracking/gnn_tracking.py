@@ -23,7 +23,7 @@ MODEL = {**BUILD_IN_MODEL, **IN_HOUSE_MODEL}
 # [ ] Need to test the 3D tracking
 ################################## Main function ##################################
 
-def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_travel_dist: int, img_fold_src: str, seg_fold_src: str, overwrite: bool=False, decision_threshold: float=0.5, manual_correct: bool=False, trim_incomplete_tracks: bool=False, directed: bool=False, **kwargs)-> None:
+def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_travel_dist: int, img_fold_src: str, seg_fold_src: str, overwrite: bool=False, decision_threshold: float=0.5, manual_correct: bool=False, trim_incomplete_tracks: bool=False, directed: bool=False, gap: int=0, **kwargs)-> None:
     """
     Perform GNN Tracking based cell tracking on a list of experiments.
 
@@ -70,6 +70,7 @@ def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_trav
 
     # Create csv files
     ow_extract_feat = overwrite_extraction_feat(passed_args,preds_dir)
+    # ow_extract_feat = True
     extract_img_features(img_paths=img_paths,
                          seg_paths=seg_paths,
                          model_path=model_path,
@@ -96,7 +97,8 @@ def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_trav
                      merge_operation='AND',
                      max_travel_dist=max_travel_dist,
                      directed=directed,
-                     channel_to_track=channel_to_track)
+                     channel_to_track=channel_to_track,
+                     gap=gap)
     
     all_frames_traject, trajectory_same_label = pp.create_trajectory() # Several output available that are also saved in the class, if needed one day
     all_frames_path = preds_dir.joinpath(f'all_frames_traject.csv')
@@ -129,8 +131,8 @@ def set_all_paths(exp_path: Path, model: str, img_fold_src: Path, seg_fold_src: 
     # Get the model paths
     if model not in MODEL:
         raise AttributeError(f"{model =} is not a valid modelname.")
-    model_path = Path(f"/home/ImageAnalysis_pipeline/pipeline/tracking/gnn_track/models/{model}/all_params.pth")
-    ckpt_path = Path(f"/home/ImageAnalysis_pipeline/pipeline/tracking/gnn_track/models/{model}/{MODEL[model]}")
+    model_path = Path(f"/ImageAnalysis/pipeline/tracking/gnn_track/models/{model}/all_params.pth")
+    ckpt_path = Path(f"/ImageAnalysis/pipeline/tracking/gnn_track/models/{model}/{MODEL[model]}")
     return img_paths,preds_dir,seg_paths,model_path,ckpt_path
 
 def create_mdf_file(exp_path: Path, points_df, channel_seg):

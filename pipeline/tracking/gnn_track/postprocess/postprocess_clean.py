@@ -18,7 +18,8 @@ class Postprocess():
                  merge_operation: str,
                  max_travel_dist: int,
                  directed: bool,
-                 channel_to_track: str
+                 channel_to_track: str,
+                 gap: int
                  ):
         self.is_3d = is_3d
         
@@ -31,6 +32,8 @@ class Postprocess():
         self.decision_threshold: float = decision_threshold
         self.directed = directed
         self.channel = channel_to_track
+        
+        self.gap = gap
         
         # Load the prediction data
         self.preds_dir = preds_dir
@@ -131,14 +134,14 @@ class Postprocess():
         for frame in frames:
             # Get index of every cells idx, in given frame
             nodes = self.df_feat[self.df_feat.frame_num==frame].index.values
-
             # If first frame, fill the matrix with the starting cells
             if frame == 0:
                 self.trajectory_matrix[frame, :nodes.shape[0]] = nodes
                 new_track_starting_ids.extend(nodes.tolist())
+            
             # If not first frame, find the trajectory nodes and update the new_track list with new tracks
             
-            dev = False
+            dev = True
             if dev:
                 new_track_starting_ids.extend(self._find_trajectory_by_prediction(frame, nodes))
             else:
@@ -167,10 +170,10 @@ class Postprocess():
         
         for node_idx in sorted_nodes:
             # Find the next node to connect
-            next_node = self._get_next_node(node_idx)
+            next_node = self._get_next_node(int(node_idx))
             
             # Add the next node to the matrix
-            starting_node = self._update_matrix_with_next_node(frame, node_idx, next_node)
+            starting_node = self._update_matrix_with_next_node(frame, int(node_idx), next_node)
             new_tracks.extend(starting_node)
                     
         return new_tracks
@@ -197,8 +200,8 @@ class Postprocess():
         next_frame_idx = self.connected_edges[1, connected_idx][0]
         
         # Find the next node
-        next_node_ind = self._filter_by_distance(node_idx, next_frame_idx)
-        # next_node_ind = self._filter_by_prediction(next_frame_idx, connected_idx)
+        # next_node_ind = self._filter_by_distance(node_idx, next_frame_idx)
+        next_node_ind = self._filter_by_prediction(next_frame_idx, connected_idx)
         
         # Delete already assigned nodes from the list to avoid several cells with the same ID per frame         
         assigned_node = self.connected_edges[1,:] == next_node_ind 
@@ -207,14 +210,14 @@ class Postprocess():
         return next_node_ind
     
     def _filter_by_distance(self, node_idx: int, next_frame_idx: torch.Tensor)-> int:
+        
         # Filter based on max_travel_dist
         filtered_score, distance_mask = self._calc_distance(node_idx, next_frame_idx)
-        
+                    
         # If there are no cells to connect  
         if filtered_score.size == 0:
             return -1
         
-        print(f'Filtered score: {filtered_score}')
         # Find the nearest cell to connect
         min_idx = np.argmin(filtered_score)
         nearest_cell: int = np.where(distance_mask)[0][min_idx]
@@ -231,10 +234,10 @@ class Postprocess():
     def _calc_distance(self, node_idx: int, next_frame_ind: torch.Tensor)-> tuple[np.ndarray, np.ndarray]:
         
         centroid_cols = ["centroid_depth", "centroid_row", "centroid_col"] if self.is_3d else ["centroid_row", "centroid_col"]
-        
         # Extract the centroid positions
         curr_node = self.df_feat.loc[node_idx, centroid_cols].values
         next_frame = self.df_feat.loc[next_frame_ind, centroid_cols].values
+                
         
         # Get the euclidean distance between the node and the possible cells to connect
         distance: np.ndarray = np.sqrt(((next_frame - curr_node) ** 2).sum(axis=-1))
@@ -247,11 +250,21 @@ class Postprocess():
         """Update the trajectory matrix with the next node. If the current node is not connected, find the next node to connect or create a new track.
         Return the index of the cells, as a list, that started a new track."""
         
-        # If the current node already connected, update the loacated track with the next node
+        # If the current node already connected, update the located track with the next node
         if node_idx in self.trajectory_matrix[frame_idx, :]:
             track_idx = np.argwhere(self.trajectory_matrix[frame_idx, :] == node_idx)
             self._assign_next_node(frame_idx, next_node, track_idx)
             return []
+        
+        # If the current node is not yet connceted, check for gaps and find a possible connection
+        if (self.gap > 0) and (-3 in self.trajectory_matrix[frame_idx, :]):
+            track_idx, position_correct = self._fill_gap(frame_idx, int(node_idx))
+            if track_idx != -1:
+                self.trajectory_matrix[frame_idx, track_idx] = node_idx
+                self.trajectory_matrix[frame_idx-position_correct, track_idx] = -3
+                self._assign_next_node(frame_idx, next_node, track_idx)  
+                print(f'GAP FILLED: {frame_idx=} - {node_idx=} - {next_node=}')
+                return []
         
         # Start a new track, look for the next empty space (-2)
         track_idx = np.argwhere(self.trajectory_matrix[frame_idx, :] == -2)
@@ -265,6 +278,34 @@ class Postprocess():
         self._assign_next_node(frame_idx, next_node, track_idx)
         return [node_idx]
 
+    def _fill_gap(self, frame_idx: int, node_idx: int)-> int:  #TODO check that depending on the size of the gap, the cell can move max_travel_dist*gap
+        
+        # Get the track indeces of the gaps and find the last connected cell
+        track_idx = np.argwhere(self.trajectory_matrix[frame_idx, :] == -3).flatten()
+        #crop the trajectory matrix to calculate only with the area of interest (current frame up for n gap)
+        cropped_array  = self.trajectory_matrix[frame_idx-1-self.gap:frame_idx, track_idx]
+        #find the -1 value in the cropped array, because it marks the last connected cell which is one above
+        rows, columns = np.where(cropped_array == -1)
+        next_node = cropped_array[rows-1, columns]
+        #check the distance between the possible last connected cells and the next frame cell
+        filtered_score, distance_mask = self._calc_distance(node_idx, next_node)
+        
+        # If there are no cells to connect  
+        if filtered_score.size == 0:
+            return -1, -1
+        
+        # Find the nearest cell to connect
+        min_idx = np.argmin(filtered_score)
+        nearest_cell: int = np.where(distance_mask)[0][min_idx]
+        connect_cell_id =  int(next_node[nearest_cell])
+        last_track_end = rows[nearest_cell]
+        position_correct = cropped_array.shape[0] - last_track_end
+        #get the column index of the connected cell
+        track_idx = int(np.where(self.trajectory_matrix == connect_cell_id)[1])
+        
+        return track_idx, position_correct
+
+
     def _expand_matrix(self, frame_idx: int)-> np.ndarray:
         new_col = -2 * np.ones((self.trajectory_matrix.shape[0], 1), dtype=self.trajectory_matrix.dtype)
         self.trajectory_matrix = np.append(self.trajectory_matrix, new_col, axis=1)
@@ -275,11 +316,16 @@ class Postprocess():
         # Update, only if frame is not the last one
         if frame_idx + 1 < self.trajectory_matrix.shape[0]:
             self.trajectory_matrix[frame_idx + 1, current_idx] = next_node
-    
+        # If there is a gap, fill the gap with -3
+        if self.gap > 0 and next_node == -1:
+            for i in range(2, self.gap + 2):
+                if frame_idx + i < self.trajectory_matrix.shape[0]:
+                    self.trajectory_matrix[frame_idx + i, current_idx] = -3
+            
     def _finalize_tracks(self, child_indices: list[int])-> np.ndarray:
 
         # Add 1 to the matrix and child_indices to avoid 0 as a valid cell (i.e. 0 = background value)
-        mask = ~np.isin(self.trajectory_matrix, [-1, -2])
+        mask = ~np.isin(self.trajectory_matrix, [-1, -2, -3])
         self.trajectory_matrix[mask] += 1
         child_indices = [child_idx + 1 for child_idx in child_indices]
         finalised_tracks = self.trajectory_matrix.copy()
@@ -295,7 +341,6 @@ class Postprocess():
         for child_idx in child_indices:
             # Get the coordinates of the child in the trajectory matrix
             start_row, col = np.argwhere(self.trajectory_matrix == child_idx).squeeze()
-            
             # Get all indices from the starting track
             col_values = self.trajectory_matrix[start_row:, col]
             
@@ -326,13 +371,13 @@ class Postprocess():
             pred_copy = pred.copy()
             curr_row = self.trajectory_matrix[idx, :]
             
-            # Get all the ids that are not -1 or -2
-            mask_id = ~np.isin(curr_row, [-1, -2]) #TODO add -3 for gaps?
+            # Get all the ids that are not -1, -2 or -3
+            mask_id = ~np.isin(curr_row, [-1, -2, -3])          
             graph_ids = curr_row[mask_id]
             graph_true_ids = self.finalised_tracks[idx, mask_id]
             for id, true_id in zip(graph_ids, graph_true_ids):
                 # -1 to account for the 0-based indexing
-                val = self.df_feat.loc[id-1, "seg_label"]      
+                val = self.df_feat.loc[id-1, "seg_label"]     
                 pred_copy[pred==val]=true_id
 
             self.save_new_pred(pred_copy, idx, save_path)
