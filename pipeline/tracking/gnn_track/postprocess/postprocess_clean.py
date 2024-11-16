@@ -212,14 +212,16 @@ class Postprocess():
     def _filter_by_distance(self, node_idx: int, next_frame_idx: torch.Tensor)-> int:
         
         # Filter based on max_travel_dist
-        filtered_score, distance_mask = self._calc_distance(node_idx, next_frame_idx)
-                    
+        distance = self._calc_distance(node_idx, next_frame_idx)
+            
+        distance_mask = distance < self.max_travel_dist
+            
         # If there are no cells to connect  
-        if filtered_score.size == 0:
+        if distance[distance_mask].size == 0:
             return -1
         
         # Find the nearest cell to connect
-        min_idx = np.argmin(filtered_score)
+        min_idx = np.argmin(distance[distance_mask])
         nearest_cell: int = np.where(distance_mask)[0][min_idx]
         return int(next_frame_idx[nearest_cell])
     
@@ -242,9 +244,8 @@ class Postprocess():
         # Get the euclidean distance between the node and the possible cells to connect
         distance: np.ndarray = np.sqrt(((next_frame - curr_node) ** 2).sum(axis=-1))
         
-        # Filter the distance based on the max_travel_dist
-        distance_mask = distance < self.max_travel_dist
-        return distance[distance_mask], distance_mask
+        
+        return distance
     
     def _update_matrix_with_next_node(self, frame_idx: int, node_idx: int, next_node: int)-> list[int]:
         """Update the trajectory matrix with the next node. If the current node is not connected, find the next node to connect or create a new track.
@@ -283,25 +284,39 @@ class Postprocess():
         # Get the track indeces of the gaps and find the last connected cell
         track_idx = np.argwhere(self.trajectory_matrix[frame_idx, :] == -3).flatten()
         #crop the trajectory matrix to calculate only with the area of interest (current frame up for n gap)
+
         cropped_array  = self.trajectory_matrix[frame_idx-1-self.gap:frame_idx, track_idx]
-        #find the -1 value in the cropped array, because it marks the last connected cell which is one above
-        rows, columns = np.where(cropped_array == -1)
-        next_node = cropped_array[rows-1, columns]
+        
+        #find the frist -1 values per column in the flipped cropped array, because it marks the last connected cell which is one above
+        above_lines = np.argmax( np.flipud(cropped_array) == -1, axis=0)
+        
+        #get the last nodes of the tracks
+        next_node = self.trajectory_matrix[frame_idx-above_lines-2, track_idx]
+        
         #check the distance between the possible last connected cells and the next frame cell
-        filtered_score, distance_mask = self._calc_distance(node_idx, next_node)
+        distance = self._calc_distance(node_idx, next_node)
+        
+        #correct the distance by the max traveled distance that could have happend during the gaps
+        distance = distance/(above_lines+2)
+        
+        distance_mask = distance < self.max_travel_dist
         
         # If there are no cells to connect  
-        if filtered_score.size == 0:
+        if distance[distance_mask].size == 0:
             return -1, -1
         
         # Find the nearest cell to connect
-        min_idx = np.argmin(filtered_score)
+        min_idx = np.argmin(distance[distance_mask])  #TODO check for feature similarity of the possible cells to connect
         nearest_cell: int = np.where(distance_mask)[0][min_idx]
         connect_cell_id =  int(next_node[nearest_cell])
-        last_track_end = rows[nearest_cell]
-        position_correct = cropped_array.shape[0] - last_track_end
-        #get the column index of the connected cell
+        
+        position_correct = above_lines[nearest_cell]+1
+        
+        
         track_idx = int(np.where(self.trajectory_matrix == connect_cell_id)[1])
+        
+        
+        #get the column index of the connected cell
         
         return track_idx, position_correct
 

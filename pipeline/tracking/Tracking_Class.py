@@ -121,7 +121,7 @@ class TrackingModule(BaseModule):
         
         if isinstance(channel_to_track,list):
             for channel in channel_to_track:
-                self.exp_obj_lst = self.gnn_tracking(model,channel,max_travel_dist,img_fold_src,mask_fold_src,decision_threshold,manual_correct,trim_incomplete_tracks,gap, overwrite) #TODO: check with Ben
+                self.exp_obj_lst = self.gnn_tracking(model,channel,max_travel_dist,img_fold_src,mask_fold_src,decision_threshold,manual_correct,trim_incomplete_tracks,gap, overwrite)
             return self.exp_obj_lst
         
     
