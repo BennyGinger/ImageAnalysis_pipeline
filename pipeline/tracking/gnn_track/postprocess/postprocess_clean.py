@@ -285,7 +285,12 @@ class Postprocess():
         track_idx = np.argwhere(self.trajectory_matrix[frame_idx, :] == -3).flatten()
         #crop the trajectory matrix to calculate only with the area of interest (current frame up for n gap)
 
-        cropped_array  = self.trajectory_matrix[frame_idx-1-self.gap:frame_idx, track_idx]
+        crop_range = frame_idx-1-self.gap
+        #if there is not above the gap frames, start from the first frame
+        if crop_range < 0:
+            crop_range = 0
+
+        cropped_array  = self.trajectory_matrix[crop_range:frame_idx, track_idx]
         
         #find the frist -1 values per column in the flipped cropped array, because it marks the last connected cell which is one above
         above_lines = np.argmax( np.flipud(cropped_array) == -1, axis=0)
