@@ -91,16 +91,16 @@ def ref_props(ref_data: dict[str, list[Path]], resolution: float | None, mask_pa
     else:
         mask_array = load_stack(mask_paths, frame_range=frame_idx, return_2D=True)
     
+    # Get the unit of the mask
+    unit_name = 'um' if resolution else 'pixel'
+    
     # Extract the reference masks
     for ref_name, ref_paths in ref_data.items():
         # Apply the distance transform to the reference array
         ref_array = load_stack(ref_paths, frame_range=frame_idx, return_2D=True)
         
         # Update the main properties with the dmap
-        if resolution:
-            prop[f'dmap_um_{ref_name}'] = list(_get_min_distance(mask_array,ref_array)*resolution)
-        else:
-            prop[f'dmap_pixel_{ref_name}'] = list(_get_min_distance(mask_array,ref_array))
+        prop[f'dmap_{unit_name}_{ref_name}'] = _get_min_distance(mask_array,ref_array,resolution)
 
 def class_props(class_data: dict[str, list[Path]], mask_paths: list[Path], frame_idx: int | None, prop: dict[str, float], do_diff: bool)-> None:
     """Extract the regionprops from the secondary masks. The function will compute the overlap between the primary mask cells and the secondary masks cells and return a boolean value, whether the primary mask cells are in the secondary masks cells."""
@@ -125,7 +125,7 @@ def class_props(class_data: dict[str, list[Path]], mask_paths: list[Path], frame
 
 
 ################# Helper functions ####################
-def _get_min_distance(mask: np.ndarray, ref_array: np.ndarray)-> np.ndarray[float]:
+def _get_min_distance(mask: np.ndarray, ref_array: np.ndarray, resolution: float | None)-> list[np.ndarray]:
     # Get the stacked coordinates of the mask and the reference array
     mask_coords = np.column_stack(np.where(mask != 0))
     ref_coords = np.column_stack(np.where(ref_array != 0))
@@ -135,9 +135,13 @@ def _get_min_distance(mask: np.ndarray, ref_array: np.ndarray)-> np.ndarray[floa
     
     # Get the centroids of the masks
     mask_centroids = np.array([np.mean(mask_coords[mask[mask_coords[:,0],mask_coords[:,1]] == obj], axis=0) for obj in objects_ids])
-    
+    if mask_centroids.size == 0:
+        return []
     # Compute the minimum distance between each mask and the reference array
-    return np.min(distance.cdist(mask_centroids, ref_coords), axis=1)
+    dist_array = np.min(distance.cdist(mask_centroids, ref_coords), axis=1)
+    if resolution:
+        dist_array = dist_array*resolution
+    return list(dist_array)
 
 def _validate_channel_ratio(channels: list[str], ratio: str)-> None:
     ratio_channels = ratio.split('/')

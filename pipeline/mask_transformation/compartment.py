@@ -33,12 +33,12 @@ if __name__ == "__main__":
     from pipeline.utilities.data_utility import load_stack
     
     # Get all the folders
-    data_dir = Path("/home/Barna/Hyper7/H2O2_gradient")
+    data_dir = Path("/home/Szimi/Lib45")
     exp_folders = [file.parent for file in data_dir.rglob("exp_settings.json")]
     
     for exp in tqdm(exp_folders):
         # Load the mask
-        mask_folder = exp.joinpath("Masks_IoU_Track")
+        mask_folder = exp.joinpath("Masks_Cellpose")
         mask_files = sorted(list(mask_folder.glob("GFP*")))
         mask_stack = load_stack(mask_files, return_2D=True)
         

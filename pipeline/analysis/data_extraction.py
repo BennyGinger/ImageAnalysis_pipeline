@@ -132,7 +132,7 @@ def _load_reference_data(exp_path: Path, ref_masks_fold: list[str])-> dict[str, 
 if __name__ == "__main__":
     import time
     
-    img_folder = Path("/home/Test_images/dia_fish/newtest/c1172-GCaMP-15%_Hypo-1-MaxIP_s1/Images_Registered")
+    img_folder = Path("/home/Laci/Neutrophil Calcium/3gRNA/c1133-3gRNA-2h-Hypo-1-MaxIP_s5/Images_Registered")
     img_paths = sorted(Path(img_folder).glob("*.tif"))
     mask_folder = ['Masks_Cellpose']
     
@@ -142,9 +142,10 @@ if __name__ == "__main__":
                              exp_path=img_folder.parent,
                              masks_fold=mask_folder,
                              do_diff=True,
-                             ref_masks_fold=['Masks_laser'],
-                             pixel_resolution=None,
-                             diff_channel_ratio=None,
+                             ref_masks_fold=['Masks_bottom','Masks_edge','Masks_tail'],
+                            #  ref_masks_fold=None,
+                             pixel_resolution=0.65,
+                             diff_channel_ratio='GFP/RFP',
                              overwrite=True)
     end = time.time()
     print(f"Processing time: {end-start}")
