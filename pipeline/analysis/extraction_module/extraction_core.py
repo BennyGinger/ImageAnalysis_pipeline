@@ -95,7 +95,7 @@ def comp_props(frame_idx: int, img_paths: list[Path], mask_paths: list[Path], pr
     
     # Extract the regionprops of mb and cyto compartments
     _extract_compart(prop, mb_array, img_array, 'mb')
-    _extract_compart(prop, cyto_array, img_array, 'cyto', missing_masks, frame_idx)
+    _extract_compart(prop, cyto_array, img_array, 'cyto', missing_masks)
 
 def ref_props(ref_data: dict[str, list[Path]], resolution: float | None, mask_paths: list[Path], frame_idx: int, prop: dict[str,any], do_diff: bool)-> None:
     """Extract the regionprops from the reference masks. The function will compute the distance transform value from the dmap mask of the centroid of the primary mask. The distance transform value will be added to the main properties."""
