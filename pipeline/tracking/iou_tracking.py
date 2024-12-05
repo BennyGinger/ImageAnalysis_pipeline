@@ -35,7 +35,7 @@ def iou_tracking(img_paths: list[PathLike], channel_track: str, stitch_thres_per
     """
     
     # Set up tracking
-    _, _, frames, _ = get_exp_props(img_paths)
+    frames = get_exp_props(img_paths)[2]
     exp_path: Path = Path(img_paths[0]).parent.parent
     print(f" --> Tracking cells in {exp_path}")
     save_path: Path = Path(create_save_folder(exp_path,'Masks_IoU_Track'))

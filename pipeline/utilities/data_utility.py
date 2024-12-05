@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from functools import partial
 from threading import Lock
 import numpy as np
+import json
 from tifffile import imwrite
 # NOTE: Added imageio, as I have png mask file as well, from cellpose manual segmentation. Should be deleted in the future
 from imageio import imread
@@ -251,22 +252,43 @@ def run_multiprocess(func: Callable, input_data: Iterable, fixed_args: dict=None
                 outputs.append(output)
     return outputs
 
-def get_exp_props(img_paths: list[PathType | Path])-> tuple[list[str],int,int,int]:
-    """Function that extract basic properties of the experiment from the image paths. Images names are expected to be in the format: [C]_[s\d{2}]_[f\d{4}]_[z\d{4}] where C is the channel label (any), s\d{2} is the series, f\d{4} is the frame and z\d{4} is the z-slice. \d{2} means followed by 2 digits and \d{4} means by 4 digits.
+# def get_exp_props(img_paths: list[PathType | Path])-> tuple[list[str],int,int,int]:
+#     """Function that extract basic properties of the experiment from the image paths. Images names are expected to be in the format: [C]_[s\d{2}]_[f\d{4}]_[z\d{4}] where C is the channel label (any), s\d{2} is the series, f\d{4} is the frame and z\d{4} is the z-slice. \d{2} means followed by 2 digits and \d{4} means by 4 digits.
     
-    Returns:
-        tuple[list,int,int,int]: The list of channels, the number of series, the number of frames and the number of z-slices."""
+#     Returns:
+#         tuple[list,int,int,int]: The list of channels, the number of series, the number of frames and the number of z-slices."""
+#     # Convert to Path type
+#     img_paths = [Path(path) for path in img_paths]
+    
+#     channels = set(); series = set(); frames = set(); z_slices = set()
+#     for path in img_paths:
+#         chan, serie, frame, z_slice = path.stem.split('_')
+#         channels.add(chan)
+#         series.add(serie)
+#         frames.add(frame)
+#         z_slices.add(z_slice)
+#     return list(channels), len(series), len(frames), len(z_slices)
+
+def get_exp_props(img_paths: list[PathType | Path])-> tuple[list[str],int,int,int]:
     # Convert to Path type
     img_paths = [Path(path) for path in img_paths]
+    exp_path = Path(img_paths[0]).parent.parent
     
-    channels = set(); series = set(); frames = set(); z_slices = set()
-    for path in img_paths:
-        chan, serie, frame, z_slice = path.stem.split('_')
-        channels.add(chan)
-        series.add(serie)
-        frames.add(frame)
-        z_slices.add(z_slice)
-    return list(channels), len(series), len(frames), len(z_slices)
+    if not exp_path.joinpath('exp_settings.json').exists():
+        raise FileNotFoundError(f"exp_settings.json not found in {exp_path}, please check the path provided") 
+    
+    with open(exp_path.joinpath('exp_settings.json')) as file:
+        exp_settings: dict = json.load(file)
+    
+    chan_order = exp_settings['active_channel_list']
+    channels = list(set([path.name.split('_')[0] for path in img_paths]))
+    
+    if len(channels)>1:
+        channels = [chan for chan in chan_order if chan in channels]
+    series = exp_settings['img_properties']['n_series']
+    frames = exp_settings['img_properties']['n_frames']
+    z_slices = exp_settings['img_properties']['n_slices']
+    return channels, series, frames, z_slices
 
 def is_channel_in_lst(channel: str, img_paths: list[PathType | Path]) -> bool:
     """

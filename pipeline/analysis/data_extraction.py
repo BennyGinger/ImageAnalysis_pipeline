@@ -10,7 +10,7 @@ from typing import TypeVar
 T = TypeVar('T')
 
 ########################### Main functions ###########################
-def extract_data(img_paths: list[Path], exp_path: Path, masks_fold: list[str], do_diff: bool, ref_masks_fold: list[str] | None, pixel_resolution: float | None=None, diff_channel_ratio: str | None = None, overwrite: bool=False)-> pd.DataFrame:
+def extract_data(img_paths: list[Path], exp_path: Path, masks_fold: list[str], do_diff: bool, ref_masks_fold: list[str] | None, pixel_resolution: float | None=None, diff_channel_ratio: str | None = None, do_compart: bool =False, overwrite: bool=False)-> pd.DataFrame:
     
     # Check if the data has already been extracted
     csv_file = exp_path.joinpath("regionprops.csv")
@@ -31,17 +31,21 @@ def extract_data(img_paths: list[Path], exp_path: Path, masks_fold: list[str], d
     # Load the reference paths
     ref_data = _load_reference_data(exp_path, ref_masks_fold)
     
+    # Set the diff_channel_ratio
+    diff_channel_ratio = diff_channel_ratio if do_diff else None
+    
     # Process the data
     df_lst = []
     for mask_data, class_data in paired_masks:
-        col_rename = _rename_columns(channels, do_diff, diff_channel_ratio)
+        col_rename = _rename_columns(channels, do_diff, diff_channel_ratio, do_compart)
         fixed_args = {'mask_data': mask_data, 
                       'img_paths': img_paths, 
                       'do_diff': do_diff, 
                       'ref_data': ref_data, 
                       'class_data': class_data,
                       'diff_channel_ratio': diff_channel_ratio,
-                      'ref_resolution': pixel_resolution}
+                      'ref_resolution': pixel_resolution,
+                      'do_compart': do_compart}
         
         if nframes == 1:
             df = extract_regionprops(0, **fixed_args)
@@ -73,7 +77,7 @@ def _make_pairs(lst: list[T])-> list[tuple[T, list[T]]]:
         pairs.append((element, others))
     return pairs
 
-def _rename_columns(channels: list[str], do_diff: bool, diff_channel_ratio: str | None)-> dict[str, str]:
+def _rename_columns(channels: list[str], do_diff: bool, diff_channel_ratio: str | None, do_compart: bool)-> dict[str, str]:
     """Function to rename the columns of the regionprops_table output. The columns will be renamed
     with the channels names."""
     
@@ -89,12 +93,20 @@ def _rename_columns(channels: list[str], do_diff: bool, diff_channel_ratio: str 
     if 'intensity_mean' in PROPERTIES:
         col_name = 'diff_intensity_mean' if do_diff else 'intensity_mean'
         channels = [diff_channel_ratio] if diff_channel_ratio else channels
-        
         if len(channels) > 1: 
             col_rename = {**col_rename, **{f'intensity_mean_{i}': f'{col_name}_{channels[i]}' for i in range(len(channels))}}
         else:
             col_rename['intensity_mean'] = f'{col_name}_{channels[0]}'
-    
+        
+    if do_compart:
+        if len(channels) > 1:
+            # mb
+            col_rename = {**col_rename, **{f'mb_intensity_mean_{i}': f'mb_intensity_mean_{channels[i]}' for i in range(len(channels))}}
+            # cyto
+            col_rename = {**col_rename, **{f'cyto_intensity_mean_{i}': f'cyto_intensity_mean_{channels[i]}' for i in range(len(channels))}}
+        else:
+            col_rename['mb_intensity_mean'] = f'mb_intensity_mean_{channels[0]}'
+            col_rename['cyto_intensity_mean'] = f'cyto_intensity_mean_{channels[0]}'
     return col_rename
 
 def _group_mask_data(exp_path: Path, masks_fold: list[str])-> list[tuple[dict[str, list[Path]], dict[str, list[Path]] | None]]:

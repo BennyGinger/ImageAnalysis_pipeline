@@ -4,6 +4,7 @@ from os import sep, remove
 from os.path import join, exists
 from pathlib import Path
 import pandas as pd
+from pipeline.mask_transformation.compartment import compartment_mask
 from pipeline.utilities.Base_Module_Class import BaseModule
 from pipeline.utilities.Experiment_Classes import Experiment
 from pipeline.utilities.data_utility import img_list_src, seg_mask_lst_src, track_mask_lst_src
@@ -23,32 +24,41 @@ class AnalysisModule(BaseModule):
     
     def analyze_from_settings(self, settings: dict)-> pd.DataFrame:
         # If optimization is set, then process only the first experiment
-        self.optimization = settings['optimization']
-            
+        self.optimization = settings['optimization'] 
+        
         # Analyze the data based on the settings
         sets = Settings(settings)
         if not hasattr(sets,'analysis'):
             print("No analysis settings found")
             return pd.DataFrame()
+        
         sets = sets.analysis
         if hasattr(sets,'draw_mask'):
             self.draw_wound_mask(**sets.draw_mask)
-        if hasattr(sets,'extract_data'):
-            master_df = self.create_master_df(**sets.extract_data)
+        
+        if hasattr(sets,'compartment_mask'):
+            self.mask_compartment(**sets.compartment_mask)
+            
+        if not hasattr(sets,'extract_data'):
+            self.save_as_json()
+            return pd.DataFrame()
+        
+        if hasattr(sets,'compartment_mask'):
+            sets.extract_data['do_compart'] = True
+        master_df = self.create_master_df(**sets.extract_data)
         self.save_as_json()
         return master_df
         
-    def create_master_df(self, img_fold_src: str = "", mask_fold_src: list[str] | str = "", ref_mask_fold_src: list[str] | str = "", do_diff: bool=False, diff_channel_ratio: str | None=None, overwrite: bool=False)-> pd.DataFrame:
+    def create_master_df(self, img_fold_src: str = "", mask_fold_src: list[str] | str = "", ref_mask_fold_src: list[str] | str = "", do_diff: bool=False, diff_channel_ratio: str | None=None, do_compart: bool = False, overwrite: bool=False)-> pd.DataFrame:
         # If optimization is set, then process only the first experiment
         exp_obj_lst = self.exp_obj_lst.copy()[:1] if self.optimization else self.exp_obj_lst
         
         all_dfs = []
-        
         for exp_obj in progress_bar(exp_obj_lst,
                             desc=pbar_desc("Experiments"),
                             colour='blue'):
             # extract the data
-            all_dfs.append(self.extract_data(exp_obj, img_fold_src, mask_fold_src, ref_mask_fold_src, do_diff, diff_channel_ratio, overwrite))
+            all_dfs.append(self.extract_data(exp_obj, img_fold_src, mask_fold_src, ref_mask_fold_src, do_diff, diff_channel_ratio, do_compart, overwrite))
         
         # Concatenate all the dataframes
         master_df = pd.concat(all_dfs)
@@ -59,10 +69,10 @@ class AnalysisModule(BaseModule):
         master_df.to_csv(save_path,index=False)
         return master_df
     
-    def extract_data(self, exp_obj: Experiment, img_fold_src: str = "", mask_fold_src: list[str] | str = "", ref_mask_fold_src: list[str] | str = "", do_diff: bool=False, diff_channel_ratio: str | None=None, overwrite: bool=False)-> pd.DataFrame:
+    def extract_data(self, exp_obj: Experiment, img_fold_src: str = "", mask_fold_src: list[str] | str = "", ref_mask_fold_src: list[str] | str = "", do_diff: bool=False, diff_channel_ratio: str | None=None, do_compart: bool = False, overwrite: bool=False)-> pd.DataFrame:
         # Gather the images
         img_fold_src, img_paths = img_list_src(exp_obj, img_fold_src)
-        
+            
         # Gather the masks folders
         mask_fold_src = load_masks_fold_list(exp_obj, mask_fold_src)
         
@@ -76,6 +86,7 @@ class AnalysisModule(BaseModule):
                           ref_masks_fold=ref_mask_fold_src,
                           pixel_resolution=exp_obj.analysis.um_per_pixel[0],
                           diff_channel_ratio=diff_channel_ratio,
+                          do_compart=do_compart,
                           overwrite=overwrite)
         
         # Add the time in seconds and experiment name
@@ -115,6 +126,21 @@ class AnalysisModule(BaseModule):
             # Save settings
             exp_obj.analysis.reference_masks.update({label:{'fold_src':img_flod_src,'channel_show':channel_show} 
                                                      for label in mask_label})
+            exp_obj.save_as_json()
+    
+    def mask_compartment(self, mask_fold_src: str, pixel_rad: int = 6, dilation_rad: int | None = None, overwrite: bool = False)-> None:
+        # If optimization is set, then process only the first experiment
+        exp_obj_lst = self.exp_obj_lst.copy()[:1] if self.optimization else self.exp_obj_lst
+        
+        for exp_obj in exp_obj_lst:
+            # Activate branch
+            exp_obj.analysis.is_compartment_masks = True
+            
+            # Create compartment masks
+            compartment_mask(Path(exp_obj.exp_path), mask_fold_src, pixel_rad, dilation_rad, overwrite)
+            
+            # Save settings
+            exp_obj.analysis.compartment_masks.update({'fold_src':mask_fold_src,'pixel_rad':pixel_rad,'dilation_rad':dilation_rad})
             exp_obj.save_as_json()
 
 

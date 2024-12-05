@@ -20,13 +20,13 @@ def run_pipeline(settings: dict)-> pd.DataFrame:
     if 'draw_mask' in settings and settings["draw_mask"][0]:
         AnalysisModule(input_folder,exp_list).draw_wound_mask(**settings["draw_mask"][1])
     
+        # Remove draw_mask from the settings
+        settings["draw_mask"] = (False,settings["draw_mask"][1])
+    
     exp_list = SegmentationModule(input_folder).segment_from_settings(settings)
     exp_list = TrackingModule(input_folder,exp_list).track_from_settings(settings)
     
-    if settings["extract_data"][0]:
-        master_df = AnalysisModule(input_folder,exp_list).create_master_df(**settings["extract_data"][1])
-    else:
-        master_df = pd.DataFrame()
+    master_df = AnalysisModule(input_folder,exp_list).analyze_from_settings(settings)
     return master_df
 
 def run_preprocess(settings: dict)-> None:
@@ -70,21 +70,21 @@ if __name__ == "__main__":
     
     "init":{"active_channel_list": ['GFP','RFP'],
             'full_channel_list': ["DAPI","GFP","RFP","iRed"],
-            "overwrite": False},
+            "overwrite": True},
     
     "bg_sub": (True,
-                {"overwrite": False}),
+                {"overwrite": True}),
     
     "chan_shift": (True,
                     {"reg_channel": "RFP",
                     "reg_mtd": "rigid_body",
-                    "overwrite": False}),
+                    "overwrite": True}),
     
     "frame_shift": (True,
                 {"reg_channel": "RFP",
                 "reg_mtd": "rigid_body",
                 "img_ref": "first",
-                "overwrite": False}),
+                "overwrite": True}),
     
     "blur": (False,
             {"sigma": 2,
@@ -97,7 +97,7 @@ if __name__ == "__main__":
                 "flow_threshold": 0.6,
                 "cellprob_threshold":0,
                 "process_as_2D": True,
-                "overwrite": False,}),
+                "overwrite": True,}),
     
     "threshold": (False,
                 {"channel_to_seg":"RFP",
@@ -112,7 +112,7 @@ if __name__ == "__main__":
                    "mask_appear":5,
                    "copy_first_to_start": True, 
                    "copy_last_to_end": True,
-                   "overwrite":False}),
+                   "overwrite":True}),
     
     "gnn_track": (False,                         #not working: Fluo-C2DL-Huh7
                   {"channel_to_track": "RFP",
@@ -141,10 +141,15 @@ if __name__ == "__main__":
                    "channel_show": "RFP",
                    "overwrite": False}),
     
+    "compartment_mask": (True,
+                        {"mask_fold_src": "Masks_IoU_Track",
+                         "pixel_rad": 6,
+                         "dilation_rad": None,
+                         "overwrite": False}),
+    
     "extract_data": (True,
-                  {"num_chunks": 3,
-                   "do_diff": True,
-                   "ratio_diff":"GFP/RFP",
+                  {"do_diff": False,
+                   "diff_channel_ratio":"GFP/RFP",
                    "overwrite": True}),
     }
     

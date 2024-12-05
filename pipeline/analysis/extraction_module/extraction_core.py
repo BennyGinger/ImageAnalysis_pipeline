@@ -19,7 +19,7 @@ PROPERTIES = ['area','centroid','intensity_mean',
 
 
 ############### Main function ####################
-def extract_regionprops(frame_idx: int, mask_data: dict[str, list[Path]], img_paths: list[Path], do_diff: bool, ref_data: dict[str, list[Path]] | None, class_data: dict[str, list[Path]] | None, diff_channel_ratio: str | None = None, ref_resolution: float | None = None)-> pd.DataFrame:
+def extract_regionprops(frame_idx: int, mask_data: dict[str, list[Path]], img_paths: list[Path], do_diff: bool, ref_data: dict[str, list[Path]] | None, class_data: dict[str, list[Path]] | None, diff_channel_ratio: str | None = None, ref_resolution: float | None = None, do_compart: bool = False)-> pd.DataFrame:
         """Core function to extract the regionprops from the mask_array and img_array. It will post-process the data if needed.
         
         Args:
@@ -47,6 +47,9 @@ def extract_regionprops(frame_idx: int, mask_data: dict[str, list[Path]], img_pa
             
         # Load the image and mask arrays
         prop = base_props(frame_idx, img_paths, mask_paths, do_diff, diff_channel_ratio)
+        
+        if do_compart:
+            comp_props(frame_idx, img_paths, mask_paths, prop)
         
         if ref_data:
             ref_props(ref_data, ref_resolution, mask_paths, frame_idx, prop, do_diff)
@@ -83,7 +86,18 @@ def base_props(frame_idx: int, img_paths: list[Path], mask_paths: list[Path], do
     # Extract the base regionprops
     return regionprops_table(mask_array, img_array, properties=PROPERTIES, separator='_')
 
-def ref_props(ref_data: dict[str, list[Path]], resolution: float | None, mask_paths: list[Path], frame_idx: int, prop: dict[str,float], do_diff: bool)-> None:
+def comp_props(frame_idx: int, img_paths: list[Path], mask_paths: list[Path], prop: dict[str, any])-> None:
+    # Load image and masks arrays
+    img_array, mb_array, cyto_array = _load_compart_arrays(frame_idx, img_paths, mask_paths)
+    
+    # Find missing masks, if any
+    missing_masks = _missing_masks_indexes(mb_array, cyto_array)
+    
+    # Extract the regionprops of mb and cyto compartments
+    _extract_compart(prop, mb_array, img_array, 'mb')
+    _extract_compart(prop, cyto_array, img_array, 'cyto', missing_masks, frame_idx)
+
+def ref_props(ref_data: dict[str, list[Path]], resolution: float | None, mask_paths: list[Path], frame_idx: int, prop: dict[str,any], do_diff: bool)-> None:
     """Extract the regionprops from the reference masks. The function will compute the distance transform value from the dmap mask of the centroid of the primary mask. The distance transform value will be added to the main properties."""
     # Load the mask array
     if do_diff:
@@ -102,7 +116,7 @@ def ref_props(ref_data: dict[str, list[Path]], resolution: float | None, mask_pa
         # Update the main properties with the dmap
         prop[f'dmap_{unit_name}_{ref_name}'] = _get_min_distance(mask_array,ref_array,resolution)
 
-def class_props(class_data: dict[str, list[Path]], mask_paths: list[Path], frame_idx: int | None, prop: dict[str, float], do_diff: bool)-> None:
+def class_props(class_data: dict[str, list[Path]], mask_paths: list[Path], frame_idx: int | None, prop: dict[str, any], do_diff: bool)-> None:
     """Extract the regionprops from the secondary masks. The function will compute the overlap between the primary mask cells and the secondary masks cells and return a boolean value, whether the primary mask cells are in the secondary masks cells."""
     
     # Load the mask array
@@ -125,6 +139,42 @@ def class_props(class_data: dict[str, list[Path]], mask_paths: list[Path], frame
 
 
 ################# Helper functions ####################
+def _load_compart_arrays(frame_idx: int, img_paths: list[Path], mask_paths: list[Path])-> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    mask_chan = get_exp_props(mask_paths)[0][0]
+    exp_path = mask_paths[0].parent.parent
+    compart_folder = exp_path.joinpath('Masks_Compartment')
+    compart_files = [file for file in list(compart_folder.iterdir()) if mask_chan in file.name]
+    cyto_files = sorted([file for file in compart_files if 'cyto' in file.name])
+    mb_files = sorted([file for file in compart_files if 'mb' in file.name])
+    
+    # Load image and masks arrays
+    img_array = load_stack(img_paths, frame_range=frame_idx, return_2D=True)
+    mb_array = load_stack(mb_files, frame_range=frame_idx, return_2D=True)
+    cyto_array = load_stack(cyto_files, frame_range=frame_idx, return_2D=True)
+    return img_array, mb_array, cyto_array
+
+def _missing_masks_indexes(mb_array: np.ndarray, cyto_array: np.ndarray)-> list[int]:
+    unique_masks = np.setdiff1d(np.unique(mb_array)[1:], np.unique(cyto_array)[1:])
+    masks_indexes = np.where(np.isin(np.unique(mb_array)[1:], unique_masks))[0]
+    if masks_indexes.size == 0:
+        return []
+    return list(masks_indexes)
+    
+def _extract_compart(prop: dict, mask_array: np.ndarray, img_array: np.ndarray, compart_name: str, missing_masks_indexes: list[int] | None = None)-> None:
+    
+    prop_temp = regionprops_table(mask_array, img_array, properties=['intensity_mean'], separator='_')
+    prop_renamed = {f'{compart_name}_{key}': value for key, value in prop_temp.items()}
+    
+    # Add nan values to any missing cyto masks
+    if missing_masks_indexes:
+        for idx in missing_masks_indexes:
+            try:
+                prop_renamed = {key: np.insert(value, idx, np.nan) for key, value in prop_renamed.items()}
+            except IndexError:
+                prop_renamed = {key: np.append(value, np.nan) for key, value in prop_renamed.items()}
+    
+    prop.update(prop_renamed)
+
 def _get_min_distance(mask: np.ndarray, ref_array: np.ndarray, resolution: float | None)-> list[np.ndarray]:
     # Get the stacked coordinates of the mask and the reference array
     mask_coords = np.column_stack(np.where(mask != 0))

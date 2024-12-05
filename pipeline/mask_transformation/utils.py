@@ -1,10 +1,13 @@
 from __future__ import annotations
+from pathlib import Path
 import numpy as np
 from skimage.morphology import disk, erosion
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from threading import Lock
+from pipeline.utilities.data_utility import load_stack
 from skimage.segmentation import expand_labels
+from tifffile import imread
 from tqdm import trange
 
 
@@ -14,28 +17,14 @@ def erode_masks(mask: np.ndarray, pixel_rad: int = 6)-> np.ndarray:
     # Setup the erosion
     footprint = disk(pixel_rad)
     
-    # Extract the number of frames
-    nframes = mask.shape[0] if mask.ndim > 2 else 1
-    
     # Erode the secondary mask
-    if nframes == 1:
-        unique_cells = np.unique(mask)[1:]
-        with ThreadPoolExecutor() as executor:
-            eroded_frame = executor.map(partial(_erode_mask,mask=mask,footprint=footprint,lock=Lock()),unique_cells)
-        mask_frame = np.zeros_like(mask)
-        for frame in eroded_frame:
-            mask_frame += frame
-        return mask_frame
-    
-    for i in trange(nframes):
-        unique_cells = np.unique(mask[i])[1:]
-        with ThreadPoolExecutor() as executor:
-            eroded_frames = executor.map(partial(_erode_mask,mask=mask[i],footprint=footprint,lock=Lock()),unique_cells)
-        mask_frame = np.zeros_like(mask[i])
-        for frame in eroded_frames:
-            mask_frame += frame
-        mask[i] = mask_frame
-    return mask
+    unique_cells = np.unique(mask)[1:]
+    with ThreadPoolExecutor() as executor:
+        eroded_frame = executor.map(partial(_erode_mask,mask=mask,footprint=footprint,lock=Lock()),unique_cells)
+    mask_frame = np.zeros_like(mask)
+    for frame in eroded_frame:
+        mask_frame += frame
+    return mask_frame
 
 def _erode_mask(cell_idx: int, mask: np.ndarray, footprint: np.ndarray, lock: Lock)-> np.ndarray:
     """Apply the erosion to the secondary mask for a single cell."""
@@ -44,20 +33,12 @@ def _erode_mask(cell_idx: int, mask: np.ndarray, footprint: np.ndarray, lock: Lo
     eroded_mask = erosion(temp_mask,footprint).astype('uint16')
     return eroded_mask
 
-def dilate_masks(mask: np.ndarray, pixel_rad: int = 6)-> np.ndarray:
+def dilate_masks(mask_path: Path, pixel_rad: int = 6)-> np.ndarray:
     """Function to dilate masks to make sure that the mb cell is included into the compartment mask."""
     
-    if mask.ndim == 2:
-        dilated_mask = expand_labels(mask, pixel_rad)
-        return dilated_mask
+    # Load the mask
+    mask = imread(mask_path)
     
-    # Dilate the mask
-    with ThreadPoolExecutor() as executor:
-        dilated_frames = executor.map(partial(expand_labels, distance=pixel_rad), mask)
-    dilated_mask = np.zeros_like(mask)
-    for i, frame in enumerate(dilated_frames):
-        dilated_mask[i] = frame
-    
-    return dilated_mask
+    return expand_labels(mask, pixel_rad)
 
     

@@ -116,6 +116,8 @@ class Analysis(LoadClass):
     analysis_type: dict = field(default_factory=dict)
     is_reference_masks: bool = False
     reference_masks: dict = field(default_factory=dict)
+    is_compartment_masks: bool = False
+    compartment_masks: dict = field(default_factory=dict)
 
 @dataclass
 class Experiment(LoadClass):
