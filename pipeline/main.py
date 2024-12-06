@@ -70,21 +70,21 @@ if __name__ == "__main__":
     
     "init":{"active_channel_list": ['GFP','RFP'],
             'full_channel_list': ["DAPI","GFP","RFP","iRed"],
-            "overwrite": True},
+            "overwrite": False},
     
     "bg_sub": (True,
-                {"overwrite": True}),
+                {"overwrite": False}),
     
     "chan_shift": (True,
                     {"reg_channel": "RFP",
                     "reg_mtd": "rigid_body",
-                    "overwrite": True}),
+                    "overwrite": False}),
     
     "frame_shift": (True,
                 {"reg_channel": "RFP",
                 "reg_mtd": "rigid_body",
                 "img_ref": "first",
-                "overwrite": True}),
+                "overwrite": False}),
     
     "blur": (False,
             {"sigma": 2,
@@ -97,7 +97,7 @@ if __name__ == "__main__":
                 "flow_threshold": 0.6,
                 "cellprob_threshold":0,
                 "process_as_2D": True,
-                "overwrite": True,}),
+                "overwrite": False,}),
     
     "threshold": (False,
                 {"channel_to_seg":"RFP",
@@ -112,7 +112,7 @@ if __name__ == "__main__":
                    "mask_appear":5,
                    "copy_first_to_start": True, 
                    "copy_last_to_end": True,
-                   "overwrite":True}),
+                   "overwrite":False}),
     
     "gnn_track": (False,                         #not working: Fluo-C2DL-Huh7
                   {"channel_to_track": "RFP",
@@ -142,9 +142,9 @@ if __name__ == "__main__":
                    "overwrite": False}),
     
     "compartment_mask": (True,
-                        {"mask_fold_src": "Masks_IoU_Track",
-                         "pixel_rad": 6,
-                         "dilation_rad": None,
+                        {"mask_fold_src": "",     # Folder name containing the masks, if empty, will use the default folder
+                         "pixel_rad": 6,          # Tickness of the mb in pixel
+                         "dilation_rad": None,    # Dilation of the mask in pixel, if not None, to be sure that the mask is covering the cell
                          "overwrite": False}),
     
     "extract_data": (True,

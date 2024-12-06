@@ -74,7 +74,7 @@ class AnalysisModule(BaseModule):
         img_fold_src, img_paths = img_list_src(exp_obj, img_fold_src)
             
         # Gather the masks folders
-        mask_fold_src = load_masks_fold_list(exp_obj, mask_fold_src)
+        mask_fold_src = select_masks_fold_list(exp_obj, mask_fold_src)
         
         # Gather the reference masks folders, if any
         ref_mask_fold_src = load_ref_masks_list(exp_obj, ref_mask_fold_src)
@@ -128,13 +128,17 @@ class AnalysisModule(BaseModule):
                                                      for label in mask_label})
             exp_obj.save_as_json()
     
-    def mask_compartment(self, mask_fold_src: str, pixel_rad: int = 6, dilation_rad: int | None = None, overwrite: bool = False)-> None:
+    def mask_compartment(self, mask_fold_src: str = "", pixel_rad: int = 6, dilation_rad: int | None = None, overwrite: bool = False)-> None:
         # If optimization is set, then process only the first experiment
         exp_obj_lst = self.exp_obj_lst.copy()[:1] if self.optimization else self.exp_obj_lst
+        
         
         for exp_obj in exp_obj_lst:
             # Activate branch
             exp_obj.analysis.is_compartment_masks = True
+            
+            # Load the masks folders, if not provided
+            mask_fold_src = select_masks_fold_list(exp_obj, mask_fold_src)[0]
             
             # Create compartment masks
             compartment_mask(Path(exp_obj.exp_path), mask_fold_src, pixel_rad, dilation_rad, overwrite)
@@ -145,7 +149,7 @@ class AnalysisModule(BaseModule):
 
 
 ######################## Helper Functions ########################
-def load_masks_fold_list(exp_obj: Experiment, mask_fold_src: list[str] | str)-> list[str]:
+def select_masks_fold_list(exp_obj: Experiment, mask_fold_src: list[str] | str)-> list[str]:
     if mask_fold_src:
         return mask_fold_src if isinstance(mask_fold_src, list) else [mask_fold_src]
     
