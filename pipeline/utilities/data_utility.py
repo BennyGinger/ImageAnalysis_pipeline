@@ -270,6 +270,12 @@ def run_multiprocess(func: Callable, input_data: Iterable, fixed_args: dict=None
 #     return list(channels), len(series), len(frames), len(z_slices)
 
 def get_exp_props(img_paths: list[PathType | Path])-> tuple[list[str],int,int,int]:
+    """
+    Function that extract basic properties of the experiment from the image paths. Images names are expected to be in the format: [C]_[s\d{2}]_[f\d{4}]_[z\d{4}] where C is the channel label (any), s\d{2} is the series, f\d{4} is the frame and z\d{4} is the z-slice. \d{2} means followed by 2 digits and \d{4} means by 4 digits.
+    Returns:
+        tuple[list,int,int,int]: The list of channels, the number of series, the number of frames and the number of z-slices.
+    """
+    
     # Convert to Path type
     img_paths = [Path(path) for path in img_paths]
     exp_path = Path(img_paths[0]).parent.parent
