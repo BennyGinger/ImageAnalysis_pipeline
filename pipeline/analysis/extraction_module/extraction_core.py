@@ -25,19 +25,21 @@ def extract_regionprops(frame_idx: int, mask_data: dict[str, list[Path]], img_pa
         Args:
             frame_idx (int | None): index of the frame to process.
             
-            mask_paths (list[Path]): list of paths to the mask files
-            
-            mask_name (str): name of the mask
+            mask_data (dict[str, list[Path]]): dictionary containing the mask paths stored in a dict. The key is the name of the mask and the value is a list of paths to the mask files.
             
             img_paths (list[Path]): list of paths to the image files
             
             do_diff (bool): whether to extract the differencial data in the regionprops
             
-            ref_paths_and_resolution (tuple[dict[str, list[Path]], float | None] | None): Tuple containing the reference masks paths stored in a dict and the pixel resolution. Set to None if no reference masks are provided.
+            ref_data (dict[str, list[Path]] | None): dictionary containing the reference masks paths stored in a dict. Set to None if no reference masks are provided.
             
-            class_paths (dict[str, list[Path]] | None): Dictionary containing the classification masks paths stored in a dict. Set to None if no classification masks are provided.
+            class_data (dict[str, list[Path]] | None): dictionary containing the classification masks paths stored in a dict. Set to None if no classification masks are provided.
             
-            ratio (str | None): ratio to compute the difference between two channels. The format should be 'channel1/channel2' Set to None if no ratio is provided. Only apply if do_diff is True. Default is None.
+            diff_channel_ratio (str | None): channel ratio to compute the difference. Set to None if no ratio is provided.
+            
+            ref_resolution (float | None): resolution of the reference masks. Set to None if no resolution is provided.
+            
+            do_compart (bool): whether to extract the compartment data in the regionprops. Set to False if no compartment data is needed.
             
             Returns:
                 pd.DataFrame: extracted data from the images."""
