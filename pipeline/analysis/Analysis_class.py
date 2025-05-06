@@ -161,12 +161,13 @@ class AnalysisModule(BaseModule):
         """
         
         for exp_obj in self.exp_obj_lst_active:
-            exp_path = exp_obj.exp_path
+            exp_path = Path(exp_obj.exp_path)
             pix_resolution = exp_obj.analysis.um_per_pixel[0]
             interval_sec = exp_obj.analysis.interval_sec if exp_obj.analysis.interval_sec is not None else 1
             
             # Gather the images
             img_fold_src, img_paths = img_list_src(exp_obj, img_fold_src)
+            img_paths = sorted(Path(file) for file in img_paths)
             
             # Gather the masks folders
             mask_fold = exp_path.joinpath(mask_fold_src)
