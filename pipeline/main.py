@@ -147,6 +147,13 @@ if __name__ == "__main__":
                          "dilation_rad": None,    # Dilation of the mask in pixel, if not None, to be sure that the mask is covering the cell
                          "overwrite": False}),
     
+    "extract_pixelwise": (True,
+                    {"mask_label": "wound", # Label of the reference mask
+                     "mask_fold_src": "Masks_Threshold", # Masks that delimit the region of interest. 
+                     "mask_channel": "", # Mask channel to be used, if multiple channels exists. If not, leave it as "". The pixelwise data can only be extracted from one channel at a time
+                     "img_fold_src": "", 
+                     "overwrite": False}),
+    
     "extract_data": (True,
                   {"do_diff": False,
                    "diff_channel_ratio":"GFP/RFP",

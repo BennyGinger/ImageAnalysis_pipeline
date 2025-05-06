@@ -3,7 +3,10 @@ from dataclasses import dataclass
 from os import sep, remove
 from os.path import join, exists
 from pathlib import Path
+
 import pandas as pd
+
+from pipeline.analysis.extraction_module.pixel_wise import extract_pixelwise_data
 from pipeline.mask_transformation.compartment import compartment_mask
 from pipeline.utilities.Base_Module_Class import BaseModule
 from pipeline.utilities.Experiment_Classes import Experiment
@@ -38,23 +41,25 @@ class AnalysisModule(BaseModule):
         
         if hasattr(sets,'compartment_mask'):
             self.mask_compartment(**sets.compartment_mask)
-            
+            if hasattr(sets,'extract_data'):
+                sets.extract_data['do_compart'] = True
+        
+        if hasattr(sets, 'extract_pixelwise'):
+            self.extract_pixelwise_data(**sets.extract_pixelwise)
+            self.save_as_json()
+            return pd.DataFrame()
+        
         if not hasattr(sets,'extract_data'):
             self.save_as_json()
             return pd.DataFrame()
         
-        if hasattr(sets,'compartment_mask'):
-            sets.extract_data['do_compart'] = True
         master_df = self.create_master_df(**sets.extract_data)
         self.save_as_json()
         return master_df
         
     def create_master_df(self, img_fold_src: str = "", mask_fold_src: list[str] | str = "", ref_mask_fold_src: list[str] | str = "", do_diff: bool=False, diff_channel_ratio: str | None=None, do_compart: bool = False, overwrite: bool=False)-> pd.DataFrame:
-        # If optimization is set, then process only the first experiment
-        exp_obj_lst = self.exp_obj_lst.copy()[:1] if self.optimization else self.exp_obj_lst
-        
         all_dfs = []
-        for exp_obj in progress_bar(exp_obj_lst,
+        for exp_obj in progress_bar(self.exp_obj_lst_active,
                             desc=pbar_desc("Experiments"),
                             colour='blue'):
             # extract the data
@@ -111,10 +116,7 @@ class AnalysisModule(BaseModule):
         if isinstance(mask_label, str):
             mask_label=[mask_label]
         
-        # If optimization is set, then process only the first experiment
-        exp_obj_lst = self.exp_obj_lst.copy()[:1] if self.optimization else self.exp_obj_lst
-        
-        for exp_obj in exp_obj_lst:
+        for exp_obj in self.exp_obj_lst_active:
             # Activate branch and get imgage files
             exp_obj.analysis.is_reference_masks = True
             img_flod_src, img_files = img_list_src(exp_obj,None)
@@ -147,7 +149,46 @@ class AnalysisModule(BaseModule):
             exp_obj.analysis.compartment_masks.update({'fold_src':mask_fold_src,'pixel_rad':pixel_rad,'dilation_rad':dilation_rad})
             exp_obj.save_as_json()
 
+    def extract_pixelwise_data(self, mask_fold_src: str, mask_label: str, img_fold_src: str = "", mask_channel: str = "", overwrite: bool = False)-> None:
+        """
+        Extract pixelwise data from the given image paths and mask paths.
+        Parameters:
+            mask_fold_src (str): Folder name containing the masks that delimit the region of interest.
+            mask_label (str): Label of the reference mask.
+            img_fold_src (str): Folder name containing the images. If empty, will use the default folder.
+            mask_channel (str): Mask channel to be used, if multiple channels exists. If not, leave it as "" (empty).
+            overwrite (bool): If True, overwrite existing data.
+        """
+        
+        for exp_obj in self.exp_obj_lst_active:
+            exp_path = exp_obj.exp_path
+            pix_resolution = exp_obj.analysis.um_per_pixel[0]
+            interval_sec = exp_obj.analysis.interval_sec if exp_obj.analysis.interval_sec is not None else 1
+            
+            # Gather the images
+            img_fold_src, img_paths = img_list_src(exp_obj, img_fold_src)
+            
+            # Gather the masks folders
+            mask_fold = exp_path.joinpath(mask_fold_src)
+            mask_files = sorted(mask_fold.glob("*.tif"))
+            # Filter the mask files based on the mask channel. By default, mask_channel is empty so all files will be returned
+            mask_paths = [mask_file for mask_file in mask_files if mask_channel in mask_file.name]
+            
+            # Gather the reference masks folders
+            ref_mask_fold = exp_path.joinpath(f"Masks_{mask_label}")
+            ref_paths = sorted(ref_mask_fold.glob("*.tif"))
+            
+            # Extract the pixelwise data
+            extract_pixelwise_data(exp_path, img_paths, ref_paths, mask_paths, pix_resolution, interval_sec, overwrite)
+            
+            # Save the data
+            exp_obj.analysis.analysis_type.update({'extract_pixelwise':{'img_fold_src':img_fold_src,
+                                                                        'mask_fold_src':mask_fold_src,
+                                                                        'mask_label':mask_label,
+                                                                        'mask_channel':mask_channel}})
+            exp_obj.save_as_json()
 
+    
 ######################## Helper Functions ########################
 def select_masks_fold_list(exp_obj: Experiment, mask_fold_src: list[str] | str)-> list[str]:
     if mask_fold_src:
