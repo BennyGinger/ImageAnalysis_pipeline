@@ -14,7 +14,7 @@ from pipeline.utilities.data_utility import img_list_src, seg_mask_lst_src, trac
 from pipeline.utilities.pipeline_utility import progress_bar, pbar_desc
 from pipeline.analysis.data_extraction import extract_data
 from pipeline.settings.Setting_Classes import Settings
-from ImageAnalysis_pipeline.pipeline.analysis.draw_mask_main import draw_wound_mask
+from pipeline.analysis.draw_mask_main import draw_wound_mask
 
 TRACKING_MASKS = ['iou_tracking','manual_tracking','gnn_tracking']
 

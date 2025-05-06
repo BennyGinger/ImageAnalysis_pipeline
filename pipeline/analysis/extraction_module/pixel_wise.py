@@ -1,3 +1,4 @@
+from __future__ import annotations
 from pathlib import Path
 
 from scipy.ndimage import distance_transform_edt

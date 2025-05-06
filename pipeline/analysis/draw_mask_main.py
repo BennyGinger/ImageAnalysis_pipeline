@@ -37,7 +37,7 @@ def draw_wound_mask(img_files: list[Path], mask_label: list[str] | str, channel_
         
         print(f" --> Drawing mask with label {mask_label}")
         # load image stack and transform it into an RGB format  
-        img_stack = load_stack(filtered_files, range(frames), return_2D=True)
+        img_stack = load_stack(filtered_files, frame_range=range(frames), return_2D=True)
         # img_stack = gray2rgb(img_stack)
 
         # Draw the polygons

@@ -64,33 +64,33 @@ if __name__ == "__main__":
     from time import time
 
     settings = {
-    "input_folder": "/home/Test_images/nd2/Run4",
+    "input_folder": '/home/Dia/brill',
     
-    "optimization": False,
+    "optimization": True,
     
-    "init":{"active_channel_list": ['GFP','RFP'],
-            'full_channel_list': ["DAPI","GFP","RFP","iRed"],
+    "init":{"active_channel_list": ['Brillouin','GFP'],
+            'full_channel_list': ['Brillouin','GFP'],
             "overwrite": False},
     
     "bg_sub": (True,
                 {"overwrite": False}),
     
-    "chan_shift": (True,
+    "chan_shift": (False,
                     {"reg_channel": "RFP",
                     "reg_mtd": "rigid_body",
                     "overwrite": False}),
     
     "frame_shift": (True,
-                {"reg_channel": "RFP",
+                {"reg_channel": "GFP",
                 "reg_mtd": "rigid_body",
-                "img_ref": "first",
+                "img_ref": "previous",
                 "overwrite": False}),
     
     "blur": (False,
             {"sigma": 2,
             "overwrite": False}),
 
-    "cellpose": (True,
+    "cellpose": (False,
                 {"channel_to_seg":["RFP","GFP"], 
                 "model_type": "cyto2", #cyto2_cp3, cyto3, /home/Fabian/Models/Cellpose/twoFishMacrophage
                 "diameter": 65,
@@ -105,7 +105,7 @@ if __name__ == "__main__":
                 "img_fold_src": "",
                 "overwrite": False,}),
     
-    "iou_track": (True,
+    "iou_track": (False,
                   {"channel_to_track":["RFP","GFP"], 
                    "stitch_thres_percent": 0.5,
                    "shape_thres_percent": 0.95,
@@ -136,12 +136,12 @@ if __name__ == "__main__":
                    "process_as_2D":True,
                    "overwrite":True}),
     
-    "draw_mask": (False,
-                  {"mask_label": "laser", # str or list[str]
-                   "channel_show": "RFP",
+    "draw_mask": (True,
+                  {"mask_label": ["tail", "wound"], # str or list[str]
+                   "channel_show": "GFP",
                    "overwrite": False}),
     
-    "compartment_mask": (True,
+    "compartment_mask": (False,
                         {"mask_fold_src": "",     # Folder name containing the masks, if empty, will use the default folder
                          "pixel_rad": 6,          # Tickness of the mb in pixel
                          "dilation_rad": None,    # Dilation of the mask in pixel, if not None, to be sure that the mask is covering the cell
@@ -149,12 +149,12 @@ if __name__ == "__main__":
     
     "extract_pixelwise": (True,
                     {"mask_label": "wound", # Label of the reference mask
-                     "mask_fold_src": "Masks_Threshold", # Masks that delimit the region of interest. 
+                     "mask_fold_src": "Masks_tail", # Masks that delimit the region of interest. 
                      "mask_channel": "", # Mask channel to be used, if multiple channels exists. If not, leave it as "". The pixelwise data can only be extracted from one channel at a time
                      "img_fold_src": "", 
                      "overwrite": False}),
     
-    "extract_data": (True,
+    "extract_data": (False,
                   {"do_diff": False,
                    "diff_channel_ratio":"GFP/RFP",
                    "overwrite": True}),
