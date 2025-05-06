@@ -2,13 +2,11 @@ from __future__ import annotations
 import cv2
 import numpy as np
 from platform import system
-from pipeline.utilities.data_utility import load_stack, img_list_src, create_save_folder, save_tif
+from pipeline.utilities.data_utility import load_stack, create_save_folder, save_tif
 from pipeline.mask_transformation.complete_track import complete_track
-from pipeline.utilities.Experiment_Classes import Experiment
 from os import PathLike, scandir, sep
 from os.path import join
 from skimage.color import gray2rgb
-from skimage.transform import resize
 from skimage.draw import polygon2mask
 
 
@@ -207,74 +205,3 @@ def polygon_into_mask(frames: int, poly_dict:dict, img_shape: tuple[int,int])->n
         mask_stack[frame] = tempmask
     return mask_stack
 
-# # # # # # # # main functions # # # # # # # # # 
-
-def draw_wound_mask(img_files: list[PathLike], mask_label: list[str] | str, channel_show: str, 
-                    frames: int, overwrite: bool=False, **kwargs)-> None:
-    """Function to draw a mask on the given Image. Will be saved in a folder.
-    Args:
-        exp_set (Experiment): The experiment settings.
-        mask_label (str or list[str]):labels for the masks to be created.
-        channel_show (str): channel that is shown for drawing the mask
-        img_fold_src (str, optional): Images folder, from where the displayed image is loaded
-        overwrite (bool): Flag to override.
-    Returns:
-        None, saves the masks into folder."""
-    
-    if isinstance(mask_label, str):
-        mask_label = [mask_label]
-    
-    # Check if mask_label exist
-    exp_path: PathLike = img_files[0].rsplit(sep,2)[0]
-    for label in mask_label:
-        label_path = create_save_folder(exp_path,f'Masks_{label}')
-        if any(scandir(label_path)) and not overwrite:
-            print(f" --> Masks already exist for {label} in {exp_path}.")
-            continue
-        
-        print(f" --> Drawing mask with label {mask_label}")
-        # load image stack and transform it into an RGB format  
-        img_stack = load_stack(img_files,channel_show,range(frames),return_2D=True)
-        img_stack = gray2rgb(img_stack)
-
-        # Draw the polygons
-        poly_dict = draw_polygons(img=img_stack.astype('uint8'), frames=frames)
-        
-        if not poly_dict:
-            raise AttributeError('No mask drawn!')
-        mask_stack = polygon_into_mask(frames,poly_dict,img_stack.shape[1:-1])
-        mask_stack = complete_track(mask_stack,mask_appear=1,copy_first_to_start=True,copy_last_to_end=True)
-        
-        if kwargs and 'metadata' in kwargs:
-            metadata = kwargs['metadata']
-        else:
-            metadata = {'finterval':None, 'um_per_pixel':None}
-        
-        # Save the masks
-        # Get the name of the image and reconstruct the frame numbers
-        channel_files = [file for file in img_files if channel_show in file]
-        mask_name = channel_files[0].rsplit('/',1)[-1].rsplit('_',2)[0::2]
-        for frame, mask in enumerate(mask_stack):
-            save_path = join(label_path, f"{mask_name[0]}_f{frame+1:04d}_{mask_name[1]}")
-            save_tif(mask,save_path,**metadata)
-  
-            
-if __name__ == "__main__":
-    from tifffile import imread
-    from os import listdir, sep
-    from os.path import join
-    
-    fold_path = '/home/New_test/stimulated/c2z25t23v1_nd2_s1/Images_Registered'
-    img_files = [join(fold_path,file) for file in sorted(listdir(fold_path)) if file.endswith('.tif')]
-    mask_label = 'wound'
-    channel = 'RFP'
-    frames = 23
-    
-    draw_wound_mask(img_files,mask_label,channel,frames,True)
-           
-                
-            
-            
-            
-        
-    
