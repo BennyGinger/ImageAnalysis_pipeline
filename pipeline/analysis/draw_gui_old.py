@@ -1,14 +1,9 @@
 from __future__ import annotations
+from platform import system
+
 import cv2
 import numpy as np
-from platform import system
-from pipeline.utilities.data_utility import load_stack, create_save_folder, save_tif
-from pipeline.mask_transformation.complete_track import complete_track
-from os import PathLike, scandir, sep
-from os.path import join
-from skimage.color import gray2rgb
 from skimage.draw import polygon2mask
-
 
 
 def draw_polygons(img, frames):

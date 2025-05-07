@@ -5,12 +5,10 @@ import torch
 from torch import Tensor
 import torch.nn.functional as F
 from torch.nn import ModuleList, ReLU
-
-from pipeline.tracking.gnn_track.prediction.models.pdn_conv import PDNConv
 from torch_geometric.nn.models.jumping_knowledge import JumpingKnowledge
-
 from torch_geometric.typing import Adj
 
+from pipeline.tracking.gnn_track.prediction.models.pdn_conv import PDNConv
 from pipeline.tracking.gnn_track.prediction.models.mlp import MLP
 
 """

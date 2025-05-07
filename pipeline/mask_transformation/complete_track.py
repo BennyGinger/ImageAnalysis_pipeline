@@ -1,10 +1,13 @@
 from __future__ import annotations
 from threading import Lock
+
 import numpy as np
 from skimage.measure import regionprops_table
+
 from pipeline.utilities.pipeline_utility import progress_bar
 from pipeline.mask_transformation.mask_warp import mask_warp
 from pipeline.utilities.data_utility import run_multithread
+
 
 ################## main functions ##################
 def complete_track(mask_stack: np.ndarray, mask_appear: int, copy_first_to_start: bool=True, copy_last_to_end: bool=True)-> np.ndarray:

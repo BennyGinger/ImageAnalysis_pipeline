@@ -1,14 +1,16 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
+from pathlib import Path
+from functools import partial
+from concurrent.futures import ThreadPoolExecutor
+
 import torch
 import numpy as np
 import pandas as pd
 import cv2
 from skimage.measure import regionprops_table
-from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor
-from functools import partial
+
 from pipeline.tracking.gnn_track.feature_extraction.resnet_2d.resnet import set_model_architecture as set_model_arch_2d
 from pipeline.tracking.gnn_track.feature_extraction.resnet_2d.resnet import MLP as MLP_2D
 from pipeline.tracking.gnn_track.feature_extraction.resnet_3d.resnet import set_model_architecture as set_model_arch_3d

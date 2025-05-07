@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from os import PathLike
+
 from pipeline.utilities.Base_Module_Class import BaseModule
 from pipeline.utilities.Experiment_Classes import Experiment
 from pipeline.utilities.data_utility import seg_mask_lst_src, img_list_src

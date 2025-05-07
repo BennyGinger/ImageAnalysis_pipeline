@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from os import PathLike
-from typing import Any
+
 from pipeline.utilities.Base_Module_Class import BaseModule
 from pipeline.utilities.Experiment_Classes import Experiment
 from pipeline.segmentation.cp_segmentation import cellpose_segmentation

@@ -1,8 +1,10 @@
 from __future__ import annotations
 import itertools
+
 from skimage.measure import regionprops
 import numpy as np
 from scipy.ndimage import distance_transform_edt
+
 
 # TODO: maybe change this into a class...
 ############################# Main Functions #############################

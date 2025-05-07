@@ -1,15 +1,17 @@
 from __future__ import annotations
 import torch
-from pathlib import Path
-from pipeline.utilities.pipeline_utility import PathType
-from pipeline.utilities.data_utility import run_multithread
-from pipeline.tracking.gnn_track.prediction.models.celltrack_plmodel import CellTrackLitModel
-from dataclasses import field, dataclass
 import itertools
+from pathlib import Path
+from dataclasses import field, dataclass
+from threading import Lock
+
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
-from threading import Lock
+
+from pipeline.utilities.pipeline_utility import PathType
+from pipeline.utilities.data_utility import run_multithread
+from pipeline.tracking.gnn_track.prediction.models.celltrack_plmodel import CellTrackLitModel
 
 
 ######################## Main function ########################

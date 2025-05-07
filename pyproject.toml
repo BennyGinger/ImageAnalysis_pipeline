@@ -1,21 +1,39 @@
-[build-system]
-requires = ["setuptools", "wheel"]
-
 [project]
-name = "ImageAnalysis"
-version = "1.0.0"
+name = "imageanalysis-pipeline"
+version = "1.1.0"
 description = "Analysis pipelines for fluorescent microscopic images, mainly time sequences, that is capable of pre-process, segment, track and get data of single cells."
+readme = "README.md"
 authors = [
     {name = "Benoit Thomas Roux", email = "benoit.roux@gmail.com"},
     {name = "Fabian Gregory Dehne", email = "fabiang.dehne@gmail.com"},
-    {name = "Raphael David FEURSTEIN", email = "raphael.feurstein@gmail.com"},
+    {name = "Raphael David FEURSTEIN", email = "raphael.feurstein@gmail.com"}
 ]
+requires-python = ">=3.12"
 dependencies = [
-    "numpy",
-    "scipy",
-    "matplotlib",
-    # Add other dependencies here
+    "cellpose[gui]>=4.0.2",
+    "ipython>=9.2.0",
+    "matplotlib>=3.10.1",
+    "nd2>=0.10.3",
+    "opencv-python>=4.11.0.86",
+    "pandas[parquet]>=2.2.3",
+    "pyqt6>=6.9.0",
+    "pystackreg>=0.2.8",
+    "pytorch-lightning>=2.5.1.post0",
+    "scikit-image>=0.25.2",
+    "scikit-learn>=1.6.1",
+    "scipy>=1.15.2",
+    "smo>=2.0.2",
+    "tifffile>=2025.3.30",
+    "torch-geometric>=2.6.1",
+    "tqdm>=4.67.1",
 ]
-    
-# [project.scripts] # Create an entry point for the main function
-# ImageAnalysis = "path.to.your.main:main"
+
+[project.scripts]
+imageanalysis-pipeline = "pipeline:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["imageanalysis"]

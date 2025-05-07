@@ -1,9 +1,9 @@
 from __future__ import annotations
 import sys
+
 from PyQt6.QtWidgets import QApplication, QMainWindow, QGraphicsScene, QGraphicsView, QGraphicsPixmapItem, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QSlider, QLabel
 from PyQt6.QtGui import QImage, QPixmap, QPainterPath, QPen
 from PyQt6.QtCore import Qt, QRectF
-
 import numpy as np
 from skimage.draw import polygon as skimage_polygon
 

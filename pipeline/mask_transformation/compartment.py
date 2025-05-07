@@ -1,9 +1,12 @@
 from __future__ import annotations
 from pathlib import Path
 from threading import Lock
+
+from tifffile import imwrite, imread
+
 from pipeline.mask_transformation.utils import erode_masks, dilate_masks
 from pipeline.utilities.data_utility import run_multithread
-from tifffile import imwrite, imread
+
 
 ################### Main function ###################
 def compartment_mask(exp_path: Path, mask_folder: str, pixel_rad: int = 6, dilation_rad: int | None = None, overwrite: bool = False)-> None:

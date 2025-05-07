@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field, fields
 
+
 PREPROCESS_KEYS = ["bg_sub","chan_shift","frame_shift","blur"]
 SEGMENTATION_KEYS = ["cellpose","threshold"]
 TRACKING_KEYS = ["iou_track", "gnn_track", "man_track"]

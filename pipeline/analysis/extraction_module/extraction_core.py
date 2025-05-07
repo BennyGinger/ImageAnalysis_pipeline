@@ -1,13 +1,15 @@
 from __future__ import annotations
 from pathlib import Path
+from typing import TypeVar
+
 import numpy as np
 import pandas as pd
 from tifffile import imread
 from skimage.measure import regionprops_table
 from scipy.spatial import distance
+
 from pipeline.utilities.data_utility import load_stack, get_exp_props
 from pipeline.mask_transformation.utils import erode_masks
-from typing import TypeVar
 
 # Custom variable type
 T = TypeVar('T')

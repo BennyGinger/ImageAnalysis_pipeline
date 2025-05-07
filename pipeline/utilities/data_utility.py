@@ -2,17 +2,19 @@ from __future__ import annotations
 from os import remove
 from os.path import join
 from pathlib import Path
-from pipeline.utilities.pipeline_utility import progress_bar, PathType
-from pipeline.utilities.Experiment_Classes import Experiment
 from typing import Iterable, Iterator, Callable
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from functools import partial
 from threading import Lock
-import numpy as np
 import json
-from tifffile import imwrite
+
 # NOTE: Added imageio, as I have png mask file as well, from cellpose manual segmentation. Should be deleted in the future
 from imageio import imread
+import numpy as np
+from tifffile import imwrite
+
+from pipeline.utilities.pipeline_utility import progress_bar, PathType
+from pipeline.utilities.Experiment_Classes import Experiment
 
 
 def _load_images(img_paths: list[Path], channel: str, frame: int) -> list:

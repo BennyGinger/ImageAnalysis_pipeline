@@ -1,9 +1,10 @@
 from __future__ import annotations
 from os import sep, mkdir, PathLike
 from os.path import isdir
+import warnings
+
 from tifffile import TiffFile
 from nd2 import ND2File
-import warnings
 
 def get_tif_meta(img_path: PathLike) -> dict:
     tiff_meta = {}

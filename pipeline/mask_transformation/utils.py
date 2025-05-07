@@ -1,14 +1,13 @@
 from __future__ import annotations
 from pathlib import Path
+from functools import partial
+from threading import Lock
+
 import numpy as np
 from skimage.morphology import disk, erosion
 from concurrent.futures import ThreadPoolExecutor
-from functools import partial
-from threading import Lock
-from pipeline.utilities.data_utility import load_stack
 from skimage.segmentation import expand_labels
 from tifffile import imread
-from tqdm import trange
 
 
 def erode_masks(mask: np.ndarray, pixel_rad: int = 6)-> np.ndarray:

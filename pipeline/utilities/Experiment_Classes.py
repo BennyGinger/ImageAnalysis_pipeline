@@ -3,7 +3,9 @@ from dataclasses import dataclass, fields, field
 import json
 from os import PathLike, listdir
 from os.path import join
+
 import pandas as pd
+
 
 # Constants to translate the branch name to folder source
 ATTRIBUTES_FOLDER = {"cellpose_seg": "Masks_Cellpose",

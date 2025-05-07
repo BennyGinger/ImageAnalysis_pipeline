@@ -1,10 +1,12 @@
 from __future__ import annotations
 from os import remove
 from pathlib import Path
+from typing import TypeVar
+
 import pandas as pd
+
 from pipeline.utilities.data_utility import run_multithread, get_exp_props
 from pipeline.analysis.extraction_module.extraction_core import extract_regionprops, PROPERTIES
-from typing import TypeVar
 
 # Custom variable type
 T = TypeVar('T')

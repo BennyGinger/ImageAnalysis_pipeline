@@ -4,15 +4,17 @@ from pathlib import Path
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
 from os.path import join
-from pipeline.utilities.data_utility import load_stack, create_save_folder, run_multithread, get_exp_props, save_tif, is_channel_in_lst
-from pipeline.mask_transformation.complete_track import complete_track
+from threading import Lock
+
 from cellpose.utils import stitch3D
 from cellpose.metrics import _intersection_over_union
 from scipy.stats import mode
 from skimage.measure import regionprops_table
 from skimage.segmentation import relabel_sequential
 import numpy as np
-from threading import Lock
+
+from pipeline.utilities.data_utility import load_stack, create_save_folder, run_multithread, get_exp_props, save_tif, is_channel_in_lst
+from pipeline.mask_transformation.complete_track import complete_track
 
 
 ############################ Main function ############################

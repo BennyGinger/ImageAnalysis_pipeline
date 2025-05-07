@@ -1,8 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
 
-from skimage.color import gray2rgb
-
 from pipeline.mask_transformation.complete_track import complete_track
 from pipeline.analysis.draw_gui import draw_polygons, polygon_into_mask
 from pipeline.utilities.data_utility import create_save_folder, load_stack, save_tif
@@ -38,7 +36,6 @@ def draw_wound_mask(img_files: list[Path], mask_label: list[str] | str, channel_
         print(f" --> Drawing mask with label {mask_label}")
         # load image stack and transform it into an RGB format  
         img_stack = load_stack(filtered_files, frame_range=range(frames), return_2D=True)
-        # img_stack = gray2rgb(img_stack)
 
         # Draw the polygons
         poly_dict = draw_polygons(img_stack)
