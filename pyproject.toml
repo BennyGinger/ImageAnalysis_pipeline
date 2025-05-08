@@ -40,7 +40,12 @@ build-backend = "hatchling.build"
 packages = ["imageanalysis"]
 
 [tool.uv.sources]
-torch-sparse = { url = "https://data.pyg.org/whl/torch-2.6.0+cu126/torch_sparse-0.6.18+pt26cu126-cp312-cp312-linux_x86_64.whl" }
+torch-sparse = [
+    {url = "https://data.pyg.org/whl/torch-2.6.0+cu126/torch_sparse-0.6.18+pt26cu126-cp312-cp312-linux_x86_64.whl", marker = "sys_platform == 'linux'"},
+    
+    {url = "https://data.pyg.org/whl/torch-2.6.0+cu124/torch_sparse-0.6.18+pt26cu124-cp312-cp312-win_amd64.whl", marker = "sys_platform == 'win32'"}
+]
+
 
 ######## To install torch-sparse:
 ### Linux
