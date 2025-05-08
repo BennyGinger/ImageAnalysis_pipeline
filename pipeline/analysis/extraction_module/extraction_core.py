@@ -8,8 +8,8 @@ from tifffile import imread
 from skimage.measure import regionprops_table
 from scipy.spatial import distance
 
-from pipeline.utilities.data_utility import load_stack, get_exp_props
-from pipeline.mask_transformation.utils import erode_masks
+from utilities.data_utility import load_stack, get_exp_props
+from mask_transformation.utils import erode_masks
 
 # Custom variable type
 T = TypeVar('T')

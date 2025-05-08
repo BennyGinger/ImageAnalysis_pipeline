@@ -13,8 +13,8 @@ from skimage.measure import regionprops_table
 from skimage.segmentation import relabel_sequential
 import numpy as np
 
-from pipeline.utilities.data_utility import load_stack, create_save_folder, run_multithread, get_exp_props, save_tif, is_channel_in_lst
-from pipeline.mask_transformation.complete_track import complete_track
+from utilities.data_utility import load_stack, create_save_folder, run_multithread, get_exp_props, save_tif, is_channel_in_lst
+from mask_transformation.complete_track import complete_track
 
 
 ############################ Main function ############################

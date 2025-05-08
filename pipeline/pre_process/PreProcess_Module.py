@@ -4,13 +4,13 @@ from os import PathLike
 from pathlib import Path
 from time import sleep
 
-from pipeline.pre_process.image_blur import blur_images
-from pipeline.pre_process.background_sub import background_sub
-from pipeline.pre_process.image_registration import correct_frame_shift, correct_channel_shift
-from pipeline.settings.Setting_Classes import Settings
-from pipeline.utilities.Experiment_Classes import Experiment
-from pipeline.utilities.Base_Module_Class import BaseModule
-from pipeline.utilities.data_utility import img_list_src, is_processed
+from pre_process.image_blur import blur_images
+from pre_process.background_sub import background_sub
+from pre_process.image_registration import correct_frame_shift, correct_channel_shift
+from settings.Setting_Classes import Settings
+from utilities.Experiment_Classes import Experiment
+from utilities.Base_Module_Class import BaseModule
+from utilities.data_utility import img_list_src, is_processed
 
 EXTENTION = ('.nd2','.tif','.tiff')
 

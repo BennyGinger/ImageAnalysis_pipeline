@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 from torch.nn.modules.distance import CosineSimilarity
 
-from pipeline.tracking.gnn_track.prediction.models.mlp import MLP
-from pipeline.tracking.gnn_track.prediction.models.edge_mpnn import CellTrack_GNN
+from tracking.gnn_track.prediction.models.mlp import MLP
+from tracking.gnn_track.prediction.models.edge_mpnn import CellTrack_GNN
 
 
 class CellTrack_Model(nn.Module):

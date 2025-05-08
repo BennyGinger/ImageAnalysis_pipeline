@@ -5,8 +5,8 @@ from typing import TypeVar
 
 import pandas as pd
 
-from pipeline.utilities.data_utility import run_multithread, get_exp_props
-from pipeline.analysis.extraction_module.extraction_core import extract_regionprops, PROPERTIES
+from utilities.data_utility import run_multithread, get_exp_props
+from analysis.extraction_module.extraction_core import extract_regionprops, PROPERTIES
 
 # Custom variable type
 T = TypeVar('T')

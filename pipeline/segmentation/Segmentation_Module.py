@@ -2,12 +2,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from os import PathLike
 
-from pipeline.utilities.Base_Module_Class import BaseModule
-from pipeline.utilities.Experiment_Classes import Experiment
-from pipeline.segmentation.cp_segmentation import cellpose_segmentation
-from pipeline.segmentation.segmentation import threshold
-from pipeline.settings.Setting_Classes import Settings
-from pipeline.utilities.data_utility import img_list_src
+from utilities.Base_Module_Class import BaseModule
+from utilities.Experiment_Classes import Experiment
+from segmentation.cp_segmentation import cellpose_segmentation
+from segmentation.segmentation import threshold
+from settings.Setting_Classes import Settings
+from utilities.data_utility import img_list_src
 
 @dataclass
 class SegmentationModule(BaseModule):

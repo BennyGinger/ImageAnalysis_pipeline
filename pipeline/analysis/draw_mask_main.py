@@ -1,9 +1,9 @@
 from __future__ import annotations
 from pathlib import Path
 
-from pipeline.mask_transformation.complete_track import complete_track
-from pipeline.analysis.draw_gui import draw_polygons, polygon_into_mask
-from pipeline.utilities.data_utility import create_save_folder, load_stack, save_tif
+from mask_transformation.complete_track import complete_track
+from analysis.draw_gui import draw_polygons, polygon_into_mask
+from utilities.data_utility import create_save_folder, load_stack, save_tif
 
 
 def draw_wound_mask(img_files: list[Path], mask_label: list[str] | str, channel_show: str, 

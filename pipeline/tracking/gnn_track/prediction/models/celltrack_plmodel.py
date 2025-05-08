@@ -5,8 +5,8 @@ from torch import optim
 from torch.optim import lr_scheduler
 
 from pytorch_lightning import LightningModule
-from pipeline.tracking.gnn_track.prediction.models.metrics import Countspecific, ClassificationMetrics
-from pipeline.tracking.gnn_track.prediction.models.celltrack_model import CellTrack_Model
+from tracking.gnn_track.prediction.models.metrics import Countspecific, ClassificationMetrics
+from tracking.gnn_track.prediction.models.celltrack_model import CellTrack_Model
 
 
 class CellTrackLitModel(LightningModule):

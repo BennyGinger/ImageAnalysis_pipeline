@@ -5,11 +5,11 @@ set_start_method("spawn",force=True)
 
 import pandas as pd
 
-from pipeline.image_extraction.ImageExtract_Module import ImageExtractionModule
-from pipeline.pre_process.PreProcess_Module import PreProcessModule
-from pipeline.segmentation.Segmentation_Module import SegmentationModule
-from pipeline.tracking.Tracking_Class import TrackingModule
-from pipeline.analysis.Analysis_class import AnalysisModule
+from image_extraction.ImageExtract_Module import ImageExtractionModule
+from pre_process.PreProcess_Module import PreProcessModule
+from segmentation.Segmentation_Module import SegmentationModule
+from tracking.Tracking_Class import TrackingModule
+from analysis.Analysis_class import AnalysisModule
 
 
 def run_pipeline(settings: dict)-> pd.DataFrame:

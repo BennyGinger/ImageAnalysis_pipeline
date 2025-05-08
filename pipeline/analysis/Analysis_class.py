@@ -6,15 +6,15 @@ from pathlib import Path
 
 import pandas as pd
 
-from pipeline.analysis.extraction_module.pixel_wise import extract_pixelwise_data
-from pipeline.mask_transformation.compartment import compartment_mask
-from pipeline.utilities.Base_Module_Class import BaseModule
-from pipeline.utilities.Experiment_Classes import Experiment
-from pipeline.utilities.data_utility import img_list_src, seg_mask_lst_src, track_mask_lst_src
-from pipeline.utilities.pipeline_utility import progress_bar, pbar_desc
-from pipeline.analysis.data_extraction import extract_data
-from pipeline.settings.Setting_Classes import Settings
-from pipeline.analysis.draw_mask_main import draw_wound_mask
+from analysis.extraction_module.pixel_wise import extract_pixelwise_data
+from mask_transformation.compartment import compartment_mask
+from utilities.Base_Module_Class import BaseModule
+from utilities.Experiment_Classes import Experiment
+from utilities.data_utility import img_list_src, seg_mask_lst_src, track_mask_lst_src
+from utilities.pipeline_utility import progress_bar, pbar_desc
+from analysis.data_extraction import extract_data
+from settings.Setting_Classes import Settings
+from analysis.draw_mask_main import draw_wound_mask
 
 TRACKING_MASKS = ['iou_tracking','manual_tracking','gnn_tracking']
 

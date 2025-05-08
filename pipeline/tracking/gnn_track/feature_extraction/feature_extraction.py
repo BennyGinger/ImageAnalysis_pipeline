@@ -11,12 +11,12 @@ import pandas as pd
 import cv2
 from skimage.measure import regionprops_table
 
-from pipeline.tracking.gnn_track.feature_extraction.resnet_2d.resnet import set_model_architecture as set_model_arch_2d
-from pipeline.tracking.gnn_track.feature_extraction.resnet_2d.resnet import MLP as MLP_2D
-from pipeline.tracking.gnn_track.feature_extraction.resnet_3d.resnet import set_model_architecture as set_model_arch_3d
-from pipeline.tracking.gnn_track.feature_extraction.resnet_3d.resnet import MLP as MLP_3D
-from pipeline.utilities.data_utility import run_multithread, load_stack, get_exp_props
-from pipeline.utilities.pipeline_utility import progress_bar
+from tracking.gnn_track.feature_extraction.resnet_2d.resnet import set_model_architecture as set_model_arch_2d
+from tracking.gnn_track.feature_extraction.resnet_2d.resnet import MLP as MLP_2D
+from tracking.gnn_track.feature_extraction.resnet_3d.resnet import set_model_architecture as set_model_arch_3d
+from tracking.gnn_track.feature_extraction.resnet_3d.resnet import MLP as MLP_3D
+from utilities.data_utility import run_multithread, load_stack, get_exp_props
+from utilities.pipeline_utility import progress_bar
 
 
 PROPERTIES = ['label', 'area', 'bbox', 'centroid', 'major_axis_length', 'minor_axis_length', 'max_intensity', 'mean_intensity', 'min_intensity']

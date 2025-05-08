@@ -7,7 +7,7 @@ import cv2
 from skimage.morphology import remove_small_objects, remove_small_holes
 import numpy as np
 
-from pipeline.utilities.data_utility import load_stack, create_save_folder, save_tif, run_multithread, get_exp_props, is_channel_in_lst
+from utilities.data_utility import load_stack, create_save_folder, save_tif, run_multithread, get_exp_props, is_channel_in_lst
 
 
 ############################# main functions ######################################

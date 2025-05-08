@@ -7,8 +7,8 @@ import pandas as pd
 from tifffile import imwrite
 import torch
 
-from pipeline.utilities.pipeline_utility import progress_bar
-from pipeline.utilities.data_utility import load_stack
+from utilities.pipeline_utility import progress_bar
+from utilities.data_utility import load_stack
 
 class Postprocess():
     def __init__(self,
@@ -406,7 +406,7 @@ class Postprocess():
 
 if __name__== "__main__":
     from time import time
-    from pipeline.tracking.gnn_tracking import relabel_masks
+    from tracking.gnn_tracking import relabel_masks
     
     preds_dir=Path('/home/Test_images/CTC_Dataset/PhC-C2DH-U373/U373_1_s1/gnn_files')
     save_path = preds_dir.parent.joinpath('Masks_GNN_Track')

@@ -7,8 +7,8 @@ import numpy as np
 from cellpose import models, core
 from cellpose.io import logger_setup, masks_flows_to_seg
 
-from pipeline.utilities.data_utility import load_stack, create_save_folder, save_tif, run_multithread, run_multiprocess, get_exp_props, is_channel_in_lst
-from pipeline.utilities.pipeline_utility import PathType
+from utilities.data_utility import load_stack, create_save_folder, save_tif, run_multithread, run_multiprocess, get_exp_props, is_channel_in_lst
+from utilities.pipeline_utility import PathType
 
 # Default cellpose settings
 MODEL_SETTINGS = {'gpu':core.use_gpu(),

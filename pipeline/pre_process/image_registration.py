@@ -7,7 +7,7 @@ from tifffile import imread
 import numpy as np
 from pystackreg import StackReg
 
-from pipeline.utilities.data_utility import load_stack, create_save_folder, save_tif, run_multiprocess
+from utilities.data_utility import load_stack, create_save_folder, save_tif, run_multiprocess
 
 
 ####################################################################################

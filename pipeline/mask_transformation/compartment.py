@@ -4,8 +4,8 @@ from threading import Lock
 
 from tifffile import imwrite, imread
 
-from pipeline.mask_transformation.utils import erode_masks, dilate_masks
-from pipeline.utilities.data_utility import run_multithread
+from mask_transformation.utils import erode_masks, dilate_masks
+from utilities.data_utility import run_multithread
 
 
 ################### Main function ###################

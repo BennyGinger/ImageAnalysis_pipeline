@@ -1,13 +1,13 @@
 from __future__ import annotations
 from dataclasses import dataclass
 
-from pipeline.utilities.Base_Module_Class import BaseModule
-from pipeline.utilities.Experiment_Classes import Experiment
-from pipeline.utilities.data_utility import seg_mask_lst_src, img_list_src
-from pipeline.tracking.iou_tracking import iou_tracking
-from pipeline.tracking.gnn_tracking import gnn_tracking
-from pipeline.tracking.man_tracking import man_tracking
-from pipeline.settings.Setting_Classes import Settings
+from utilities.Base_Module_Class import BaseModule
+from utilities.Experiment_Classes import Experiment
+from utilities.data_utility import seg_mask_lst_src, img_list_src
+from tracking.iou_tracking import iou_tracking
+from tracking.gnn_tracking import gnn_tracking
+from tracking.man_tracking import man_tracking
+from settings.Setting_Classes import Settings
 
 @dataclass
 class TrackingModule(BaseModule):

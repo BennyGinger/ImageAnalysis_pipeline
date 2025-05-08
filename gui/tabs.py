@@ -5,7 +5,7 @@ from pyqt_vertical_tab_widget.verticalTabWidget import VerticalTabWidget
 from PySide6_VerticalQTabWidget import VerticalQTabWidget
 import sys
 from cellpose.gui import gui
-from pipeline.gui import tab_pre_process, tab_wound_mask, tab_test
+from gui import tab_pre_process, tab_wound_mask, tab_test
 import warnings
 
 

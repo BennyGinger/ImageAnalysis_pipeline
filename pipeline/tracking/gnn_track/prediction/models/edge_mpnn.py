@@ -8,8 +8,8 @@ from torch.nn import ModuleList, ReLU
 from torch_geometric.nn.models.jumping_knowledge import JumpingKnowledge
 from torch_geometric.typing import Adj
 
-from pipeline.tracking.gnn_track.prediction.models.pdn_conv import PDNConv
-from pipeline.tracking.gnn_track.prediction.models.mlp import MLP
+from tracking.gnn_track.prediction.models.pdn_conv import PDNConv
+from tracking.gnn_track.prediction.models.mlp import MLP
 
 """
 Our implementation is based on the BasicGNN - An abstract class for implementing basic GNN models.

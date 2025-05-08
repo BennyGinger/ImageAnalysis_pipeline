@@ -9,9 +9,9 @@ import pandas as pd
 from skimage.segmentation import expand_labels
 from tifffile import imsave
 
-from pipeline.mask_transformation.complete_track import complete_track
-from pipeline.utilities.Experiment_Classes import Experiment
-from pipeline.utilities.data_utility import load_stack, is_processed, create_save_folder, delete_old_masks, seg_mask_lst_src, img_list_src, track_mask_lst_src
+from mask_transformation.complete_track import complete_track
+from utilities.Experiment_Classes import Experiment
+from utilities.data_utility import load_stack, is_processed, create_save_folder, delete_old_masks, seg_mask_lst_src, img_list_src, track_mask_lst_src
 
 
 def load_csv(channel_seg: str, csv_path: str, csv_name: str = None):

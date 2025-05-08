@@ -5,10 +5,10 @@ from os import PathLike, sep, walk
 from os.path import join
 from re import search
 
-from pipeline.utilities.pipeline_utility import progress_bar, pbar_desc
-from pipeline.image_extraction.image_sequence import create_img_seq
-from pipeline.utilities.Experiment_Classes import Experiment, init_from_dict, init_from_json
-from pipeline.utilities.Base_Module_Class import BaseModule
+from utilities.pipeline_utility import progress_bar, pbar_desc
+from image_extraction.image_sequence import create_img_seq
+from utilities.Experiment_Classes import Experiment, init_from_dict, init_from_json
+from utilities.Base_Module_Class import BaseModule
 
 
 EXTENTION = ('.nd2','.tif','.tiff')

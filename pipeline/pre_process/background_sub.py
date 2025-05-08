@@ -5,7 +5,7 @@ from pathlib import Path
 from tifffile import imread
 from smo import SMO
 
-from pipeline.utilities.data_utility import save_tif, run_multithread
+from utilities.data_utility import save_tif, run_multithread
 
 
 ################################## main function ###################################

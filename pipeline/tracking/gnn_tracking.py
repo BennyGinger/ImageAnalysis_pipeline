@@ -9,12 +9,12 @@ from matplotlib.colors import cnames
 from pandas import DataFrame
 import numpy as np #TODO remove later!
 
-from pipeline.utilities.data_utility import load_stack, save_tif, get_exp_props
-from pipeline.utilities.pipeline_utility import PathType
-from pipeline.tracking.gnn_track.prediction.prediction import predict
-from pipeline.tracking.gnn_track.postprocess.postprocess_clean import Postprocess
-from pipeline.tracking.gnn_track.feature_extraction.feature_extraction import extract_img_features
-from pipeline.mask_transformation.complete_track import trim_incomplete_track
+from utilities.data_utility import load_stack, save_tif, get_exp_props
+from utilities.pipeline_utility import PathType
+from tracking.gnn_track.prediction.prediction import predict
+from tracking.gnn_track.postprocess.postprocess_clean import Postprocess
+from tracking.gnn_track.feature_extraction.feature_extraction import extract_img_features
+from mask_transformation.complete_track import trim_incomplete_track
 
 
 # List of all the models. For organization purposes, the models are divided into two categories: BUILD_IN_MODEL and IN_HOUSE_MODEL. However, they are then combined into a single dictionary (MODEL) for ease of use. The key is the model name and the value is the name of the checkpoint file to use.

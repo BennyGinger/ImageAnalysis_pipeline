@@ -7,7 +7,7 @@ from tifffile import imread
 from cv2 import GaussianBlur
 import numpy as np
 
-from pipeline.utilities.data_utility import create_save_folder, save_tif, run_multithread
+from utilities.data_utility import create_save_folder, save_tif, run_multithread
 
 
 ################################## main function ###################################

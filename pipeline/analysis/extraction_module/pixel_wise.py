@@ -5,7 +5,7 @@ from scipy.ndimage import distance_transform_edt
 import numpy as np
 import pandas as pd
 
-from pipeline.utilities.data_utility import load_stack, get_exp_props, run_multiprocess
+from utilities.data_utility import load_stack, get_exp_props, run_multiprocess
 
 
 def _extract_pixelwise(frame_idx: int, lookup_masks: dict[int, list[Path]], lookup_imgs: dict[int, list[Path]], lookup_ref_masks: dict[int, list[Path]], channels: list[str], pixel_resolution: float | None = None) -> pd.DataFrame:

@@ -200,7 +200,7 @@ if __name__ == "__main__":
     from pathlib import Path
     from tifffile import imwrite
 
-    from pipeline.utilities.data_utility import load_stack
+    from utilities.data_utility import load_stack
 
     folder = Path("/home/Test_images/Dia_annoying/brillouin_LifeActGFP_hypocontr@5frame_002_Brill+Fluor_s1/Images_Registered")
     files = sorted(folder.glob("*.tif"))

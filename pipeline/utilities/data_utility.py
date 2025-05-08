@@ -13,8 +13,8 @@ from imageio import imread
 import numpy as np
 from tifffile import imwrite
 
-from pipeline.utilities.pipeline_utility import progress_bar, PathType
-from pipeline.utilities.Experiment_Classes import Experiment
+from utilities.pipeline_utility import progress_bar, PathType
+from utilities.Experiment_Classes import Experiment
 
 
 def _load_images(img_paths: list[Path], channel: str, frame: int) -> list:

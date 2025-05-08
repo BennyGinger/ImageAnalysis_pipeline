@@ -9,9 +9,9 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 
-from pipeline.utilities.pipeline_utility import PathType
-from pipeline.utilities.data_utility import run_multithread
-from pipeline.tracking.gnn_track.prediction.models.celltrack_plmodel import CellTrackLitModel
+from utilities.pipeline_utility import PathType
+from utilities.data_utility import run_multithread
+from tracking.gnn_track.prediction.models.celltrack_plmodel import CellTrackLitModel
 
 
 ######################## Main function ########################
