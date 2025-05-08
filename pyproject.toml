@@ -41,3 +41,9 @@ packages = ["imageanalysis"]
 
 [tool.uv.sources]
 torch-sparse = { url = "https://data.pyg.org/whl/torch-2.6.0+cu126/torch_sparse-0.6.18+pt26cu126-cp312-cp312-linux_x86_64.whl" }
+
+######## To install torch-sparse:
+### Linux
+# uv add "torch-sparse @ https://data.pyg.org/whl/torch-2.6.0+cu126/torch_sparse-0.6.18+pt26cu126-cp312-cp312-linux_x86_64.whl"
+### Windows
+# uv add "torch-sparse @ https://data.pyg.org/whl/torch-2.6.0+cu124/torch_sparse-0.6.18+pt26cu124-cp312-cp312-win_amd64.whl"
