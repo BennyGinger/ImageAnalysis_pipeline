@@ -12,6 +12,7 @@ requires-python = ">=3.12"
 dependencies = [
     "cellpose[gui]>=4.0.2",
     "ipython>=9.2.0",
+    "markupsafe<3.0",
     "matplotlib>=3.10.1",
     "nd2>=0.10.3",
     "opencv-python>=4.11.0.86",
@@ -24,9 +25,12 @@ dependencies = [
     "scipy>=1.15.2",
     "smo>=2.0.2",
     "tifffile>=2025.3.30",
+    "torch>=2.6.0",
     "torch-geometric>=2.6.1",
+    "torch-scatter",
     "torch-sparse",
-    "tqdm>=4.67.1",
+    "torchaudio>=2.6.0",
+    "torchvision>=0.21.0",
 ]
 
 [project.scripts]
@@ -45,10 +49,12 @@ torch-sparse = [
     
     {url = "https://data.pyg.org/whl/torch-2.6.0+cu124/torch_sparse-0.6.18+pt26cu124-cp312-cp312-win_amd64.whl", marker = "sys_platform == 'win32'"}
 ]
+torch-scatter = [
+    {url = "https://data.pyg.org/whl/torch-2.6.0+cu126/torch_scatter-2.1.2+pt26cu126-cp312-cp312-linux_x86_64.whl", marker = "sys_platform == 'linux'"},
+    
+    {url = "https://data.pyg.org/whl/torch-2.6.0+cu124/torch_scatter-2.1.2+pt26cu124-cp312-cp312-win_amd64.whl", marker = "sys_platform == 'win32'"}
+]
 
+[[tool.uv.index]]
+url = "https://download.pytorch.org/whl/cu124"
 
-######## To install torch-sparse:
-### Linux
-# uv add "torch-sparse @ https://data.pyg.org/whl/torch-2.6.0+cu126/torch_sparse-0.6.18+pt26cu126-cp312-cp312-linux_x86_64.whl"
-### Windows
-# uv add "torch-sparse @ https://data.pyg.org/whl/torch-2.6.0+cu124/torch_sparse-0.6.18+pt26cu124-cp312-cp312-win_amd64.whl"

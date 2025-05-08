@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import pandas as pd
 from skimage.segmentation import expand_labels
-from tifffile import imsave
+from tifffile import imwrite
 
 from mask_transformation.complete_track import complete_track
 from utilities.Experiment_Classes import Experiment
@@ -123,7 +123,7 @@ def seg_track_manual(img_dict: dict):
     # save new mask
     folder, filename = split(img_dict['mask1_path'][0])
     savedir = join(split(folder)[0],'Masks_Manual_Track', filename)
-    imsave(savedir,tracked_mask)
+    imwrite(savedir,tracked_mask)
 
 def run_morph(exp_obj:Experiment, mask_fold_src:str, channel_seg:str, n_mask:int, copy_first_to_start: bool=True, copy_last_to_end: bool=True, ):
     _, mask_src_list = track_mask_lst_src(exp_obj, mask_fold_src)
@@ -132,7 +132,7 @@ def run_morph(exp_obj:Experiment, mask_fold_src:str, channel_seg:str, n_mask:int
     
     # Save masks
     for i,path in enumerate(mask_src_list):
-        imsave(path,mask_stack[i,...].astype('uint16'))
+        imwrite(path,mask_stack[i,...].astype('uint16'))
 
 # # # # # # # # main functions # # # # # # # # # 
 def man_tracking(exp_obj_lst: list[Experiment], channel_seg: str, track_seg_mask: bool = False, mask_fold_src: PathLike = None,
@@ -217,12 +217,12 @@ def man_tracking(exp_obj_lst: list[Experiment], channel_seg: str, track_seg_mask
                     filename = channel_seg+'_s%02d'%(series)+'_f%04d'%(frame+1)+'_z%04d'%(z_slice+1)+'.tif'
                     savedir = join(exp_obj.exp_path,'Masks_Manual_Track', filename)
                     #save
-                    imsave(savedir,masks_man) 
+                    imwrite(savedir,masks_man) 
             else:
                 filename = channel_seg+'_s%02d'%(series)+'_f%04d'%(frame+1)+'_z0001.tif'
                 savedir = join(exp_obj.exp_path,'Masks_Manual_Track', filename)
                 #save
-                imsave(savedir,masks_man) 
+                imwrite(savedir,masks_man) 
         
         frame_list = range(exp_obj.img_properties.n_frames)
         with ThreadPoolExecutor() as executor:
