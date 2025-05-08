@@ -484,6 +484,7 @@ dependencies = [
     { name = "smo" },
     { name = "tifffile" },
     { name = "torch-geometric" },
+    { name = "torch-sparse" },
     { name = "tqdm" },
 ]
 
@@ -504,6 +505,7 @@ requires-dist = [
     { name = "smo", specifier = ">=2.0.2" },
     { name = "tifffile", specifier = ">=2025.3.30" },
     { name = "torch-geometric", specifier = ">=2.6.1" },
+    { name = "torch-sparse", url = "https://data.pyg.org/whl/torch-2.6.0+cu126/torch_sparse-0.6.18+pt26cu126-cp312-cp312-linux_x86_64.whl" },
     { name = "tqdm", specifier = ">=4.67.1" },
 ]
 
@@ -1903,6 +1905,24 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e8/81/e1b015494cb9e0bf4c47cc8426e49736120248733be0e22072a5628ae9ed/torch_geometric-2.6.1.tar.gz", hash = "sha256:1f18f9d0fc4d2239d526221e4f22606a4a3895b5d965a9856d27610a3df662c6", size = 771490 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/03/9f/157e913626c1acfb3b19ce000b1a6e4e4fb177c0bc0ea0c67ca5bd714b5a/torch_geometric-2.6.1-py3-none-any.whl", hash = "sha256:8faeb353f9655f7dbec44c5e0b44c721773bdfb279994da96b9b8b12fd30f427", size = 1135632 },
+]
+
+[[package]]
+name = "torch-sparse"
+version = "0.6.18+pt26cu126"
+source = { url = "https://data.pyg.org/whl/torch-2.6.0+cu126/torch_sparse-0.6.18+pt26cu126-cp312-cp312-linux_x86_64.whl" }
+dependencies = [
+    { name = "scipy" },
+]
+wheels = [
+    { url = "https://data.pyg.org/whl/torch-2.6.0+cu126/torch_sparse-0.6.18+pt26cu126-cp312-cp312-linux_x86_64.whl", hash = "sha256:53116d2c98ecfd3d8c5e415ab797d427328665f7cbbb8cab2f785d97819f79e2" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pytest", marker = "extra == 'test'" },
+    { name = "pytest-cov", marker = "extra == 'test'" },
+    { name = "scipy" },
 ]
 
 [[package]]

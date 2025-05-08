@@ -25,6 +25,7 @@ dependencies = [
     "smo>=2.0.2",
     "tifffile>=2025.3.30",
     "torch-geometric>=2.6.1",
+    "torch-sparse",
     "tqdm>=4.67.1",
 ]
 
@@ -37,3 +38,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["imageanalysis"]
+
+[tool.uv.sources]
+torch-sparse = { url = "https://data.pyg.org/whl/torch-2.6.0+cu126/torch_sparse-0.6.18+pt26cu126-cp312-cp312-linux_x86_64.whl" }
