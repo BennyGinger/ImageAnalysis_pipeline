@@ -58,3 +58,8 @@ torch-scatter = [
 [[tool.uv.index]]
 url = "https://download.pytorch.org/whl/cu124"
 
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.5",
+]
+

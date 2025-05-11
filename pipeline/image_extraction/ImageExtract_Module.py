@@ -57,7 +57,7 @@ class ImageExtractionModule(BaseModule):
         # Save the settings
         for exp_obj in exp_objs:
             # Add the version of the pipeline
-            exp_obj.version = version('ImageAnalysis')
+            exp_obj.version = version('imageanalysis-pipeline')
             # Add the labels
             exp_obj.analysis.labels = self.get_labels(exp_obj)
             exp_obj.save_as_json()

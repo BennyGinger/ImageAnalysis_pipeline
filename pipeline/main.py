@@ -66,7 +66,7 @@ if __name__ == "__main__":
     from time import time
 
     settings = {
-    "input_folder": '/home/Dia/brill',
+    "input_folder": r'E:\Dia\brill',
     
     "optimization": True,
     
