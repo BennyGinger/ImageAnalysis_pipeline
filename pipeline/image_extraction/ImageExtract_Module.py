@@ -11,6 +11,10 @@ from utilities.Experiment_Classes import Experiment, init_from_dict, init_from_j
 from utilities.Base_Module_Class import BaseModule
 
 
+# FIXME: Refactor this using pathlib
+# TODO: Only add relative path to the json file
+# TODO: Create a manifest at runtime with all the full paths of the data foders
+
 EXTENTION = ('.nd2','.tif','.tiff')
 
 @dataclass
