@@ -10,10 +10,15 @@ from pre_process.PreProcess_Module import PreProcessModule
 from segmentation.Segmentation_Module import SegmentationModule
 from tracking.Tracking_Class import TrackingModule
 from analysis.Analysis_class import AnalysisModule
+from utilities.path_converter import convert_json_paths
 
 
 def run_pipeline(settings: dict)-> pd.DataFrame:
     input_folder = settings['input_folder']
+    
+    # Convert the paths in the settings to the correct format
+    convert_json_paths(input_folder)
+    
     exp_list = ImageExtractionModule(input_folder,**settings['init']).extract_img_seq()
     
     exp_list = PreProcessModule(input_folder,exp_list).process_from_settings(settings)
