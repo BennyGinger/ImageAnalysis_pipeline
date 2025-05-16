@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from os import PathLike
 from pathlib import Path
 from time import sleep
+from typing import Any
 
 from imageanalysis.pre_process.image_blur import blur_images
 from imageanalysis.pre_process.background_sub import background_sub
@@ -21,7 +22,7 @@ class PreProcessModule(BaseModule):
         # exp_obj_lst: list[Experiment] = field(init=False)
         # optimization: bool = False
             
-    def process_from_settings(self, settings: dict)-> list[Experiment]:
+    def process_from_settings(self, settings: dict[str, Any])-> list[Experiment]:
         # If optimization is set, then process only the first experiment
         self.optimization = settings['optimization']
         

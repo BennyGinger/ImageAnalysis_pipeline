@@ -1,6 +1,7 @@
 from __future__ import annotations
 # Force the multiprocessing to to start with new interpreter, as pytorch by default will pre-configure the interpreter, which will 'hog' CPU usage
 from multiprocessing import set_start_method
+from typing import Any
 set_start_method("spawn",force=True)
 
 import pandas as pd
@@ -13,7 +14,7 @@ from imageanalysis.analysis.Analysis_class import AnalysisModule
 from imageanalysis.utilities.path_converter import convert_json_paths
 
 
-def run_pipeline(settings: dict)-> pd.DataFrame:
+def run_pipeline(settings: dict[str, Any])-> pd.DataFrame:
     input_folder = settings['input_folder']
     
     # Convert the paths in the settings to the correct format
@@ -36,24 +37,24 @@ def run_pipeline(settings: dict)-> pd.DataFrame:
     master_df = AnalysisModule(input_folder,exp_list).analyze_from_settings(settings)
     return master_df
 
-def run_preprocess(settings: dict)-> None:
+def run_preprocess(settings: dict[str, Any])-> None:
     input_folder = settings['input_folder']
     exp_list = ImageExtractionModule(input_folder,**settings['init']).extract_img_seq()
     PreProcessModule(input_folder,exp_list).process_from_settings(settings)
 
-def run_segmentation(settings: dict)-> None:
+def run_segmentation(settings: dict[str, Any])-> None:
     input_folder = settings['input_folder']
     SegmentationModule(input_folder).segment_from_settings(settings)
 
-def run_tracking(settings: dict)-> None: 
+def run_tracking(settings: dict[str, Any])-> None: 
     input_folder = settings['input_folder']
     TrackingModule(input_folder).track_from_settings(settings)
 
-def run_analysis(settings: dict)-> pd.DataFrame:
+def run_analysis(settings: dict[str, Any])-> pd.DataFrame:
     input_folder = settings['input_folder']
     return AnalysisModule(input_folder).analyze_from_settings(settings)
 
-def reset_overwrite(settings: dict)-> None:
+def reset_overwrite(settings: dict[str, Any])-> None:
     for k,v in settings.items():
         if k == "optimization":
             settings[k] = False
@@ -62,15 +63,16 @@ def reset_overwrite(settings: dict)-> None:
             settings[k] = False
         
         if isinstance(v, dict):
-            reset_overwrite(v)
+            reset_overwrite(v) # type: ignore
+        
         elif isinstance(v, tuple):
-            reset_overwrite(v[1])
+            reset_overwrite(v[1]) # type: ignore
 
 
 if __name__ == "__main__":
     from time import time
 
-    settings = {
+    settings: dict[str, Any] = {
     "input_folder": r'E:\Dia\brill',
     
     "optimization": True,
@@ -110,7 +112,11 @@ if __name__ == "__main__":
                 {"channel_to_seg":"RFP",
                 "manual_threshold": None,
                 "img_fold_src": "",
-                "overwrite": False,}),
+                "overwrite": False,
+                "clean_mask": False,         # True: remove small objects and fill small holes
+                    "hole_thresold": 50,     # Only if clean_mask is True: maximum size in pixels of holes to fill
+                    "obj_threshold": 1000,   # Only if clean_mask is True: maximum size in pixels of objects to remove
+                "fill_holes": False}),       # Fills all holes in the mask
     
     "iou_track": (False,
                   {"channel_to_track":["RFP","GFP"], 

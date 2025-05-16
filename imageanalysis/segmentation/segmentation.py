@@ -4,14 +4,14 @@ from os import PathLike
 from pathlib import Path
 
 import cv2
-from skimage.morphology import remove_small_objects, remove_small_holes
+from skimage.morphology import remove_small_objects, remove_small_holes, binary_fill_holes
 import numpy as np
 
 from imageanalysis.utilities.data_utility import load_stack, create_save_folder, save_tif, run_multithread, get_exp_props, is_channel_in_lst
 
 
 ############################# main functions ######################################
-def threshold(img_paths: list[PathLike], channel_seg: str, overwrite: bool=False, manual_threshold: int=None, um_per_pixel: tuple[float,float]=None, finterval: int=None)-> dict:
+def threshold(*, img_paths: list[PathLike], channel_seg: str, overwrite: bool=False, manual_threshold: int=None, um_per_pixel: tuple[float,float]=None, finterval: int=None, clean_mask: bool=False, hole_thresold: int=50, obj_threshold:int=1000, fill_holes:bool=False)-> dict[str, any]:
     # Set up segmentation
     exp_path: Path = Path(img_paths[0]).parent.parent
     print(f" --> Segmenting object in {exp_path}")
@@ -34,13 +34,17 @@ def threshold(img_paths: list[PathLike], channel_seg: str, overwrite: bool=False
                   'manual_threshold':manual_threshold,
                   'process_as_2D':True,
                   'metadata':{'um_per_pixel':um_per_pixel,
-                              'finterval':finterval}}
+                              'finterval':finterval},
+                  'clean_mask':clean_mask,
+                  'hole_thresold':hole_thresold,
+                  'obj_threshold':obj_threshold,
+                  'fill_holes':fill_holes}
     
     log = f"Manual Threshold of {manual_threshold}" if manual_threshold else "Automatic Threshold"
     print(f"  ---> Segmenting object with {log}")
     
     # Apply threshold
-    results = run_multithread(apply_threshold,range(frames),fixed_args)
+    results = run_multithread(apply_threshold, range(frames), fixed_args)
     threshold_value_list = [thres_val for thres_val in results]
 
     return create_threshold_settings(manual_threshold,threshold_value_list,Path(img_paths[0]).parent.stem)
@@ -54,11 +58,18 @@ def determine_threshold(img: np.ndarray, manual_threshold: float=None)-> float:
         threshold_value,_ = cv2.threshold(img.astype(np.uint8),0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
     return threshold_value
 
-def clean_mask(mask: np.ndarray)-> np.ndarray:
-    mask = remove_small_holes(mask.astype(bool),50)
-    return remove_small_objects(mask,1000).astype(np.uint16)
+def clean_mask(mask: np.ndarray, hole_thresold: int, obj_threshold: int)-> np.ndarray:
+    """
+    Function to clean the mask by removing small objects and holes.
+    Args:
+        mask (np.ndarray): Binary mask to clean.
+        hole_thresold (int): Maximum size in pixels of holes to fill.
+        obj_threshold (int): Maximum size in pixels of objects to remove.
+    """
+    mask = remove_small_holes(mask.astype(bool), hole_thresold)
+    return remove_small_objects(mask, obj_threshold).astype(np.uint16)
 
-def create_threshold_settings(manual_threshold: float | None, threshold_value_list: list, fold_src: str)-> dict:
+def create_threshold_settings(manual_threshold: float | None, threshold_value_list: list, fold_src: str)-> dict[str, any]:
     log_value = "MANUAL"
     threshold_value = manual_threshold
     if not manual_threshold:
@@ -67,16 +78,40 @@ def create_threshold_settings(manual_threshold: float | None, threshold_value_li
     print(f"  ---> {log_value} threshold value of {threshold_value}")
     return {'method':log_value,'threshold':threshold_value,'fold_src':fold_src}
         
-def apply_threshold(frame: int, img_paths: list[PathLike], channel: str, process_as_2D: bool, manual_threshold: float, metadata: dict)-> float:
+def apply_threshold(frame: int, img_paths: list[PathLike], channel: str, process_as_2D: bool, manual_threshold: float, metadata: dict, clean_mask: bool, hole_thresold: int, obj_threshold:int, fill_holes:bool) -> float:
+    """
+    Function to apply the threshold to the image. The function loads the image, applies the threshold and saves the mask.
+    Args:
+        frame (int): Frame number to process.
+        img_paths (list[PathLike]): List of image paths.
+        channel (str): Channel to process.
+        process_as_2D (bool): Whether to process the image as 2D or 3D.
+        manual_threshold (float): Manual threshold value.
+        metadata (dict): Metadata for the experiment.
+        clean_mask (bool): Whether to clean the mask or not, by removing small objects and small holes.
+        hole_thresold (int): Maximum size in pixels of holes to fill.
+        obj_threshold (int): Maximum size in pixels of objects to remove.
+        fill_holes (bool): Whether to fill all holes in the mask or not.
+    """
     # Load the image
     img = load_stack(img_paths,channel,frame,process_as_2D)
+    
     # Save directory
     path_name = [path for path in sorted(img_paths) if f'_f{frame+1:04d}' in path and channel in path][0]
     mask_path = path_name.replace('Images','Masks_Threshold').replace('_Registered','').replace('_Blured','')
+    
     # Get the threshold value
     threshold_value = determine_threshold(img,manual_threshold)
+    
     # Apply the threshold
-    _,mask = cv2.threshold(img.astype(np.uint8),threshold_value,255,cv2.THRESH_BINARY)
+    _, mask = cv2.threshold(img.astype(np.uint8),threshold_value,255,cv2.THRESH_BINARY)
+    
+    # Clean the mask?
+    mask = clean_mask(mask, hole_thresold, obj_threshold) if clean_mask else mask
+    
+    # Fill holes in the mask
+    mask = fill_mask_holes(mask) if fill_holes else mask
+    
     # Save
     save_tif(mask,mask_path,**metadata)
     return threshold_value
@@ -96,6 +131,12 @@ def load_metadata(exp_path: Path, channel_to_seg: str)-> dict:
         meta = json.load(fp)
     return meta['segmentation']['threshold_seg'][channel_to_seg]
 
+def fill_mask_holes(mask: np.ndarray) -> np.ndarray:
+    """
+    Fill holes in a binary mask.
+    """
+    filled = binary_fill_holes(mask.astype(bool))
+    return (filled * np.max(mask)).astype(mask.dtype)
 
 
 if __name__ == "__main__":

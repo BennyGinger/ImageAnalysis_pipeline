@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
+from typing import Any
 
 from imageanalysis.utilities.Base_Module_Class import BaseModule
 from imageanalysis.utilities.Experiment_Classes import Experiment
@@ -16,7 +17,7 @@ class TrackingModule(BaseModule):
         # exp_obj_lst: list[Experiment] = field(init=False)
         # optimization: bool = False
     
-    def track_from_settings(self, settings: dict)-> list[Experiment]:
+    def track_from_settings(self, settings: dict[str, Any])-> list[Experiment]:
         # If optimization is set, then process only the first experiment
         self.optimization = settings['optimization']
         
@@ -41,6 +42,7 @@ class TrackingModule(BaseModule):
             self.exp_obj_lst = self.man_tracking(**sets.man_track)
             self.save_as_json()
             return self.exp_obj_lst
+        return self.exp_obj_lst
     
     @staticmethod
     def _iou_tracking(exp_obj: Experiment, channel_to_track: str, mask_fold_src: str, stitch_thres_percent: float, shape_thres_percent: float, overwrite: bool, mask_appear: int, copy_first_to_start: bool, copy_last_to_end: bool)-> None:

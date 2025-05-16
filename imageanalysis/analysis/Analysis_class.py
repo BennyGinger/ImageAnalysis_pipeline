@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from os import sep, remove
 from os.path import join, exists
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -25,7 +26,7 @@ class AnalysisModule(BaseModule):
         # exp_obj_lst: list[Experiment] = field(init=False)
         # optimization: bool = False
     
-    def analyze_from_settings(self, settings: dict)-> pd.DataFrame:
+    def analyze_from_settings(self, settings: dict[str, Any])-> pd.DataFrame:
         # If optimization is set, then process only the first experiment
         self.optimization = settings['optimization'] 
         

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from os import PathLike
+from typing import Any
 
 from imageanalysis.utilities.Base_Module_Class import BaseModule
 from imageanalysis.utilities.Experiment_Classes import Experiment
@@ -16,7 +17,7 @@ class SegmentationModule(BaseModule):
         # exp_obj_lst: list[Experiment] = field(init=False)
         # optimization: bool = False
             
-    def segment_from_settings(self, settings: dict)-> list[Experiment]:
+    def segment_from_settings(self, settings: dict[str, Any])-> list[Experiment]:
         # If optimization is set, then process only the first experiment
         self.optimization = settings['optimization']
 
@@ -46,9 +47,17 @@ class SegmentationModule(BaseModule):
         metadata = {'finterval':exp_obj.analysis.interval_sec,
                     'um_per_pixel':exp_obj.analysis.um_per_pixel}
         # Run cellpose
-        model_settings,cellpose_eval = cellpose_segmentation(img_paths,channel_to_seg,model_type,
-                                diameter,flow_threshold,cellprob_threshold,overwrite,process_as_2D,
-                                save_as_npy,metadata=metadata,**kwargs)
+        model_settings,cellpose_eval = cellpose_segmentation(img_paths=img_paths,
+                                                             channel_seg=channel_to_seg,
+                                                             model_type=model_type,
+                                                             diameter=diameter,
+                                                             flow_threshold=flow_threshold,
+                                                             cellprob_threshold=cellprob_threshold,
+                                                             overwrite=overwrite,
+                                                             process_as_2D=process_as_2D,
+                                                             save_as_npy=save_as_npy,
+                                                             metadata=metadata,
+                                                             **kwargs)
         # Save settings
         exp_obj.segmentation.cellpose_seg[channel_to_seg] = {'fold_src':img_fold_src,
                                                                 'model_settings':model_settings,
@@ -56,18 +65,36 @@ class SegmentationModule(BaseModule):
         exp_obj.save_as_json()
     
     def cellpose(self, channel_to_seg: str | list[str], model_type: str | PathLike = 'cyto2', diameter: float = 60, flow_threshold: float = 0.4, cellprob_threshold: float = 0, overwrite: bool = False, img_fold_src: str = "", process_as_2D: bool = False, save_as_npy: bool = False,**kwargs)-> None:
-        if isinstance(channel_to_seg,str):
+        if isinstance(channel_to_seg, str):
             print("\n-> Segmenting images with cellpose")
             
-            self._loop_over_exp(self._cellpose,channel_to_seg=channel_to_seg,model_type=model_type,diameter=diameter,flow_threshold=flow_threshold,cellprob_threshold=cellprob_threshold,overwrite=overwrite,img_fold_src=img_fold_src,process_as_2D=process_as_2D,save_as_npy=save_as_npy,**kwargs)
+            self._loop_over_exp(self._cellpose, 
+                                channel_to_seg=channel_to_seg,
+                                model_type=model_type,
+                                diameter=diameter,
+                                flow_threshold=flow_threshold,
+                                cellprob_threshold=cellprob_threshold,
+                                overwrite=overwrite,
+                                img_fold_src=img_fold_src,
+                                process_as_2D=process_as_2D,
+                                save_as_npy=save_as_npy,
+                                **kwargs)
         
-        if isinstance(channel_to_seg,list):
+        if isinstance(channel_to_seg, list):
             for channel in channel_to_seg:
-                self.cellpose(channel,model_type,diameter,flow_threshold,cellprob_threshold,
-                              overwrite,img_fold_src,process_as_2D,save_as_npy,**kwargs)
+                self.cellpose(channel_to_seg=channel,
+                              model_type=model_type,
+                              diameter=diameter,
+                              flow_threshold=flow_threshold,
+                              cellprob_threshold=cellprob_threshold,
+                              overwrite=overwrite,
+                              img_fold_src=img_fold_src,
+                              process_as_2D=process_as_2D,
+                              save_as_npy=save_as_npy,
+                              **kwargs)
        
     @staticmethod
-    def _thresholding(exp_obj: Experiment, channel_to_seg: str, overwrite: bool, manual_threshold: int, img_fold_src: str)-> None:
+    def _thresholding(exp_obj: Experiment, channel_to_seg: str, overwrite: bool, manual_threshold: int, img_fold_src: str, clean_mask: bool, hole_thresold: int, obj_threshold:int, fill_holes:bool)-> None:
         # Activate branch
         exp_obj.segmentation.is_threshold = True
         # Get the image paths and metadata
@@ -76,21 +103,45 @@ class SegmentationModule(BaseModule):
         finterval = exp_obj.analysis.interval_sec
         
         # Run thresholding
-        exp_obj.segmentation.threshold_seg[channel_to_seg] = threshold(img_paths,channel_to_seg,overwrite,manual_threshold,um_per_pixel,finterval)
+        exp_obj.segmentation.threshold_seg[channel_to_seg] = threshold(img_paths=img_paths,
+                                                                       channel_seg=channel_to_seg,
+                                                                       overwrite=overwrite,
+                                                                       manual_threshold=manual_threshold,
+                                                                       um_per_pixel=um_per_pixel,
+                                                                       finterval=finterval,
+                                                                       clean_mask=clean_mask,
+                                                                       hole_thresold=hole_thresold,
+                                                                       obj_threshold=obj_threshold,
+                                                                       fill_holes=fill_holes)
         exp_obj.save_as_json()
         return
     
-    def thresholding(self, channel_to_seg: str | list[str], overwrite: bool=False, manual_threshold: int=None, img_fold_src: str="")-> None:
+    def thresholding(self, channel_to_seg: str | list[str], overwrite: bool=False, manual_threshold: int=None, img_fold_src: str="", clean_mask: bool=False, hole_thresold: int=50, obj_threshold:int=1000, fill_holes:bool=False)-> None:
         
         if isinstance(channel_to_seg,str):
             print(f"\n-> Thresholding images")
             
-            self._loop_over_exp(self._thresholding,channel_to_seg=channel_to_seg,overwrite=overwrite,manual_threshold=manual_threshold,img_fold_src=img_fold_src)
+            self._loop_over_exp(self._thresholding,
+                                channel_to_seg=channel_to_seg,
+                                overwrite=overwrite,
+                                manual_threshold=manual_threshold,
+                                img_fold_src=img_fold_src,
+                                clean_mask=clean_mask,
+                                hole_thresold=hole_thresold,
+                                obj_threshold=obj_threshold,
+                                fill_holes=fill_holes)
         
         if isinstance(channel_to_seg,list):
             for channel in channel_to_seg:
-                self.thresholding(channel,overwrite,manual_threshold,img_fold_src)
-            return
+                self.thresholding(channel_to_seg=channel,
+                                  overwrite=overwrite,
+                                  manual_threshold=manual_threshold,
+                                  img_fold_src=img_fold_src,
+                                  clean_mask=clean_mask,
+                                  hole_thresold=hole_thresold,
+                                  obj_threshold=obj_threshold,
+                                  fill_holes=fill_holes)
+
         
                 
                 
