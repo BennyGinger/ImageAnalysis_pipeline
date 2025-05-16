@@ -74,7 +74,7 @@ class BaseModule:
         Return the active experiment objects, If optimization is set, return only the first experiment object. Else return all experiment objects.
         """
         end = 1 if self.optimization else None
-        return self.exp_obj_lst[:end]
+        return sorted(self.exp_obj_lst)[:end]
         
 
 

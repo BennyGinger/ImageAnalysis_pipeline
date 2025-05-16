@@ -18,7 +18,7 @@ def threshold(*, img_paths: list[PathLike], channel_seg: str, overwrite: bool=Fa
     save_path: Path = Path(create_save_folder(exp_path,'Masks_Threshold'))
     
     # Check if channel is in the list
-    if not is_channel_in_lst(img_paths,channel_seg):
+    if not is_channel_in_lst(channel_seg, img_paths):
         raise ValueError(f"Channel '{channel_seg}' not found in the image files.")
     
     # Already segmented?
