@@ -4,7 +4,8 @@ from os import PathLike
 from pathlib import Path
 
 import cv2
-from skimage.morphology import remove_small_objects, remove_small_holes, binary_fill_holes
+from skimage.morphology import remove_small_objects, remove_small_holes
+from scipy.ndimage import binary_fill_holes
 import numpy as np
 
 from imageanalysis.utilities.data_utility import load_stack, create_save_folder, save_tif, run_multithread, get_exp_props, is_channel_in_lst
@@ -25,7 +26,7 @@ def threshold(*, img_paths: list[PathLike], channel_seg: str, overwrite: bool=Fa
     if any(file.match(f"*{channel_seg}*") for file in save_path.glob('*.tif')) and not overwrite:
         # Log
         print(f"  ---> Object has already been segmented for the channel {channel_seg}")
-        return load_metadata(exp_path,channel_seg)
+        return _load_metadata(exp_path,channel_seg)
     
     # Generate input data
     _, _, frames, _ = get_exp_props(img_paths)
@@ -47,18 +48,18 @@ def threshold(*, img_paths: list[PathLike], channel_seg: str, overwrite: bool=Fa
     results = run_multithread(apply_threshold, range(frames), fixed_args)
     threshold_value_list = [thres_val for thres_val in results]
 
-    return create_threshold_settings(manual_threshold,threshold_value_list,Path(img_paths[0]).parent.stem)
+    return _create_threshold_settings(manual_threshold,threshold_value_list,Path(img_paths[0]).parent.stem)
 
 
 ############################# helper functions ######################################
-def determine_threshold(img: np.ndarray, manual_threshold: float=None)-> float:
+def _determine_threshold(img: np.ndarray, manual_threshold: float=None)-> float:
     # Set the threshold's value. Either as input or automatically if thres is None
     threshold_value = manual_threshold
     if not manual_threshold:
         threshold_value,_ = cv2.threshold(img.astype(np.uint8),0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
     return threshold_value
 
-def clean_mask(mask: np.ndarray, hole_thresold: int, obj_threshold: int)-> np.ndarray:
+def _clean_mask(mask: np.ndarray, hole_thresold: int, obj_threshold: int)-> np.ndarray:
     """
     Function to clean the mask by removing small objects and holes.
     Args:
@@ -69,7 +70,7 @@ def clean_mask(mask: np.ndarray, hole_thresold: int, obj_threshold: int)-> np.nd
     mask = remove_small_holes(mask.astype(bool), hole_thresold)
     return remove_small_objects(mask, obj_threshold).astype(np.uint16)
 
-def create_threshold_settings(manual_threshold: float | None, threshold_value_list: list, fold_src: str)-> dict[str, any]:
+def _create_threshold_settings(manual_threshold: float | None, threshold_value_list: list, fold_src: str)-> dict[str, any]:
     log_value = "MANUAL"
     threshold_value = manual_threshold
     if not manual_threshold:
@@ -101,22 +102,22 @@ def apply_threshold(frame: int, img_paths: list[PathLike], channel: str, process
     mask_path = path_name.replace('Images','Masks_Threshold').replace('_Registered','').replace('_Blured','')
     
     # Get the threshold value
-    threshold_value = determine_threshold(img,manual_threshold)
+    threshold_value = _determine_threshold(img,manual_threshold)
     
     # Apply the threshold
     _, mask = cv2.threshold(img.astype(np.uint8),threshold_value,255,cv2.THRESH_BINARY)
     
     # Clean the mask?
-    mask = clean_mask(mask, hole_thresold, obj_threshold) if clean_mask else mask
+    mask = _clean_mask(mask, hole_thresold, obj_threshold) if clean_mask else mask
     
     # Fill holes in the mask
-    mask = fill_mask_holes(mask) if fill_holes else mask
+    mask = _fill_mask_holes(mask) if fill_holes else mask
     
     # Save
     save_tif(mask,mask_path,**metadata)
     return threshold_value
 
-def load_metadata(exp_path: Path, channel_to_seg: str)-> dict:
+def _load_metadata(exp_path: Path, channel_to_seg: str)-> dict:
     """Function to load the metadata from the json file if it exists. Experiment obj are saved as json files,
     which contains the metadata for the experiment. The metadata contains the settings for threshold."""
     
@@ -131,7 +132,7 @@ def load_metadata(exp_path: Path, channel_to_seg: str)-> dict:
         meta = json.load(fp)
     return meta['segmentation']['threshold_seg'][channel_to_seg]
 
-def fill_mask_holes(mask: np.ndarray) -> np.ndarray:
+def _fill_mask_holes(mask: np.ndarray) -> np.ndarray:
     """
     Fill holes in a binary mask.
     """

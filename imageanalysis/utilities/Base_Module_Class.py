@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from os import PathLike, walk
 from os.path import join
+import re
 from typing import Callable
 
 from imageanalysis.utilities.pipeline_utility import progress_bar, pbar_desc
@@ -74,8 +75,23 @@ class BaseModule:
         Return the active experiment objects, If optimization is set, return only the first experiment object. Else return all experiment objects.
         """
         end = 1 if self.optimization else None
-        return sorted(self.exp_obj_lst)[:end]
+        return sorted(self.exp_obj_lst, key=_suffix_num)[:end]
         
-
+def _suffix_num(exp: Experiment)-> int:
+    """
+    Extract the suffix number from the experiment path.
+    Args:
+        exp (Experiment): Experiment object.
+        
+    Returns:
+        int: Suffix number.
+    """
+    # make sure we operate on a string
+    path_str = str(exp.exp_path)
+    # regex to grab the number after '_s'
+    m = re.search(r'_s(\d+)$', path_str)
+    if not m:
+        raise ValueError(f"No '_s<digits>' suffix in {path_str!r}")
+    return int(m.group(1))
 
     #TODO: add methods to change channel names

@@ -229,9 +229,9 @@ def run_multithread(func: Callable, input_data: Iterable, fixed_args: dict=None,
     # Run callable in threads
     outputs = []
     with ThreadPoolExecutor() as executor:
-        with progress_bar(total=len(input_data)) as pbar:
+        with progress_bar(input_data, total=len(input_data)) as pbar:
             # Run function
-            results = executor.map(partial(func,**fixed_args),input_data)
+            results = executor.map(partial(func,**fixed_args), input_data)
             # Update the pbar and get outputs
             for output in results:
                 pbar.update()
@@ -245,7 +245,7 @@ def run_multiprocess(func: Callable, input_data: Iterable, fixed_args: dict=None
     
     # Run cellpose in threads
     with ProcessPoolExecutor() as executor:
-        with progress_bar(total=len(input_data)) as pbar:
+        with progress_bar(input_data, total=len(input_data)) as pbar:
             results = executor.map(partial(func,**fixed_args),input_data)
             # Update the pbar
             outputs = []
