@@ -73,12 +73,12 @@ if __name__ == "__main__":
     from time import time
 
     settings: dict[str, Any] = {
-    "input_folder": r'E:\Dia\brill',
+    "input_folder": '/home/ben/images/test_compress',
     
-    "optimization": True,
+    "optimization": False,
     
-    "init":{"active_channel_list": ['Brillouin','GFP'],
-            'full_channel_list': ['Brillouin','GFP'],
+    "init":{"active_channel_list": ['RFP','GFP'],
+            'full_channel_list': ['RFP','GFP','BF'],
             "overwrite": False},
     
     "bg_sub": (True,
@@ -89,7 +89,7 @@ if __name__ == "__main__":
                     "reg_mtd": "rigid_body",
                     "overwrite": False}),
     
-    "frame_shift": (True,
+    "frame_shift": (False,
                 {"reg_channel": "GFP",
                 "reg_mtd": "rigid_body",
                 "img_ref": "previous",
@@ -108,15 +108,15 @@ if __name__ == "__main__":
                 "process_as_2D": True,
                 "overwrite": False,}),
     
-    "threshold": (False,
+    "threshold": (True,
                 {"channel_to_seg":"RFP",
                 "manual_threshold": None,
                 "img_fold_src": "",
-                "overwrite": False,
-                "clean_mask": False,         # True: remove small objects and fill small holes
+                "clean_mask": True,         # True: remove small objects and fill small holes
                     "hole_thresold": 50,     # Only if clean_mask is True: maximum size in pixels of holes to fill
                     "obj_threshold": 1000,   # Only if clean_mask is True: maximum size in pixels of objects to remove
-                "fill_holes": False}),       # Fills all holes in the mask
+                "fill_holes": True,       # Fills all holes in the mask
+                "overwrite": False,}),
     
     "iou_track": (False,
                   {"channel_to_track":["RFP","GFP"], 
@@ -149,7 +149,7 @@ if __name__ == "__main__":
                    "process_as_2D":True,
                    "overwrite":True}),
     
-    "draw_mask": (True,
+    "draw_mask": (False,
                   {"mask_label": ["tail", "wound"], # str or list[str]
                    "channel_show": "GFP",
                    "overwrite": False}),
@@ -160,17 +160,17 @@ if __name__ == "__main__":
                          "dilation_rad": None,    # Dilation of the mask in pixel, if not None, to be sure that the mask is covering the cell
                          "overwrite": False}),
     
-    "extract_pixelwise": (True,
+    "extract_pixelwise": (False,
                     {"mask_label": "wound", # Label of the reference mask
                      "mask_fold_src": "Masks_tail", # Masks that delimit the region of interest. 
                      "mask_channel": "", # Mask channel to be used, if multiple channels exists. If not, leave it as "". The pixelwise data can only be extracted from one channel at a time
                      "img_fold_src": "", 
                      "overwrite": False}),
     
-    "extract_data": (False,
+    "extract_data": (True,
                   {"do_diff": False,
                    "diff_channel_ratio":"GFP/RFP",
-                   "overwrite": True}),
+                   "overwrite": False}),
     }
     
     t1 = time()

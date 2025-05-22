@@ -208,11 +208,16 @@ def _save_tif(array: np.ndarray, save_path: PathType, um_per_pixel: tuple[float,
     """Actual save function for tif with metadata. If no metadata provided, save the array as tif without metadata"""
     # If no metadata provided
     if not finterval or not um_per_pixel:
-        imwrite(save_path,array.astype(np.uint16))
+        imwrite(save_path, array.astype(np.uint16), compression='zlib')
         return
     # Unpack metadata
     imagej_metadata = {'finterval':finterval, 'unit': 'um'}
-    imwrite(save_path,array.astype(np.uint16),imagej=True,metadata=imagej_metadata,resolution=get_resolution(um_per_pixel))
+    imwrite(save_path,
+            array.astype(np.uint16),
+            imagej=True,
+            metadata=imagej_metadata,
+            resolution=get_resolution(um_per_pixel),
+            compression='zlib')
 
 def run_multithread(func: Callable, input_data: Iterable, fixed_args: dict=None, add_lock: bool=True)-> list:
     """Run a function in multi-threading. It uses a lock to limit access of some functions to the different threads."""
