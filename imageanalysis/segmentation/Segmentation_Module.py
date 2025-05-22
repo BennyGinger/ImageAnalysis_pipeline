@@ -96,7 +96,7 @@ class SegmentationModule(BaseModule):
     @staticmethod
     def _thresholding(exp_obj: Experiment, channel_to_seg: str, overwrite: bool, manual_threshold: int, img_fold_src: str, clean_mask: bool, hole_thresold: int, obj_threshold:int, fill_holes:bool)-> None:
         # Activate branch
-        exp_obj.segmentation.is_threshold = True
+        exp_obj.segmentation.is_threshold_seg = True
         # Get the image paths and metadata
         img_fold_src,img_paths = img_list_src(exp_obj,img_fold_src)
         um_per_pixel = exp_obj.analysis.um_per_pixel

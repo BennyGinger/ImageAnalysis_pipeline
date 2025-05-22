@@ -201,7 +201,8 @@ def select_masks_fold_list(exp_obj: Experiment, mask_fold_src: list[str] | str)-
         mask_fold_src = track_mask_lst_src(exp_obj, mask_fold_src)[0]
         return [mask_fold_src]
     
-    # Else, retrun segmentation masks
+    # Else, return segmentation masks
+    print(f"{mask_fold_src=}")
     mask_fold_src = seg_mask_lst_src(exp_obj, mask_fold_src)[0]
     return [mask_fold_src]
 
