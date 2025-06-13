@@ -4,7 +4,7 @@ import sys
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QGraphicsScene, QGraphicsView,
     QGraphicsPixmapItem, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QSlider, QLabel
+    QPushButton, QSlider, QLabel, QGroupBox
 )
 from PyQt6.QtGui import QImage, QPixmap, QPainterPath, QPen
 from PyQt6.QtCore import Qt, QRectF
@@ -104,11 +104,15 @@ class ImageAnnotator(QMainWindow):
         self.current_frame = 0
         self.masks = {}
 
-        # Viewer and controls
+        # Viewer and navigation
         self.viewer = ImageViewer()
         self.prev_btn = QPushButton("Previous")
         self.next_btn = QPushButton("Next")
+
+        # Action buttons
         self.auto_scale_btn = QPushButton("Auto Scale")
+        # Make Auto Scale narrower
+        self.auto_scale_btn.setMaximumWidth(100)
         self.save_btn = QPushButton("Save Annotation")
         self.process_btn = QPushButton("Process")
 
@@ -116,44 +120,48 @@ class ImageAnnotator(QMainWindow):
         self.min_slider = QSlider(Qt.Orientation.Horizontal)
         self.min_slider.setRange(0, np.iinfo(np.uint16).max)
         self.min_slider.setValue(0)
-
         self.max_slider = QSlider(Qt.Orientation.Horizontal)
         self.max_slider.setRange(0, np.iinfo(np.uint16).max)
         self.max_slider.setValue(np.iinfo(np.uint16).max)
-
         self.brightness_slider = QSlider(Qt.Orientation.Horizontal)
         self.brightness_slider.setRange(-100, 100)
         self.brightness_slider.setValue(0)
-
         self.contrast_slider = QSlider(Qt.Orientation.Horizontal)
         self.contrast_slider.setRange(1, 300)
         self.contrast_slider.setValue(100)
 
+        # Group LUT + Auto Scale
+        self.lut_group = QGroupBox("LUT Controls")
+        lut_layout = QVBoxLayout()
+        lut_layout.addWidget(QLabel("Min"))
+        lut_layout.addWidget(self.min_slider)
+        lut_layout.addWidget(QLabel("Max"))
+        lut_layout.addWidget(self.max_slider)
+        lut_layout.addWidget(QLabel("Brightness %"))
+        lut_layout.addWidget(self.brightness_slider)
+        lut_layout.addWidget(QLabel("Contrast %"))
+        lut_layout.addWidget(self.contrast_slider)
+        lut_layout.addWidget(self.auto_scale_btn, alignment=Qt.AlignmentFlag.AlignHCenter)
+        self.lut_group.setLayout(lut_layout)
+
+        # Arrange all controls
         controls = QWidget()
-        ctrl_layout = QVBoxLayout()
+        ctrl_layout = QVBoxLayout(controls)
         ctrl_layout.addWidget(self.prev_btn)
         ctrl_layout.addWidget(self.next_btn)
-        ctrl_layout.addWidget(QLabel("Min"))
-        ctrl_layout.addWidget(self.min_slider)
-        ctrl_layout.addWidget(QLabel("Max"))
-        ctrl_layout.addWidget(self.max_slider)
-        ctrl_layout.addWidget(QLabel("Brightness %"))
-        ctrl_layout.addWidget(self.brightness_slider)
-        ctrl_layout.addWidget(QLabel("Contrast %"))
-        ctrl_layout.addWidget(self.contrast_slider)
-        ctrl_layout.addWidget(self.auto_scale_btn)
+        ctrl_layout.addWidget(self.lut_group)
         ctrl_layout.addSpacing(12)
         ctrl_layout.addWidget(self.save_btn)
         ctrl_layout.addWidget(self.process_btn)
-        controls.setLayout(ctrl_layout)
 
+        # Main container
         container = QWidget()
-        main_layout = QHBoxLayout()
+        main_layout = QHBoxLayout(container)
         main_layout.addWidget(self.viewer)
         main_layout.addWidget(controls)
-        container.setLayout(main_layout)
         self.setCentralWidget(container)
 
+        # Connect signals
         self.prev_btn.clicked.connect(self.load_prev)
         self.next_btn.clicked.connect(self.load_next)
         self.auto_scale_btn.clicked.connect(self.auto_scale)
@@ -168,70 +176,59 @@ class ImageAnnotator(QMainWindow):
         self._update_nav_buttons()
 
     def auto_scale(self):
-        # Compute optimal window, brightness, contrast for crisp display
         arr = self.image_series[self.current_frame]
-        # Window to full dynamic range
-        min_val = int(np.min(arr))
-        max_val = int(np.max(arr))
-        self.min_slider.setValue(min_val)
-        self.max_slider.setValue(max_val)
-        # Reset brightness/contrast to default (no offset, unity gain)
+        self.min_slider.setValue(int(np.min(arr)))
+        self.max_slider.setValue(int(np.max(arr)))
         self.brightness_slider.setValue(0)
         self.contrast_slider.setValue(100)
         self.update_image()
 
     def update_image(self):
         arr = self.image_series[self.current_frame]
-        min_val = self.min_slider.value()
-        max_val = self.max_slider.value()
+        min_val, max_val = self.min_slider.value(), self.max_slider.value()
         if max_val <= min_val:
             max_val = min_val + 1
-        arr_clamped = np.clip(arr, min_val, max_val)
-        norm = (arr_clamped - min_val) / (max_val - min_val)
-        norm = norm * (self.contrast_slider.value() / 100.0)
-        norm = norm + (self.brightness_slider.value() / 100.0)
-        norm = np.clip(norm, 0.0, 1.0)
+        norm = (np.clip(arr, min_val, max_val) - min_val) / (max_val - min_val)
+        norm = np.clip(norm * (self.contrast_slider.value()/100.0) + (self.brightness_slider.value()/100.0), 0.0, 1.0)
         img16 = (norm * np.iinfo(np.uint16).max).astype(np.uint16)
-        bytes_per_line = self.w * 2
-        qimage = QImage(img16.data, self.w, self.h, bytes_per_line, QImage.Format.Format_Grayscale16)
+        qimage = QImage(img16.data, self.w, self.h, self.w*2, QImage.Format.Format_Grayscale16)
         self.viewer.set_image(qimage)
-        mask = self.masks.get(self.current_frame, None)
-        self.viewer.set_mask(mask)
+        self.viewer.set_mask(self.masks.get(self.current_frame))
         self._update_nav_buttons()
 
     def _update_nav_buttons(self):
         self.prev_btn.setEnabled(self.current_frame > 0)
-        self.next_btn.setEnabled(self.current_frame < self.n_frames - 1)
+        self.next_btn.setEnabled(self.current_frame < self.n_frames-1)
 
     def load_prev(self):
-        self.current_frame = max(0, self.current_frame - 1)
+        self.current_frame = max(0, self.current_frame-1)
         self.update_image()
 
     def load_next(self):
-        self.current_frame = min(self.n_frames - 1, self.current_frame + 1)
+        self.current_frame = min(self.n_frames-1, self.current_frame+1)
         self.update_image()
 
     def save_annotation(self):
-        pts = [(int(p.x()), int(p.y())) for p in self.viewer.points]
-        if len(pts) >= 3:
-            xs, ys = zip(*pts)
-            rr, cc = skimage_polygon(ys, xs, shape=(self.h, self.w))
-            mask = np.zeros((self.h, self.w), dtype=bool)
-            mask[rr, cc] = True
-            self.masks[self.current_frame] = mask
-            self.viewer.set_mask(mask)
-            if self.current_frame < self.n_frames - 1:
-                self.current_frame += 1
-                self.update_image()
-        else:
+        pts = [(int(p.x()),int(p.y())) for p in self.viewer.points]
+        if len(pts) <3:
             print("Draw a polygon first.")
+            return
+        xs, ys = zip(*pts)
+        rr, cc = skimage_polygon(ys, xs, shape=(self.h,self.w))
+        mask = np.zeros((self.h,self.w), bool)
+        mask[rr, cc] = True
+        self.masks[self.current_frame] = mask
+        self.viewer.set_mask(mask)
+        if self.current_frame < self.n_frames-1:
+            self.current_frame += 1
+            self.update_image()
 
     def process(self):
         self.close()
 
 
 def polygon_into_mask(poly_dict: dict, img_shape: tuple) -> np.ndarray:
-    mask_stack = np.zeros(shape=img_shape, dtype=('uint8'))
+    mask_stack = np.zeros(img_shape, "uint8")
     for frame, polygon in poly_dict.items():
         mask_stack[frame] = polygon
     return mask_stack
