@@ -95,19 +95,31 @@ class ImageAnnotator(QMainWindow):
     def __init__(self, image_series):
         super().__init__()
         self.setWindowTitle("Image Annotator")
+        # Keep 16-bit float data for full precision
         self.image_series = image_series.astype(np.float32)
         self.n_frames, self.h, self.w = self.image_series.shape
         self.current_frame = 0
         self.masks = {}
 
+        # Viewer and controls
         self.viewer = ImageViewer()
         self.prev_btn = QPushButton("Previous")
         self.next_btn = QPushButton("Next")
         self.save_btn = QPushButton("Save Annotation")
         self.process_btn = QPushButton("Process")
 
+        # LUT controls
+        self.min_slider = QSlider(Qt.Orientation.Horizontal)
+        self.min_slider.setRange(0, np.iinfo(np.uint16).max)
+        self.min_slider.setValue(0)
+
+        self.max_slider = QSlider(Qt.Orientation.Horizontal)
+        self.max_slider.setRange(0, np.iinfo(np.uint16).max)
+        self.max_slider.setValue(np.iinfo(np.uint16).max)
+
         self.brightness_slider = QSlider(Qt.Orientation.Horizontal)
-        self.brightness_slider.setRange(-100, 100)
+        # Keep small brightness adjustments ±255
+        self.brightness_slider.setRange(-255, 255)
         self.brightness_slider.setValue(0)
 
         self.contrast_slider = QSlider(Qt.Orientation.Horizontal)
@@ -118,6 +130,11 @@ class ImageAnnotator(QMainWindow):
         ctrl_layout = QVBoxLayout()
         ctrl_layout.addWidget(self.prev_btn)
         ctrl_layout.addWidget(self.next_btn)
+        # Order: Min, Max, Brightness, Contrast
+        ctrl_layout.addWidget(QLabel("Min"))
+        ctrl_layout.addWidget(self.min_slider)
+        ctrl_layout.addWidget(QLabel("Max"))
+        ctrl_layout.addWidget(self.max_slider)
         ctrl_layout.addWidget(QLabel("Brightness"))
         ctrl_layout.addWidget(self.brightness_slider)
         ctrl_layout.addWidget(QLabel("Contrast"))
@@ -126,6 +143,7 @@ class ImageAnnotator(QMainWindow):
         ctrl_layout.addWidget(self.process_btn)
         controls.setLayout(ctrl_layout)
 
+        # Main layout
         container = QWidget()
         main_layout = QHBoxLayout()
         main_layout.addWidget(self.viewer)
@@ -133,27 +151,44 @@ class ImageAnnotator(QMainWindow):
         container.setLayout(main_layout)
         self.setCentralWidget(container)
 
+        # Signal connections
         self.prev_btn.clicked.connect(self.load_prev)
         self.next_btn.clicked.connect(self.load_next)
         self.save_btn.clicked.connect(self.save_annotation)
         self.process_btn.clicked.connect(self.process)
+        self.min_slider.valueChanged.connect(self.update_image)
+        self.max_slider.valueChanged.connect(self.update_image)
         self.brightness_slider.valueChanged.connect(self.update_image)
         self.contrast_slider.valueChanged.connect(self.update_image)
 
+        # Initial display
         self.update_image()
         self._update_nav_buttons()
 
     def update_image(self):
+        # Get raw frame
         arr = self.image_series[self.current_frame]
-        img16 = np.clip(
-            arr * (self.contrast_slider.value() / 100.0)
-            + self.brightness_slider.value(),
-            0,
-            np.iinfo(np.uint16).max,
-        ).astype(np.uint16)
-        img8 = (img16 >> 8).astype(np.uint8)
-        qimage = QImage(img8.data, self.w, self.h, self.w, QImage.Format.Format_Grayscale8)
+        # Window using Min/Max sliders
+        min_val = self.min_slider.value()
+        max_val = self.max_slider.value()
+        if max_val <= min_val:
+            max_val = min_val + 1
+        arr_clamped = np.clip(arr, min_val, max_val)
+        # Normalize to [0,1]
+        norm = (arr_clamped - min_val) / (max_val - min_val)
+        # Apply contrast
+        norm = norm * (self.contrast_slider.value() / 100.0)
+        # Apply brightness in normalized space
+        norm = norm + (self.brightness_slider.value() / 100.0)
+        # Clip normalized
+        norm = np.clip(norm, 0.0, 1.0)
+        # Scale to 16-bit
+        img16 = (norm * np.iinfo(np.uint16).max).astype(np.uint16)
+        # Build QImage (2 bytes per pixel)
+        bytes_per_line = self.w * 2
+        qimage = QImage(img16.data, self.w, self.h, bytes_per_line, QImage.Format.Format_Grayscale16)
         self.viewer.set_image(qimage)
+        # Overlay any existing mask
         mask = self.masks.get(self.current_frame, None)
         self.viewer.set_mask(mask)
         self._update_nav_buttons()
@@ -171,16 +206,14 @@ class ImageAnnotator(QMainWindow):
         self.update_image()
 
     def save_annotation(self):
-        # convert points to (x, y) ints
         pts = [(int(p.x()), int(p.y())) for p in self.viewer.points]
         if len(pts) >= 3:
-            xs, ys = zip(*pts)  # unpack x/y
+            xs, ys = zip(*pts)
             rr, cc = skimage_polygon(ys, xs, shape=(self.h, self.w))
             mask = np.zeros((self.h, self.w), dtype=bool)
             mask[rr, cc] = True
             self.masks[self.current_frame] = mask
             self.viewer.set_mask(mask)
-            # auto-advance
             if self.current_frame < self.n_frames - 1:
                 self.current_frame += 1
                 self.update_image()
@@ -190,7 +223,8 @@ class ImageAnnotator(QMainWindow):
     def process(self):
         self.close()
 
-def polygon_into_mask(poly_dict: dict, img_shape: tuple)->np.array:
+
+def polygon_into_mask(poly_dict: dict, img_shape: tuple) -> np.ndarray:
     mask_stack = np.zeros(shape=img_shape, dtype=('uint8'))
     for frame, polygon in poly_dict.items():
         mask_stack[frame] = polygon
@@ -200,9 +234,9 @@ if __name__ == "__main__":
     from pathlib import Path
     from tifffile import imwrite
 
-    from utilities.data_utility import load_stack
+    from imageanalysis.utilities.data_utility import load_stack
 
-    folder = Path("/home/Test_images/Dia_annoying/brillouin_LifeActGFP_hypocontr@5frame_002_Brill+Fluor_s1/Images_Registered")
+    folder = Path("/media/ben/Analysis/Python/Docker_mount/Test_images/Dia_annoying/brillouin_LifeActGFP_hypocontr@5frame_002_Brill+Fluor_s1/Images_Registered")
     files = sorted(folder.glob("*.tif"))
     data = load_stack(files, channels='GFP', return_2D=True)
     masks_dict = draw_polygons(data)
