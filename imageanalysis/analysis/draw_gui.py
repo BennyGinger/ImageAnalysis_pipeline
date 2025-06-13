@@ -1,7 +1,11 @@
 from __future__ import annotations
 import sys
 
-from PyQt6.QtWidgets import QApplication, QMainWindow, QGraphicsScene, QGraphicsView, QGraphicsPixmapItem, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QSlider, QLabel
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QGraphicsScene, QGraphicsView,
+    QGraphicsPixmapItem, QWidget, QVBoxLayout, QHBoxLayout,
+    QPushButton, QSlider, QLabel
+)
 from PyQt6.QtGui import QImage, QPixmap, QPainterPath, QPen
 from PyQt6.QtCore import Qt, QRectF
 import numpy as np
@@ -95,7 +99,6 @@ class ImageAnnotator(QMainWindow):
     def __init__(self, image_series):
         super().__init__()
         self.setWindowTitle("Image Annotator")
-        # Keep 16-bit float data for full precision
         self.image_series = image_series.astype(np.float32)
         self.n_frames, self.h, self.w = self.image_series.shape
         self.current_frame = 0
@@ -105,6 +108,7 @@ class ImageAnnotator(QMainWindow):
         self.viewer = ImageViewer()
         self.prev_btn = QPushButton("Previous")
         self.next_btn = QPushButton("Next")
+        self.auto_scale_btn = QPushButton("Auto Scale")
         self.save_btn = QPushButton("Save Annotation")
         self.process_btn = QPushButton("Process")
 
@@ -118,8 +122,7 @@ class ImageAnnotator(QMainWindow):
         self.max_slider.setValue(np.iinfo(np.uint16).max)
 
         self.brightness_slider = QSlider(Qt.Orientation.Horizontal)
-        # Keep small brightness adjustments ±255
-        self.brightness_slider.setRange(-255, 255)
+        self.brightness_slider.setRange(-100, 100)
         self.brightness_slider.setValue(0)
 
         self.contrast_slider = QSlider(Qt.Orientation.Horizontal)
@@ -130,20 +133,20 @@ class ImageAnnotator(QMainWindow):
         ctrl_layout = QVBoxLayout()
         ctrl_layout.addWidget(self.prev_btn)
         ctrl_layout.addWidget(self.next_btn)
-        # Order: Min, Max, Brightness, Contrast
         ctrl_layout.addWidget(QLabel("Min"))
         ctrl_layout.addWidget(self.min_slider)
         ctrl_layout.addWidget(QLabel("Max"))
         ctrl_layout.addWidget(self.max_slider)
-        ctrl_layout.addWidget(QLabel("Brightness"))
+        ctrl_layout.addWidget(QLabel("Brightness %"))
         ctrl_layout.addWidget(self.brightness_slider)
-        ctrl_layout.addWidget(QLabel("Contrast"))
+        ctrl_layout.addWidget(QLabel("Contrast %"))
         ctrl_layout.addWidget(self.contrast_slider)
+        ctrl_layout.addWidget(self.auto_scale_btn)
+        ctrl_layout.addSpacing(12)
         ctrl_layout.addWidget(self.save_btn)
         ctrl_layout.addWidget(self.process_btn)
         controls.setLayout(ctrl_layout)
 
-        # Main layout
         container = QWidget()
         main_layout = QHBoxLayout()
         main_layout.addWidget(self.viewer)
@@ -151,9 +154,9 @@ class ImageAnnotator(QMainWindow):
         container.setLayout(main_layout)
         self.setCentralWidget(container)
 
-        # Signal connections
         self.prev_btn.clicked.connect(self.load_prev)
         self.next_btn.clicked.connect(self.load_next)
+        self.auto_scale_btn.clicked.connect(self.auto_scale)
         self.save_btn.clicked.connect(self.save_annotation)
         self.process_btn.clicked.connect(self.process)
         self.min_slider.valueChanged.connect(self.update_image)
@@ -161,34 +164,37 @@ class ImageAnnotator(QMainWindow):
         self.brightness_slider.valueChanged.connect(self.update_image)
         self.contrast_slider.valueChanged.connect(self.update_image)
 
-        # Initial display
         self.update_image()
         self._update_nav_buttons()
 
-    def update_image(self):
-        # Get raw frame
+    def auto_scale(self):
+        # Compute optimal window, brightness, contrast for crisp display
         arr = self.image_series[self.current_frame]
-        # Window using Min/Max sliders
+        # Window to full dynamic range
+        min_val = int(np.min(arr))
+        max_val = int(np.max(arr))
+        self.min_slider.setValue(min_val)
+        self.max_slider.setValue(max_val)
+        # Reset brightness/contrast to default (no offset, unity gain)
+        self.brightness_slider.setValue(0)
+        self.contrast_slider.setValue(100)
+        self.update_image()
+
+    def update_image(self):
+        arr = self.image_series[self.current_frame]
         min_val = self.min_slider.value()
         max_val = self.max_slider.value()
         if max_val <= min_val:
             max_val = min_val + 1
         arr_clamped = np.clip(arr, min_val, max_val)
-        # Normalize to [0,1]
         norm = (arr_clamped - min_val) / (max_val - min_val)
-        # Apply contrast
         norm = norm * (self.contrast_slider.value() / 100.0)
-        # Apply brightness in normalized space
         norm = norm + (self.brightness_slider.value() / 100.0)
-        # Clip normalized
         norm = np.clip(norm, 0.0, 1.0)
-        # Scale to 16-bit
         img16 = (norm * np.iinfo(np.uint16).max).astype(np.uint16)
-        # Build QImage (2 bytes per pixel)
         bytes_per_line = self.w * 2
         qimage = QImage(img16.data, self.w, self.h, bytes_per_line, QImage.Format.Format_Grayscale16)
         self.viewer.set_image(qimage)
-        # Overlay any existing mask
         mask = self.masks.get(self.current_frame, None)
         self.viewer.set_mask(mask)
         self._update_nav_buttons()
