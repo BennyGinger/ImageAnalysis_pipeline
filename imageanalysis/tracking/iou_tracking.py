@@ -1,13 +1,16 @@
 from __future__ import annotations
 from os import listdir, PathLike
+import os, contextlib
 from pathlib import Path
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
 from os.path import join
 from threading import Lock
 
-from cellpose.utils import stitch3D
-from cellpose.metrics import _intersection_over_union
+with open(os.devnull, 'w') as devnull, contextlib.redirect_stdout(devnull):
+    # Suppress Cellpose welcome message    
+    from cellpose.utils import stitch3D
+    from cellpose.metrics import _intersection_over_union
 from scipy.stats import mode
 from skimage.measure import regionprops_table
 from skimage.segmentation import relabel_sequential

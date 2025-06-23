@@ -1,11 +1,14 @@
 from __future__ import annotations
 import json
 from os.path import isfile
+import os, contextlib
 from pathlib import Path
 
 import numpy as np
-from cellpose import models, core
-from cellpose.io import logger_setup, masks_flows_to_seg
+with open(os.devnull, 'w') as devnull, contextlib.redirect_stdout(devnull):
+    # Suppress Cellpose Welcome message
+    from cellpose import models, core
+    from cellpose.io import logger_setup, masks_flows_to_seg
 
 from imageanalysis.utilities.data_utility import load_stack, create_save_folder, save_tif, run_multithread, run_multiprocess, get_exp_props, is_channel_in_lst
 from imageanalysis.utilities.pipeline_utility import PathType
