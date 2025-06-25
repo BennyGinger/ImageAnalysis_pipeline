@@ -24,12 +24,13 @@ def get_tif_meta(img_path: PathLike) -> dict:
     if 'channels' not in imagej_meta: imagej_meta['channels'] = 1
 
     if 'slices' not in imagej_meta: imagej_meta['slices'] = 1
-
+    
+    # FIXME: I've removed the int conversion, make sure it doesn't break anything
     if 'finterval' not in imagej_meta: 
         imagej_meta['finterval'] = None
         print("Warning: No frame interval found in metadata. Defaulting to None")
-    else:
-        imagej_meta['finterval'] = int(imagej_meta['finterval'])
+    # else:
+    #     imagej_meta['finterval'] = int(imagej_meta['finterval'])
 
     original_keys = ['ImageWidth','ImageLength','frames','channels','slices','axes','finterval']
     new_keys = ['img_width','img_length','n_frames','full_n_channels','n_slices','axes','interval_sec']
@@ -179,31 +180,12 @@ if __name__ == '__main__':
     from time import time
     from pathlib import Path
     
-    # Test
-    t1 = time()
-    img_paths = list(Path("/home/Test_images/szimi/MET/20240515-fMLF_diffusion").glob("**/*.tif"))
-    img_paths = [str(p) for p in img_paths]
-    
-    for path in img_paths:
-        metadata = get_metadata(path)
-        print(metadata['um_per_pixel'])
-    
-    # with TiffFile(img_paths[0]) as tif:
-    #     imagej_meta = tif.imagej_metadata
-    #     imagej_meta['axes'] = tif.series[0].axes
-    #     for page in tif.pages: # Add additional meta
-    #         print(page.tags)
-    #         for tag in page.tags:
-    #             print(tag)
-    #             if tag.name in ['ImageWidth','ImageLength',]:
-    #                 imagej_meta[tag.name] = tag.value
-    #             if tag.name in ['XResolution','YResolution']:
-    #                 imagej_meta[tag.name] = tag.value[0]/tag.value[1]
-    # print(imagej_meta)
+    img_path = Path('/media/ben/Analysis/Python/Images/Dia_annoying/1166x1421x1527_hypo002-1.tif')
     
     
-    t2 = time()
-    print(f"Time to process: {round(t2-t1,ndigits=3)} sec\n")
+    
+    
+    get_tif_meta(img_path)
 
 
 
