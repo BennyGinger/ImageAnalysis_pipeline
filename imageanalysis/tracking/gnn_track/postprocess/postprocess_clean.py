@@ -132,21 +132,21 @@ class Postprocess():
     def _build_trajectory_matrix(self, frames: list[int])-> list[int]:
         
         new_track_starting_ids = []
-        for frame in frames:
+        for frame_idx, frame in enumerate(frames):
             # Get index of every cells idx, in given frame
             nodes = self.df_feat[self.df_feat.frame_num==frame].index.values
             # If first frame, fill the matrix with the starting cells
-            if frame == 0:
-                self.trajectory_matrix[frame, :nodes.shape[0]] = nodes
+            if frame_idx == 0:
+                self.trajectory_matrix[frame_idx, :nodes.shape[0]] = nodes
                 new_track_starting_ids.extend(nodes.tolist())
             
             # If not first frame, find the trajectory nodes and update the new_track list with new tracks
             
             dev = True
             if dev:
-                new_track_starting_ids.extend(self._find_trajectory_by_prediction(frame, nodes))
+                new_track_starting_ids.extend(self._find_trajectory_by_prediction(frame_idx, nodes))
             else:
-                new_track_starting_ids.extend(self._find_trajectory_nodes(frame, nodes))
+                new_track_starting_ids.extend(self._find_trajectory_nodes(frame_idx, nodes))
         return new_track_starting_ids
     
     

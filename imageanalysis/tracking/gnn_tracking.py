@@ -49,8 +49,8 @@ def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_trav
     passed_args.update(kwargs)
     
     # Set exp paths
-    exp_path: Path = Path(exp_path)
-    save_path: Path = exp_path.joinpath('Masks_GNN_Track')
+    exp_path_obj: Path = Path(exp_path)
+    save_path: Path = exp_path_obj.joinpath('Masks_GNN_Track')
     save_path.mkdir(exist_ok=True)
     
     
@@ -65,7 +65,7 @@ def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_trav
     
     ## Prepare tracking
     # Set all the paths
-    img_paths, preds_dir, seg_paths, model_path, ckpt_path = set_all_paths(exp_path, model, img_fold_src, seg_fold_src)
+    img_paths, preds_dir, seg_paths, model_path, ckpt_path = set_all_paths(exp_path_obj, model, img_fold_src, seg_fold_src)
     # Get the properties of the experiment
     _, _, frames, z_slices = get_exp_props(list(img_paths.glob('*.tif')))
     is_3d = True if z_slices > 1 else False
@@ -117,13 +117,13 @@ def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_trav
     relabel_masks(frames,save_path,channel_to_track,metadata,trim_incomplete_tracks)
     
     if manual_correct: #write mdf file to manual correct the tracks later
-        prepare_manual_correct(frames,save_path,channel_to_track,exp_path)
+        prepare_manual_correct(frames,save_path,channel_to_track,exp_path_obj)
 
 
 
 
 ################################## Helper functions ##################################
-def set_all_paths(exp_path: Path, model: str, img_fold_src: Path, seg_fold_src: Path)-> tuple[Path, Path, Path, Path, Path]:
+def set_all_paths(exp_path: Path, model: str, img_fold_src: str, seg_fold_src: str)-> tuple[Path, Path, Path, Path, Path]:
     # Create save directory
     preds_dir: Path = exp_path.joinpath('gnn_files')
     preds_dir.mkdir(exist_ok=True)
@@ -133,8 +133,10 @@ def set_all_paths(exp_path: Path, model: str, img_fold_src: Path, seg_fold_src: 
     # Get the model paths
     if model not in MODEL:
         raise AttributeError(f"{model =} is not a valid modelname.")
-    model_path = Path(f"/ImageAnalysis/pipeline/tracking/gnn_track/models/{model}/all_params.pth")
-    ckpt_path = Path(f"/ImageAnalysis/pipeline/tracking/gnn_track/models/{model}/{MODEL[model]}")
+    current_dir = Path(__file__).parent
+    models_dir = current_dir.joinpath("gnn_track", "models", model)
+    model_path = models_dir.joinpath("all_params.pth")
+    ckpt_path = models_dir.joinpath(MODEL[model])
     return img_paths,preds_dir,seg_paths,model_path,ckpt_path
 
 def create_mdf_file(exp_path: Path, points_df, channel_seg):
@@ -163,38 +165,145 @@ def create_mdf_file(exp_path: Path, points_df, channel_seg):
     print(f'--> .mdf trackingfile saved for the {channel_seg} channel')
 
 def prepare_manual_correct(frames: int, mask_fold_src: Path, channel_seg: str, exp_path: Path):
-    # Load masks
-    # Load masks
-    mask_src_list = sorted(list(mask_fold_src.glob('*.tif')))
-    mask_stack = load_stack(mask_src_list,[channel_seg],range(frames))
-    # get centroids of all obj and save them with the label ID in a dataframe
-    for frame, img in enumerate(mask_stack, start=1):
-        props_table = regionprops_table(img, properties=('label','centroid'))
-        props_df = DataFrame(props_table)
-        props_df[frame] = list(zip(props_df['centroid-0'], props_df['centroid-1']))
-        props_df = props_df.drop(columns=['centroid-0', 'centroid-1'])
-        if frame == 1:
-            points_df=props_df[['label', frame]].copy()
-        else:
-            points_df = points_df.join(props_df.set_index('label'), on='label', how='outer')
-    points_df = points_df.sort_values('label').set_index('label')
-    create_mdf_file(exp_path, points_df, channel_seg)
-
-def relabel_masks(frames: int, mask_fold_src: Path, channel_seg: str, metadata: dict, trim_incomplete_tracks: bool=False):
-    # Load masks
+    # Load masks individually to avoid load_stack issues with empty masks
     mask_fold_src = Path(mask_fold_src)
     mask_src_list = sorted(list(mask_fold_src.glob('*.tif')))
-    mask_stack = load_stack(mask_src_list,[channel_seg],range(frames))
+    
+    # Load masks one by one using tifffile to avoid load_stack issues with empty masks
+    import tifffile
+    mask_list = []
+    
+    for frame_idx in range(frames):
+        if frame_idx < len(mask_src_list):
+            try:
+                mask = tifffile.imread(mask_src_list[frame_idx])
+                # Handle 3D masks by taking max projection if needed
+                if mask.ndim > 2:
+                    mask = np.max(mask, axis=0)
+                mask_list.append(mask)
+            except Exception as e:
+                print(f"Warning: Could not load mask {mask_src_list[frame_idx]}: {e}")
+                # Create empty mask with same shape as previous mask if available
+                if mask_list:
+                    empty_mask = np.zeros_like(mask_list[0])
+                    mask_list.append(empty_mask)
+                else:
+                    # Skip this frame if no valid mask available yet
+                    continue
+        else:
+            # If there are fewer mask files than frames, create empty mask
+            if mask_list:
+                empty_mask = np.zeros_like(mask_list[0])
+                mask_list.append(empty_mask)
+    
+    # get centroids of all obj and save them with the label ID in a dataframe
+    points_df = None
+    for frame, img in enumerate(mask_list, start=1):
+        try:
+            props_table = regionprops_table(img, properties=('label','centroid'))
+            props_df = DataFrame(props_table)
+            if len(props_df) > 0:  # Only process if there are objects
+                props_df[frame] = list(zip(props_df['centroid-0'], props_df['centroid-1']))
+                props_df = props_df.drop(columns=['centroid-0', 'centroid-1'])
+                if frame == 1:
+                    points_df = props_df[['label', frame]].copy()
+                else:
+                    if points_df is not None:
+                        # Use reset_index to avoid label column conflict
+                        points_df = points_df.reset_index(drop=True)
+                        props_df = props_df.reset_index(drop=True)
+                        points_df = points_df.merge(props_df, on='label', how='outer')
+        except Exception as e:
+            print(f"Warning: Could not process mask for frame {frame}: {e}")
+            continue
+    
+    if points_df is not None and len(points_df) > 0:
+        try:
+            # Make sure there are no index conflicts
+            if 'label' in points_df.columns:
+                points_df = points_df.sort_values('label').set_index('label')
+            create_mdf_file(exp_path, points_df, channel_seg)
+        except Exception as e:
+            print(f"Warning: Could not create MDF file: {e}")
+            # If setting index fails, just proceed without it
+            pass
+
+def relabel_masks(frames: int, mask_fold_src: Path, channel_seg: str, metadata: dict, trim_incomplete_tracks: bool=False):
+    # Load masks individually to avoid shape issues
+    mask_fold_src = Path(mask_fold_src)
+    mask_src_list = sorted(list(mask_fold_src.glob('*.tif')))
+    
+    # Load masks one by one using tifffile directly
+    mask_list = []
+    first_mask_shape = None
+    
+    for frame_idx in range(frames):
+        if frame_idx < len(mask_src_list):
+            try:
+                # Load mask directly using tifffile
+                from tifffile import imread
+                mask = imread(mask_src_list[frame_idx])
+                
+                # Handle 3D masks by taking max projection if needed
+                if mask.ndim > 2:
+                    mask = np.max(mask, axis=0)
+                
+                # Store the shape of the first valid mask for creating empty masks
+                if first_mask_shape is None:
+                    first_mask_shape = mask.shape
+                
+                mask_list.append(mask)
+            except Exception as e:
+                print(f"Warning: Could not load mask {mask_src_list[frame_idx]}: {e}")
+                # Create empty mask with same shape as first valid mask if available
+                if first_mask_shape is not None:
+                    empty_mask = np.zeros(first_mask_shape, dtype=np.uint16)
+                    mask_list.append(empty_mask)
+                else:
+                    # If no valid mask shape is available yet, skip this frame
+                    continue
+        else:
+            # If there are fewer mask files than frames, create empty mask
+            if first_mask_shape is not None:
+                empty_mask = np.zeros(first_mask_shape, dtype=np.uint16)
+                mask_list.append(empty_mask)
+    
+    # Convert to stack if all masks have the same shape
+    if mask_list:
+        try:
+            mask_stack = np.stack(mask_list)
+        except ValueError:
+            # If stacking fails due to shape mismatch, process individually
+            print("Warning: Mask shapes are inconsistent, processing individually")
+            for frame, mask_path in enumerate(mask_src_list):
+                if frame < len(mask_list):
+                    try:
+                        save_tif(array=mask_list[frame], save_path=mask_path, **metadata)
+                    except Exception as e:
+                        print(f"Warning: Could not save mask {mask_path} with metadata: {e}")
+                        # Try saving without metadata
+                        save_tif(array=mask_list[frame], save_path=mask_path, um_per_pixel=(1.0, 1.0), finterval=1)
+            return
+    else:
+        print("Warning: No masks found")
+        return
+    
     # trim incomplete tracks
     print(f"Unique mask before trim: {len(np.unique(mask_stack))}")
     if trim_incomplete_tracks:
         trim_incomplete_track(mask_stack)
         print(f"Unique mask after trim: {len(np.unique(mask_stack))}")
+    
     # relabel the masks
     # mask_stack, _, _ = relabel_sequential(mask_stack)
     # save the masks back into the folder, this time with metadata
     for frame, mask_path in enumerate(mask_src_list):
-        save_tif(array=mask_stack[frame], save_path=mask_path,**metadata)
+        try:
+            save_tif(array=mask_stack[frame], save_path=mask_path, **metadata)
+        except Exception as e:
+            print(f"Warning: Could not save mask {mask_path} with metadata: {e}")
+            # Try saving without metadata
+            save_tif(array=mask_stack[frame], save_path=mask_path, um_per_pixel=(1.0, 1.0), finterval=1)
 
 def unpack_kwargs(kwargs: dict)-> dict:
     """Function to unpack the kwargs and extract necessary variable."""

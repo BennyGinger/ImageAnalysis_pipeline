@@ -25,11 +25,11 @@ def predict(ckpt_path: PathType, prediction_dir: Path, max_travel_pix: int, is_3
     node_features, edge_index = graph
     outputs = make_prediction(ckpt_path, node_features, edge_index)
     
-    # Save results
+    # Save results (ensure tensors are on CPU for compatibility)
     edges_path = prediction_dir.joinpath('edge_indexes.pt')
-    torch.save(edge_index, edges_path)
+    torch.save(edge_index.cpu(), edges_path)
     preds_path = prediction_dir.joinpath('raw_preds.pt')
-    torch.save(outputs, preds_path)
+    torch.save(outputs, preds_path)  # outputs is already on CPU from make_prediction
 
 
 ######################## Helper functions ########################
@@ -54,8 +54,15 @@ def make_prediction(ckpt_path: PathType, node_features: tuple[torch.FloatTensor,
     
     print(f"  ---> Make prediction")
     trained_model: CellTrackLitModel = load_model(ckpt_path)
+    
+    # Ensure all tensors are on the same device as the model
+    device = next(trained_model.parameters()).device
+    node_features = tuple(tensor.to(device) for tensor in node_features)
+    edge_index = edge_index.to(device)
+    
     predictions: torch.Tensor = trained_model(node_features, edge_index)
-    return predictions
+    # Move predictions back to CPU for compatibility with postprocessing
+    return predictions.cpu()
 
 @dataclass
 class Graph:
