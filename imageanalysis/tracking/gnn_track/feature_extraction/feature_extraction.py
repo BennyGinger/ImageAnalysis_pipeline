@@ -55,7 +55,7 @@ def extract_img_features(img_paths: Path, seg_paths: Path, model_path: Path, sav
     
     
     # Get the roi shape and pad value
-    model_params: dict = torch.load(model_path)
+    model_params: dict = torch.load(model_path, weights_only=False)
     if z_slices > 1:
         model_roi_shape = (model_params['roi']['depth'], model_params['roi']['row'], model_params['roi']['col'])
     else:
@@ -306,6 +306,10 @@ def initialize_models(model_params: dict[str, Any], z_slices: int)-> tuple[torch
 def extract_freature_metric_learning(padded_images: list[np.ndarray], trunk: torch.nn.Module, embedder: torch.nn.Module)-> np.ndarray:
     """Extract features from a frame using the metric learning model. The function will return the embedded image as a np.array."""
     
+    # Handle empty frames (no segmented objects)
+    if not padded_images:
+        return np.array([])  # Return empty 1D array
+    
     # Convert the images to torch.Tensor
     padded_tensor = torch.stack([torch.from_numpy(img).float() for img in padded_images])
     
@@ -323,6 +327,15 @@ def _extract_feat(frame_idx: int, trunk: torch.nn.Module, embedder: torch.nn.Mod
     return construct_csv(frame_idx, frame, embedded_array)
 
 def construct_csv(frame_idx: int, frame: FramesPreProcessing, embedded_array: np.ndarray)-> pd.DataFrame:
+    
+    # Handle empty frames (no segmented objects)
+    if embedded_array.size == 0:
+        # Return empty DataFrame with frame_num column
+        return pd.DataFrame({'frame_num': [frame_idx]}).iloc[:0]  # Empty DataFrame with correct column
+    
+    # Ensure embedded_array is 2D (n_objects, n_features)
+    if embedded_array.ndim == 1:
+        embedded_array = embedded_array[None, :]  # Add batch dimension
     
     feat_cols = [f'feat_{i}' for i in range(embedded_array.shape[1])]
     embedded_df = pd.DataFrame(embedded_array, columns=feat_cols)

@@ -10,7 +10,7 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "cellpose[gui]<4",
+    "cellpose[gui]<4.0",
     "ipython>=9.2.0",
     "ipywidgets>=8.1.7",
     "markupsafe<3.0",
@@ -27,12 +27,15 @@ dependencies = [
     "seaborn>=0.13.2",
     "smo>=2.0.2",
     "tifffile>=2025.3.30",
-    "torch>=2.6.0",
     "torch-geometric>=2.6.1",
-    "torch-scatter",
-    "torch-sparse",
-    "torchaudio>=2.6.0",
-    "torchvision>=0.21.0",
+    # only install CUDA scatter/sparse wheels on Linux or Win32
+    "torch_sparse==0.6.18+pt26cu124; sys_platform=='linux' or sys_platform=='win32'",
+    "torch_scatter==2.1.2+pt26cu124; sys_platform=='linux' or sys_platform=='win32'",
+    # always install core torch from pytorch-cu124 index
+    "torch==2.6.0+cu124",
+    "torchvision==0.21.0+cu124",
+    "torchaudio==2.6.0+cu124",
+    "omegaconf>=2.3.0",
 ]
 
 [project.scripts]
@@ -46,19 +49,25 @@ build-backend = "hatchling.build"
 packages = ["imageanalysis"]
 
 [tool.uv.sources]
-torch-sparse = [
-    {url = "https://data.pyg.org/whl/torch-2.6.0+cu124/torch_sparse-0.6.18+pt26cu124-cp312-cp312-linux_x86_64.whl", marker = "sys_platform == 'linux'"},
-    
-    {url = "https://data.pyg.org/whl/torch-2.6.0+cu124/torch_sparse-0.6.18+pt26cu124-cp312-cp312-win_amd64.whl", marker = "sys_platform == 'win32'"}
+torch       = [{ index = "pytorch-cu124" }]
+torchvision = [{ index = "pytorch-cu124" }]
+torchaudio  = [{ index = "pytorch-cu124" }]
+
+# PyG extras: exact URLs from https://data.pyg.org/whl/torch-2.6.0%2Bcu124.html
+torch_sparse = [
+  { url    = "https://data.pyg.org/whl/torch-2.6.0%2Bcu124/torch_sparse-0.6.18+pt26cu124-cp312-cp312-linux_x86_64.whl", marker = "sys_platform == 'linux'" },
+  { url    = "https://data.pyg.org/whl/torch-2.6.0%2Bcu124/torch_sparse-0.6.18+pt26cu124-cp312-cp312-win_amd64.whl", marker = "sys_platform == 'win32'" },
 ]
-torch-scatter = [
-    {url = "https://data.pyg.org/whl/torch-2.6.0+cu124/torch_scatter-2.1.2+pt26cu124-cp312-cp312-linux_x86_64.whl", marker = "sys_platform == 'linux'"},
-    
-    {url = "https://data.pyg.org/whl/torch-2.6.0+cu124/torch_scatter-2.1.2+pt26cu124-cp312-cp312-win_amd64.whl", marker = "sys_platform == 'win32'"}
+
+torch_scatter = [
+  { url    = "https://data.pyg.org/whl/torch-2.6.0%2Bcu124/torch_scatter-2.1.2+pt26cu124-cp312-cp312-linux_x86_64.whl", marker = "sys_platform == 'linux'" },
+  { url    = "https://data.pyg.org/whl/torch-2.6.0%2Bcu124/torch_scatter-2.1.2+pt26cu124-cp312-cp312-win_amd64.whl", marker = "sys_platform == 'win32'" },
 ]
 
 [[tool.uv.index]]
-url = "https://download.pytorch.org/whl/cu124"
+name     = "pytorch-cu124"
+url      = "https://download.pytorch.org/whl/cu124/"
+explicit = true
 
 [dependency-groups]
 dev = [
