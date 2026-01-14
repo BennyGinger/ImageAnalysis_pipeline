@@ -11,9 +11,6 @@ import numpy as np #TODO remove later!
 
 from imageanalysis.utilities.data_utility import load_stack, save_tif, get_exp_props
 from imageanalysis.utilities.pipeline_utility import PathType
-from imageanalysis.tracking.gnn_track.prediction.prediction import predict
-from imageanalysis.tracking.gnn_track.postprocess.postprocess_clean import Postprocess
-from imageanalysis.tracking.gnn_track.feature_extraction.feature_extraction import extract_img_features
 from imageanalysis.mask_transformation.complete_track import trim_incomplete_track
 
 
@@ -44,6 +41,18 @@ def gnn_tracking(exp_path: PathType, channel_to_track: str, model: str, max_trav
     Returns:
         list[Experiment]: List of Experiment objects with updated tracking information.
     """    
+    # Lazy import
+    try:
+        from imageanalysis.tracking.gnn_track.prediction.prediction import predict
+        from imageanalysis.tracking.gnn_track.postprocess.postprocess_clean import Postprocess
+        from imageanalysis.tracking.gnn_track.feature_extraction.feature_extraction import extract_img_features
+    except Exception as exc:
+        raise RuntimeError(
+            "GNN tracking requires PyTorch Geometric + compiled extensions compatible with your installed torch. "
+            "Install the matching PyG wheels from https://data.pyg.org/whl/ for your torch build."
+        ) from exc
+    
+    
     # Get the arguments to store them in file and assess if some part of the function needs to be overwritten or not
     passed_args = locals()
     passed_args.update(kwargs)

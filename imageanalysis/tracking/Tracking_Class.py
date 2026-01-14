@@ -6,7 +6,6 @@ from imageanalysis.utilities.Base_Module_Class import BaseModule
 from imageanalysis.utilities.Experiment_Classes import Experiment
 from imageanalysis.utilities.data_utility import seg_mask_lst_src, img_list_src
 from imageanalysis.tracking.iou_tracking import iou_tracking
-from imageanalysis.tracking.gnn_tracking import gnn_tracking
 from imageanalysis.tracking.man_tracking import man_tracking
 from imageanalysis.settings.Setting_Classes import Settings
 
@@ -105,6 +104,15 @@ class TrackingModule(BaseModule):
         um_per_pixel = exp_obj.analysis.um_per_pixel
         finterval = exp_obj.analysis.interval_sec
         
+        # Lazy import
+        try:
+            from imageanalysis.tracking.gnn_tracking import gnn_tracking
+        except Exception as exc:
+            raise RuntimeError(
+                "GNN tracking import failed. This usually means torch-geometric/torch_scatter/torch_sparse "
+                "do not match your installed torch build. Reinstall matching PyG wheels for your torch version."
+            ) from exc
+
         # Run GNN tracking
         gnn_tracking(exp_path,channel_to_track,model,max_travel_dist,img_fold_src,mask_fold_src,overwrite,decision_threshold,manual_correct,trim_incomplete_tracks,gap=gap, um_per_pixel=um_per_pixel,finterval=finterval)
 
