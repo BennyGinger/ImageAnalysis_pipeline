@@ -8,7 +8,7 @@ What BaxTrack does:
 - Provides cell/object tracking functionality using the Baxter Algorithm
 - Tracks segmented masks across time frames in microscopy data
 - Handles both 2D and 3D image stacks
-- Used specifically in the exp_bax_track() method (see line ~220)
+- Used specifically in the exp_bax_track() method in this file
 
 Dependencies:
 - Requires MATLAB Runtime (v9.12) to be installed on the system
