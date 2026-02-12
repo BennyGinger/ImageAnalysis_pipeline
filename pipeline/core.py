@@ -1,4 +1,25 @@
-import BaxTrack as BTP # FIXME: remove MATLAB from here!!!
+# BaxTrack Import:
+# Imports the BaxTrack package, a MATLAB-compiled Python library that implements 
+# the Baxter Algorithm for cell tracking in microscopy images. BaxTrack is used for 
+# tracking cell masks in both 2D and 3D time-lapse datasets.
+# 
+# What BaxTrack does:
+# - Provides cell/object tracking functionality using the Baxter Algorithm
+# - Tracks segmented masks across time frames in microscopy data
+# - Handles both 2D and 3D image stacks
+# - Used specifically in the exp_bax_track() method in this file
+# 
+# Dependencies:
+# - Requires MATLAB Runtime (v9.12) to be installed on the system
+# - Package must be installed via setup.py in the for_redistribution_files_only directory
+# - See the 'install' file in the repository root for complete installation instructions
+# 
+# FIXME: Future Development
+# This is a temporary dependency that should be replaced with a pure Python 
+# implementation to eliminate the MATLAB Runtime requirement and improve 
+# portability. This would remove the need for users to install MATLAB Runtime 
+# and simplify the installation process.
+import BaxTrack as BTP
 from utility import Utility
 from experiments import Exp_Indiv
 import pandas as pd
