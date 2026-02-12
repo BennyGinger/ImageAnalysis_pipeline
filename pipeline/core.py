@@ -1,5 +1,5 @@
 # BaxTrack Import:
-# This imports the BaxTrack package, a MATLAB-compiled Python library that implements 
+# Imports the BaxTrack package, a MATLAB-compiled Python library that implements 
 # the Baxter Algorithm for cell tracking in microscopy images. BaxTrack is used for 
 # tracking cell masks in both 2D and 3D time-lapse datasets.
 # 
@@ -11,8 +11,8 @@
 # 
 # Dependencies:
 # - Requires MATLAB Runtime (v9.12) to be installed on the system
-# - Package must be installed via setup.py from the for_redistribution_files_only directory
-# - See the 'install' file in the repository root for installation instructions
+# - Package must be installed via setup.py in the for_redistribution_files_only directory
+# - See the 'install' file in the repository root for complete installation instructions
 # 
 # FIXME: Future Development
 # This is a temporary dependency that should be replaced with a pure Python 
